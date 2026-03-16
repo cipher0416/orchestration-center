@@ -2,6 +2,7 @@ import {useTranslation} from "react-i18next";
 import {useEffect, useState} from "react";
 import {switchLanguage} from "@/service/api.js";
 import Header from "@/header/index.jsx";
+import AgentRegistry from "./components/registry_center/index.jsx";
 
 const MainContainer = () => {
     const {t, i18n} = useTranslation();
@@ -56,12 +57,12 @@ const MainContainer = () => {
 
             <main className="flex-1 min-h-0 relative overflow-hidden">
                 <div className={`h-full w-full ${activeTab === 'agents' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
-                    <RegisterCenter isDark={isDark}/>
+                    <AgentRegistry isDark={isDark}/>
                 </div>
 
-                <div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
-                    <OrchestrationCenter isDark={isDark}/>
-                </div>
+                {/*<div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>*/}
+                {/*    <OrchestrationCenter isDark={isDark}/>*/}
+                {/*</div>*/}
             </main>
         </div>
     )
