@@ -3,6 +3,7 @@ import {useEffect, useState} from "react";
 import {switchLanguage} from "@/service/api.js";
 import Header from "@/header/index.jsx";
 import AgentRegistry from "./components/registry_center/index.jsx";
+import OrchestrationCenter from "@/components/orchestration_center/index.jsx";
 
 const MainContainer = () => {
     const {t, i18n} = useTranslation();
@@ -60,9 +61,9 @@ const MainContainer = () => {
                     <AgentRegistry isDark={isDark} t={t}/>
                 </div>
 
-                {/*<div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>*/}
-                {/*    <OrchestrationCenter isDark={isDark}/>*/}
-                {/*</div>*/}
+                <div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
+                    <OrchestrationCenter isDark={isDark}/>
+                </div>
             </main>
         </div>
     )
