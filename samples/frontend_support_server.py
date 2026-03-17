@@ -5,8 +5,8 @@ from a2a.types import AgentCard
 from flask import Flask, request, jsonify
 from loguru import logger
 
-from orchestration.model.preflow import PreFlow
-from orchestration.orchestrate import WorkflowGenerator
+from framework.orchestration.model.preflow import PreFlow
+from framework.orchestration.psop_generator import PsopGenerator
 from framework.parser.parse_flow import SolutionPackageParser
 
 app = Flask(__name__)
@@ -60,7 +60,7 @@ def plan():
             return jsonify({
                 "error": "缺少必要字段: task 和 steps 必须提供"
             }), 400
-        generator = WorkflowGenerator()
+        generator = PsopGenerator()
         workflow = generator.generate_psop_workflow(PreFlow.model_validate(preflow_dict),
                                                     [AgentCard.model_validate(card) for card in agent_cards_list])
         return jsonify({

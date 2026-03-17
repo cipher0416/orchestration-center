@@ -2,10 +2,9 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-from orchestration.model import preflow
-from orchestration.model.preflow import PreFlow
-from orchestration.model.psop import PSOP
-from orchestration.persistence import WorkflowStorage
+from framework.orchestration.model.preflow import PreFlow
+from framework.orchestration.model.psop import PSOP
+from framework.orchestration.persistence import WorkflowStorage
 
 logger = logging.getLogger(__name__)
 
@@ -101,15 +100,15 @@ class WorkflowRetrieval:
                     ))
         if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
-                psop = self.storage.load_psop(wf_id)
-                if psop and matches_tags(preflow.tags):
+                preflow = self.storage.load_preflow(wf_id)
+                if preflow and matches_tags(preflow.tags):
                     results.append(WorkflowSearchResult(
-                        workflow_id=psop.id,
-                        workflow_type="psop",
-                        name=psop.name,
-                        description=psop.description,
-                        tags=psop.tags,
-                        created_at=psop.created_at
+                        workflow_id=preflow.id,
+                        workflow_type="preflow",
+                        name=preflow.name,
+                        description=preflow.description,
+                        tags=preflow.tags,
+                        created_at=preflow.created_at
                     ))
         return results
 

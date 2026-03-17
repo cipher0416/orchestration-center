@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from orchestration.model.psop import PSOP
+from framework.orchestration import PSOP
 
 
 def load_agent_config():

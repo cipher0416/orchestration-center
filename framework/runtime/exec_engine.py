@@ -9,7 +9,7 @@ from loguru import logger
 
 from common.llm.config.llm_config import get_llm_config_by_type, LLMType
 from common.llm.provider.llm_provider_registry import get_or_create_llm_instance
-from orchestration.model.psop import PSOP, Step, TaskStatus
+from framework.orchestration import PSOP, Step, TaskStatus
 
 
 class DynamicWorkflowEngine:

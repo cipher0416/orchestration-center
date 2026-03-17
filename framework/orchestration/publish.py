@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 
-from orchestration.model.preflow import PreFlow
-from orchestration.model.psop import PSOP
-from orchestration.persistence import WorkflowStorage
+from framework.orchestration.model.preflow import PreFlow
+from framework.orchestration.model.psop import PSOP
+from framework.orchestration.persistence import WorkflowStorage
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +124,10 @@ class WorkflowPublisher:
                     return True
         logger.warning(f"Workflow not found for archiving : {workflow_id}")
         return False
+
+    def get_published_versions(self, name: str, workflow_type: str) -> List[PublishedWorkflow]:
+        registry_key = f"{workflow_type}:{name}"
+        return self._published_registry.get(registry_key, [])
 
     def get_latest_version(self, name: str, workflow_type: str) -> Optional[PublishedWorkflow]:
         versions = self.get_published_versions(name, workflow_type)
