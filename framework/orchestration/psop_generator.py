@@ -16,18 +16,18 @@ Key components:
 """
 
 import json
-import re
 import logging
-from a2a.types import AgentCard
-
-from pydantic import BaseModel
+import re
 from typing import Type, Optional, Union, Any, Dict, List
 
-from orchestration.prompts import get_generate_psop_prompt, get_choose_skill_prompt, get_preprocess_input_prompt
-from orchestration.llm import get_or_create_llm_instance
-from orchestration.model.preflow import PreFlow
-from orchestration.model.psop import PSOP
+from a2a.types import AgentCard
+from pydantic import BaseModel
 
+from framework.orchestration.llm import get_or_create_llm_instance
+from framework.orchestration.model.preflow import PreFlow
+from framework.orchestration.model.psop import PSOP
+from framework.orchestration.prompts import get_generate_psop_prompt, get_choose_skill_prompt, \
+    get_preprocess_input_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +194,7 @@ class PsopGenerator:
             if not tasks:
                 raise ValueError("Tasks list cannot be empty")
             psop_schema = json.dumps(PSOP.model_json_schema(), ensure_ascii=False, indent=2)
-            prompt = get_generate_psop_prompt(preflow.model_dump_json(), json.dumps(tasks, ensure_ascii=False), psop_schema)
+            prompt = get_generate_psop_prompt(str(preflow), tasks, psop_schema)
             _, llm_res = self._llm.ask_llm(prompt)
 
             psop_data = self._parse_json_response(llm_res, PSOP)
@@ -272,4 +272,3 @@ class PsopGenerator:
         except Exception as e:
             logger.error(f"Unexpected error during PSOP generation: {e}")
             raise WorkflowGeneratorError(f"Unexpected error: {e}") from e
-

@@ -145,7 +145,7 @@ def get_choose_skill_prompt(actions: str, agents_card: str) -> str:
 ```"""
 
 
-def get_generate_psop_prompt(preflow: str, tasks: str, psop_scheme: str) -> str:
+def get_generate_psop_prompt(preflow: str, tasks: list, psop_scheme: str) -> str:
     return f"""
 你是一个电信网络运维专家，我根据专家提供的人工处理步骤，将每一步安排给专业Agent完成。
 请按照人工处理步骤中的逻辑，帮我识别下Agent任务之间的依赖关系，并输出我们自定义的PSOP格式的工作流。
