@@ -73,7 +73,6 @@ class DeepSeekLLM:
         else:
             reasoning = ''
             content = message.content or ''
-        print(content)
         return reasoning, content
 
 
