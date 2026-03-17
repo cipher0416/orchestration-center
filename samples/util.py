@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from framework.orchestration import PSOP
+from framework.orchestration.model.psop import PSOP
 
 
 def load_agent_config():
@@ -52,7 +52,7 @@ mock_workflow_data = {
         {
             "name": "step1",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "Energy Saving Intent Agent",
                     "skill": "Intent Exploration Request",
@@ -69,7 +69,7 @@ mock_workflow_data = {
         {
             "name": "step2",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "RAN Energy Saving Agent",
                     "skill": "RAN ES Intent Exploration",
@@ -86,7 +86,7 @@ mock_workflow_data = {
         {
             "name": "step3",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "RAN Energy Saving Agent",
                     "skill": "RAN ES Intent Reporting",
@@ -103,7 +103,7 @@ mock_workflow_data = {
         {
             "name": "step4",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "Energy Saving Intent Agent",
                     "skill": "Intent Generation",
@@ -120,7 +120,7 @@ mock_workflow_data = {
         {
             "name": "step5",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "Energy Saving Intent Agent",
                     "skill": "Intent Delivery",
@@ -137,7 +137,7 @@ mock_workflow_data = {
         {
             "name": "step6",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "RAN Energy Saving Agent",
                     "skill": "RAN ES Intent Lifecycle Management",
@@ -154,7 +154,7 @@ mock_workflow_data = {
         {
             "name": "step7",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "RAN Energy Saving Agent",
                     "skill": "RAN ES Intent Reporting",
@@ -171,7 +171,7 @@ mock_workflow_data = {
         {
             "name": "step9",
             "type": "AllSuccess",
-            "subtask": [
+            "subtasks": [
                 {
                     "agent": "Energy Saving Intent Agent",
                     "skill": "Effect Evaluation",
@@ -187,4 +187,5 @@ mock_workflow_data = {
         }
     ]
 }
+
 mock_workflow = PSOP.model_validate(mock_workflow_data)
