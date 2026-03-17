@@ -9,7 +9,7 @@ agents:
       url: ""
     protocolVersion: "0.3.0"
     version: "0.1.0"
-    url: "http://1270.0.1:8899"
+    url: "http://127.0.0.1:8899"
     iconUrl: ""
     skills:
       - id: "ran-es-intent-exploration"
@@ -38,7 +38,7 @@ agents:
       url: ""
     protocolVersion: "0.3.0"
     version: "0.1.0"
-    url: "http://1270.0.1:8900"
+    url: "http://127.0.0.1:8900"
     iconUrl: ""
     skills:
       - id: "intent-exploration-request"
