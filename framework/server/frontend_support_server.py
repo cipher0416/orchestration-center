@@ -8,6 +8,7 @@ from loguru import logger
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.psop_generator import PsopGenerator
+from framework.orchestration.intent_psop_generator import IntentPsopGenerator
 from framework.orchestration.persistence import WorkflowStorage
 from framework.orchestration.retrieval import WorkflowRetrieval
 from framework.solution_package.parse_flow import SolutionPackageParser
@@ -17,6 +18,7 @@ app = Flask(__name__)
 
 storage = WorkflowStorage()
 retrieval = WorkflowRetrieval(storage)
+agent_lib = AgentCardLib()
 
 
 @app.route('/parse-pdf', methods=['POST'])
@@ -147,9 +149,6 @@ def get_all_agent_cards():
         JSON响应，包含AgentCard列表和来源信息
     """
     try:
-        # 初始化AgentCardLib，使用默认配置文件
-        agent_lib = AgentCardLib()
-        
         # 获取所有AgentCard
         agent_cards = agent_lib.get_all_agent_cards()
         
@@ -179,6 +178,61 @@ def get_all_agent_cards():
         }), 500
 
 
+@app.route('/generate-from-intent', methods=['POST'])
+def generate_psop_from_intent():
+    """
+    根据自然语言意图生成PSOP工作流。
+    
+    请求体格式:
+    {
+        "user_intent": "自然语言描述的业务意图",
+        "workflow_name": "可选的工作流名称"
+    }
+    
+    返回:
+        JSON响应，包含生成的PSOP工作流
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "请求体为空"}), 400
+        
+        user_intent = data.get("user_intent")
+        workflow_name = data.get("workflow_name")
+        
+        if not user_intent:
+            return jsonify({"error": "缺少必要字段: user_intent"}), 400
+        
+        # 获取AgentCards（复用agent-cards接口的逻辑）
+        agent_cards = agent_lib.get_all_agent_cards()
+        if not agent_cards:
+            return jsonify({"error": "未找到可用的AgentCard"}), 404
+        
+        # 使用IntentPsopGenerator生成PSOP
+        generator = IntentPsopGenerator()
+        psop = generator.generate_psop_from_intent(
+            user_intent=user_intent,
+            agent_cards=agent_cards,
+            workflow_name=workflow_name
+        )
+        
+        # 可选：自动保存生成的PSOP
+        try:
+            storage.save_psop(psop)
+        except Exception as save_error:
+            logger.warning(f"PSOP保存失败（不影响返回）: {save_error}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "PSOP生成成功",
+            "data": psop.model_dump()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"根据意图生成PSOP失败: {e}")
+        return jsonify({"error": f"生成PSOP失败: {str(e)}"}), 500
+
+
 if __name__ == '__main__':
     logger.info("=" * 50)
     logger.info("  PSOP 服务器接口")
@@ -193,7 +247,11 @@ if __name__ == '__main__':
     logger.info("")
     logger.info("  AgentCard 管理接口:")
     logger.info("  GET  /agent-cards   -  获取全量AgentCard列表")
-    logger.info("  服务器启动在: http://localhost:6000")
+    logger.info("")
+    logger.info("  意图生成接口:")
+    logger.info("  POST /generate-from-intent - 根据自然语言意图生成PSOP")
+    logger.info("")
+    logger.info("  服务器启动在: http://localhost:60000")
     logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
     app.run(host='localhost', port=6000, debug=True)
