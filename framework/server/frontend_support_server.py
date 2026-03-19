@@ -11,6 +11,7 @@ from framework.orchestration.psop_generator import PsopGenerator
 from framework.orchestration.persistence import WorkflowStorage
 from framework.orchestration.retrieval import WorkflowRetrieval
 from framework.parser.parse_flow import SolutionPackageParser
+from framework.agentcard_lib import AgentCardLib
 
 app = Flask(__name__)
 
@@ -132,6 +133,52 @@ def save_psop():
         return jsonify({"error": f"保存PSOP失败: {str(e)}"}), 500
 
 
+@app.route('/agent-cards', methods=['GET'])
+def get_all_agent_cards():
+    """
+    获取全量AgentCard列表。
+    
+    逻辑：
+    1. 读取配置文件 config/agent_cards.yaml
+    2. 如果配置文件中包含 source_url 字段，则从该URL获取AgentCard
+    3. 否则，使用配置文件中的 agents 字段
+    
+    Returns:
+        JSON响应，包含AgentCard列表和来源信息
+    """
+    try:
+        # 初始化AgentCardLib，使用默认配置文件
+        agent_lib = AgentCardLib()
+        
+        # 获取所有AgentCard
+        agent_cards = agent_lib.get_all_agent_cards()
+        
+        # 将AgentCard转换为字典格式
+        agent_cards_data = []
+        for card in agent_cards:
+            card_dict = card.model_dump()
+            agent_cards_data.append(card_dict)
+
+        return jsonify({
+            "status": "success",
+            "count": len(agent_cards_data),
+            "data": agent_cards_data
+        }), 200
+        
+    except FileNotFoundError as e:
+        return jsonify({
+            "error": f"配置文件不存在: {str(e)}"
+        }), 404
+    except ValueError as e:
+        return jsonify({
+            "error": f"数据格式错误: {str(e)}"
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "error": f"获取AgentCard失败: {str(e)}"
+        }), 500
+
+
 if __name__ == '__main__':
     logger.info("=" * 50)
     logger.info("  PSOP 服务器接口")
@@ -144,6 +191,8 @@ if __name__ == '__main__':
     logger.info("  GET  /psops/<id>    -  根据ID获取PSOP详情")
     logger.info("  POST /psops         -  保存PSOP")
     logger.info("")
+    logger.info("  AgentCard 管理接口:")
+    logger.info("  GET  /agent-cards   -  获取全量AgentCard列表")
     logger.info("  服务器启动在: http://localhost:6000")
     logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
