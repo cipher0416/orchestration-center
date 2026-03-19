@@ -9,7 +9,7 @@ i18n.use(LanguageDetector).use(initReactI18next).init({
         en: {translation: en},
         zh: {translation: zh}
     },
-    fallbackLng: 'en',
+    fallbackLng: 'zh',
     detection: {
         order: ['localStorage', 'querystring', 'cookie'],
         caches: ['localStorage']

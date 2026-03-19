@@ -1,30 +1,29 @@
 {
   "nav": {
-    "title": "2026 MWC A2A-T样机演示",
+    "title": "2026 MWC A2A-T 样机演示",
     "tabs": {
       "agents": "注册中心",
       "orchestration": "编排中心"
     }
   },
- "orchestration": {
-   "title": "编排中心",
-   "list_label": "核心运维流",
-   "edit_mode": "编辑模式",
-   "preview_mode": "预览模式",
-   "node_logic": "节点跳转逻辑",
-   "save": "保存编排",
-   "search": "搜索工作流...",
-   "create_new": "创建新编排",
-   "logic_editor": "逻辑编辑器",
-   "source_mod": "源码直接编辑",
-   "structured_view": "结构化序列",
-   "edit_flow": "编辑流程",
-   "apply_change": "应用修改",
-   "direct": "直接跳转",
-   "graph_mode": "图形化编排",
-   "invalid_file": "请上传一个有效的json文件。",
-   "incorrect_content": "无法解析json文件，请检查文件内容。"
- },
+  "orchestration": {
+    "title": "编排中心",
+    "list_label": "核心运维流",
+    "edit_mode": "编辑模式",
+    "preview_mode": "预览模式",
+    "node_logic": "节点跳转逻辑",
+    "save": "保存编排",
+    "search": "搜索工作流...",
+    "logic_editor": "逻辑编辑器",
+    "source_mod": "源码直接编辑",
+    "structured_view": "结构化序列",
+    "edit_flow": "编辑流程",
+    "apply_change": "应用修改",
+    "direct": "直接跳转",
+    "graph_mode": "图形化编排",
+    "invalid_file": "请上传一个有效的JSON文件。",
+    "incorrect_content": "无法解析json文件，请检查文件内容。"
+  },
   "workflow": {
     "title": "编排流程",
     "progress_label": "整体执行进度",
@@ -55,16 +54,16 @@
       "nodeConfig": "节点配置",
       "edgeConfig": "分支配置",
       "agentName": "Agent 名称",
-      "taskDesc": "任务描述（Task）",
+      "taskDesc": "任务描述 (Task)",
       "taskPlaceholder": "描述该步骤的具体动作",
-      "selectSkill": "选择技能（Skill）",
+      "selectSkill": "选择技能 (Skill)",
       "executeSkill": "当前技能",
-      "inputDefine": "接口输入定义（Input）",
-      "outputDefine": "接口输出定义（Output）",
+      "inputDefine": "接口输入定义 (Inputs)",
+      "outputDefine": "接口输出定义 (Output)",
       "noInput": "无预定义输入",
       "noOutput": "无预定义输出",
-      "inputParams": "运行参数输入（input_params）",
-      "condition": "跳转条件（Condition）",
+      "inputParams": "运行参数输入 (input_params)",
+      "condition": "跳转条件 (Condition)",
       "keyPlaceholder": "参数名",
       "valuePlaceholder": "参数值",
       "noParams": "暂无参数项",
@@ -75,8 +74,8 @@
       "success": "工作流保存成功",
       "failed": "保存失败，请检查后端服务",
       "modalTitle": "描述场景",
-      "modalDesc": "请简要描述该工作流处理的具体业务场景或现象，以便后续调用",
-      "placeholder": "例如：网络链路异常自动修复场景"
+      "modalDesc": "请简要描述该工作流处理的具体业务场景或现象，以便后续调用。",
+      "placeholder": "例如：网络链路异常自动修复场景..."
     },
     "validate": {
       "empty": "画布不能为空",
@@ -85,41 +84,41 @@
       "noEdge": "节点 [{{id}}] 缺少输出连线",
       "noEnd": "流程缺少结束节点",
       "yamlError": "YAML生成失败"
-    },
-    "registry": {
-      "title": "注册中心",
-      "search_placeholder": "搜索智能体名称或功能",
-      "units": "个实例",
-      "description_label": "智能体描述",
-      "prompt_label": "核心逻辑（Prompt）",
-      "tool_label": "工具",
-      "call_api": "执行API",
-      "secure_badge": "运行时安全验证",
-      "secure_note": "已通过A2A-T电信网络环境验证。",
-      "secure_prompt": "请选择一个智能体查看详细注册信息"
-    },
-    "agent_profile": {
-      "description": "描述",
-      "skills": "技能",
-      "capabilities": "能力",
-      "configuration": "配置信息",
-      "streaming": "流式传输",
-      "stateTransitionHistory": "状态流转历史",
-      "pushNotifications": "推送通知",
-      "protocolVersion": "协议版本",
-      "preferredTransport": "首选传输方式",
-      "defaultInputModes": "输入模式",
-      "defaultOutputModes": "输出模式",
-      "documentationUrl": "查看文档"
-    },
-    "common": {
-      "loading": "加载中",
-      "add": "添加",
-      "delete": "删除",
-      "confirm": "确认",
-      "cancel": "取消",
-      "save": "保存",
-      "confirm_delete": "确认删除？"
     }
+  },
+  "registry": {
+    "title": "注册中心",
+    "search_placeholder": "搜索智能体名称或功能...",
+    "units": "个实例",
+    "description_label": "智能体描述",
+    "prompt_label": "核心逻辑 (Prompt)",
+    "tool_label": "工具",
+    "call_api": "执行API",
+    "secure_badge": "运行时安全验证",
+    "secure_note": "已通过A2A-T电信级网络环境验证。",
+    "select_prompt": "请选择一个智能体查看详细注册信息"
+  },
+  "agent_profile": {
+    "description": "描述",
+    "skills": "技能",
+    "capabilities": "能力",
+    "configuration": "配置信息",
+    "streaming": "流式传输",
+    "stateTransitionHistory": "状态流转历史",
+    "pushNotifications": "推送通知",
+    "protocolVersion": "协议版本",
+    "preferredTransport": "首选传输方式",
+    "defaultInputModes": "输入模式",
+    "defaultOutputModes": "输出模式",
+    "documentationUrl": "查看文档"
+  },
+  "common": {
+    "loading": "加载中...",
+    "add": "添加",
+    "delete": "删除",
+    "confirm": "确定",
+    "cancel": "取消",
+    "save": "保存",
+    "confirm_delete": "确认删除？"
   }
 }

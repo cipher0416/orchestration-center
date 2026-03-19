@@ -8,12 +8,12 @@
   },
   "orchestration": {
     "title": "Orchestration",
-    "list_label": "CORE 0&M FLOWS",
+    "list_label": "CORE O&M FLOWS",
     "edit_mode": "Edit Mode",
     "preview_mode": "Preview",
     "node_logic": "JUMP LOGIC",
     "save": "SAVE WORKFLOW",
-    "search": "Filter workflow...",
+    "search": "Filter workflows...",
     "logic_editor": "LOGIC EDITOR",
     "source_mod": "DIRECT SOURCE MODIFICATION",
     "structured_view": "STRUCTURED SEQUENCE",
@@ -33,6 +33,7 @@
       "defaultTask": "Execute {{name}} task",
       "searchPlaceholder": "Search agents..."
     },
+
     "toolbar": {
       "back": "Back",
       "fitView": "Fit View",
@@ -49,7 +50,7 @@
       }
     },
     "panel": {
-      "empty": "No Element selected",
+      "empty": "No Element Selected",
       "emptySub": "Select a node or edge to configure",
       "nodeConfig": "Node Config",
       "edgeConfig": "Edge Config",
@@ -61,18 +62,18 @@
       "inputDefine": "Input Definitions",
       "outputDefine": "Output Definitions",
       "noInput": "No input definitions",
-      "noOutput": "no output definitions",
+      "noOutput": "No output definitions",
       "inputParams": "Runtime Parameters",
       "condition": "Condition",
       "keyPlaceholder": "Key",
       "valuePlaceholder": "Value",
-      "noParams": "No Parameters defined",
+      "noParams": "No parameters defined",
       "confirm": "Confirm Configuration",
-      "placeholderSelect": "Please choose..."
+      "placeholderSelect": "please choose..."
     },
     "export": {
       "success": "Workflow saved successfully",
-      "failed": "Saved failed, please check backend service",
+      "failed": "Save failed, please check backend service",
       "modalTitle": "Export Workflow",
       "modalDesc": "Please describe the phenomenon for this workflow.",
       "placeholder": "Input phenomenon description here..."
@@ -81,44 +82,44 @@
       "empty": "Canvas cannot be empty",
       "invalidAgent": "Node validation failed",
       "noSkill": "Node validation failed: Skill must be selected",
-      "noEdge": "Node missing output connection:Please complete the topology",
+      "noEdge": "Node missing output connection: Please complete the topology",
       "noEnd": "Workflow missing an End Node",
       "yamlError": "YAML generation failed"
-    },
-    "registry": {
-      "title": "Registry center",
-      "search_placeholder": "Search by agent name, capability or toolstack...",
-      "units": "UNITS",
-      "description_label": "FUNCTIONAL SPECIFICATION",
-      "prompt_label": "CORE LOGIC(PROMPT)",
-      "tool_label": "TOOLSTACK BINDING",
-      "call_api": "EXECUTE API",
-      "secure_badge": "RUNTIME SECURE VERIFIED",
-      "secure_note": "Verified for A2A-T carrier-grade network environments",
-      "secure_prompt": "Select an instance to view registration metadata"
-    },
-    "agent_profile": {
-      "description": "Description",
-      "skills": "Skills",
-      "capabilities": "Capabilities",
-      "configuration": "Configuration",
-      "streaming": "Streaming",
-      "stateTransitionHistory": "State History",
-      "pushNotifications": "Push Notifications",
-      "protocolVersion": "Protocol Version",
-      "preferredTransport": "Preferred Transport",
-      "defaultInputModes": "Input Modes",
-      "defaultOutputModes": "Output Modes",
-      "documentationUrl": "Documentation"
-    },
-    "common": {
-      "loading": "Loading...",
-      "add": "Add",
-      "delete": "Delete",
-      "confirm": "Confirm",
-      "cancel": "Cancel",
-      "save": "Save",
-      "confirm_delete": "Confirm Delete?"
     }
+  },
+  "registry": {
+    "title": "Registry center",
+    "search_placeholder": "Search by agent name, capability or toolstack...",
+    "units": "UNITS",
+    "description_label": "FUNCTIONAL SPECIFICATION",
+    "prompt_label": "CORE LOGIC (PROMPT)",
+    "tool_label": "TOOLSTACK BINDING",
+    "call_api": "EXECUTE API",
+    "secure_badge": "RUNTIME SECURE VERIFIED",
+    "secure_note": "Verified for A2A-T carrier-grade network environments.",
+    "select_prompt": "Select an instance to view registration metadata"
+  },
+  "agent_profile": {
+    "description": "Description",
+    "skills": "Skills",
+    "capabilities": "Capabilities",
+    "configuration": "Configuration",
+    "streaming": "Streaming",
+    "stateTransitionHistory": "State History",
+    "pushNotifications": "Push Notifications",
+    "protocolVersion": "Protocol Version",
+    "preferredTransport": "Preferred Transport",
+    "defaultInputModes": "Input Modes",
+    "defaultOutputModes": "Output Modes",
+    "documentationUrl": "Documentation"
+  },
+  "common": {
+    "loading": "Loading...",
+    "add": "Add",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "confirm_delete": "confirm delete?"
   }
 }
