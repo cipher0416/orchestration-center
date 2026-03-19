@@ -87,7 +87,7 @@ class WorkflowRetrieval:
                 return any(st in workflow_tags_lower for st in search_tags_lower)
 
         if workflow_type in ("all", "psop"):
-            for wf_id in self.storage.list_preflows():
+            for wf_id in self.storage.list_psops():
                 psop = self.storage.load_psop(wf_id)
                 if psop and matches_tags(psop.tags):
                     results.append(WorkflowSearchResult(
