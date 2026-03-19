@@ -4,6 +4,7 @@ import tempfile
 from a2a.types import AgentCard
 from flask import Flask, request, jsonify
 from loguru import logger
+from flask_cors import CORS
 
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
@@ -15,6 +16,7 @@ from framework.solution_package.parse_flow import SolutionPackageParser
 from framework.agentcard_lib import AgentCardLib
 
 app = Flask(__name__)
+CORS(app)
 
 storage = WorkflowStorage()
 retrieval = WorkflowRetrieval(storage)
@@ -254,4 +256,4 @@ if __name__ == '__main__':
     logger.info("  服务器启动在: http://localhost:60000")
     logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
-    app.run(host='localhost', port=6000, debug=True)
+    app.run(host='localhost', port=60000, debug=True)
