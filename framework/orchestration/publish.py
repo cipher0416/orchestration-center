@@ -133,7 +133,7 @@ class WorkflowPublisher:
         versions = self.get_published_versions(name, workflow_type)
         if not versions:
             return None
-        return max(versions, key=lambda x: x.published_at or datetime.min)
+        return max(versions, key=lambda x: x.published_at or datetime.min.replace(tzinfo=timezone.utc))
 
     def list_published(self, status: Optional[PublishStatus] = None,
                        workflow_type: Optional[str] = None) -> List[PublishedWorkflow]:

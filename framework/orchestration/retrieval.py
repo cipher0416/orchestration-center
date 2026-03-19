@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from framework.orchestration.model.preflow import PreFlow
@@ -175,5 +175,6 @@ class WorkflowRetrieval:
                         tags=preflow.tags,
                         created_at=preflow.created_at
                     ))
-        results.sort(key=lambda x: x.created_at, reverse=True)
+        # 使用timestamp进行排序，避免offset-naive和offset-aware datetime比较错误
+        results.sort(key=lambda x: x.created_at.timestamp() if x.created_at.tzinfo else x.created_at.replace(tzinfo=timezone.utc).timestamp(), reverse=True)
         return results[:limit]
