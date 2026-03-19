@@ -254,4 +254,4 @@ if __name__ == '__main__':
     logger.info("  服务器启动在: http://localhost:60000")
     logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
-    app.run(host='localhost', port=6000, debug=True)
+    app.run(host='localhost', port=60000, debug=True)
