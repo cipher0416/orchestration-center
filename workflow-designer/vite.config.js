@@ -26,7 +26,7 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks: (id) => {
-                    if (id.includes('node_modeles')) {
+                    if (id.includes('node_modules')) {
                         return 'vendor'; //将所有三方库打包到一个vendor.js中，方便浏览器缓存
                     }
                 }
