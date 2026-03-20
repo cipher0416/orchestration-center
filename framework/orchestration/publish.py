@@ -1,13 +1,12 @@
-import logging
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 
+from loguru import logger
+
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.persistence import WorkflowStorage
-
-logger = logging.getLogger(__name__)
 
 
 class PublishStatus(str, Enum):

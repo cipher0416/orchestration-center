@@ -1,12 +1,9 @@
-import logging
+from loguru import logger
 from pathlib import Path
 from typing import Optional, List
 
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
-
-logger = logging.getLogger(__name__)
-
 
 class WorkflowStorageError(Exception):
     pass

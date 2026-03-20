@@ -16,16 +16,14 @@ Key components:
 """
 
 import json
-import logging
 from typing import List, Optional
 
 from a2a.types import AgentCard
+from loguru import logger
 
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.prompts import get_intent_to_psop_prompt
 from framework.orchestration.psop_generator import PsopGenerator, WorkflowGeneratorError
-
-logger = logging.getLogger(__name__)
 
 
 class IntentWorkflowGeneratorError(Exception):
