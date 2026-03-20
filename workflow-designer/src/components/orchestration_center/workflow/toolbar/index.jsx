@@ -3,6 +3,7 @@ import {useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {createWorkflow} from "@/service/api.js";
 import {createPortal} from "react-dom";
+import {transformReactFlowToPSOP} from "@/components/orchestration_center/workflow/utils/index.jsx";
 
 const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
     const [showConfirm, setShowConfirm] = useState(false);
@@ -27,11 +28,10 @@ const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
         if (nodes.length === 0) return t('workflow.validate.empty');
 
         const sourceEdgeIds = new Set(edges.map(e => e.source));
-        const ALLOWED_AGENTS = ['ran-agent', 'assurance-agent'];
 
         for (const node of nodes) {
             if (node.type === 'agentNode') {
-                if (!node.data.agent || !ALLOWED_AGENTS.includes(node.data.agent)) {
+                if (!node.data.agent) {
                     return t('workflow.validate.invalidAgent', { id: node.id });
                 }
                 if (!node.data.skill) return t('workflow.validate.noSkill', { id: node.id });
@@ -48,8 +48,6 @@ const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
     };
 
     const executeExport = () => {
-        const ALLOWED_AGENTS = ['ran-agent', 'assurance-agent'];
-
         const errorMsg = validateWorkflow();
         if (errorMsg) {
             setToast({
@@ -59,60 +57,9 @@ const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
             });
             return;
         }
-
-        const workflowData = {};
-        nodes.forEach((node) => {
-            const {id, type, data} = node;
-
-            if (type === 'agentNode') {
-                workflowData[id] = {
-                    name: id,
-                    agent: data.agent,
-                    skill: data.skill,
-                    task: data.task || data.defaultTask,
-                    status: data.status || 'not_executed',
-                    input_params: data.input_params || {},
-                    inputs: data.inputs || {},
-                    outputs: data.outputs || {},
-                    next: {}
-                };
-            } else if (type === 'startNode' || id === 'start_node') {
-                workflowData['start_node'] = {
-                    description: data.description || 'this is the start node',
-                    name: 'start_node',
-                    status: 'not_executed',
-                    next: {}
-                };
-            } else if (type === 'endNode' || id === 'endNode') {
-                workflowData['endNode'] = {
-                    description: data.description || 'this is a end node.',
-                    status: 'current',
-                    type: 'end-event'
-                };
-            }
-        });
-
-        edges.forEach((edge) => {
-            const sourceKey = (edge.source === 'startNode' || edge.source === 'start_node') ? 'start_node' : edge.source;
-            const targetKey = (edge.target === 'startNode' || edge.target === 'start_node') ? 'start_node' : edge.target;
-
-            if (workflowData[sourceKey]) {
-                if (!workflowData[sourceKey].next) workflowData[sourceKey].next = {};
-                workflowData[sourceKey].next[targetKey] = {
-                    condition: edge.data?.condition || ''
-                };
-            }
-        });
-
+        const psopData = transformReactFlowToPSOP(nodes, edges, { description: phenomenon });
         try {
-            const yamlStr = yaml.dump(workflowData, {
-                indent: 2,
-                lineWidth: -1,
-                noRefs: true,
-                sortKeys: true
-            });
-
-            createWorkflow({"phenomenon": phenomenon, "workflow": yamlStr}).then(r => {
+            createWorkflow(psopData).then(r => {
                 setToast({ show: true, msg: t('workflow.export.success'), type: 'success' }); // 成功 Toast
                 setShowExportModal(false);
                 setPhenomenon("");
@@ -120,80 +67,8 @@ const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
                 setToast({ show: true, msg: t('workflow.export.failed'), type: 'error' }); // 失败 Toast
             });
         } catch (e) {
-            console.error('YAML 转换失败', e);
+            console.error('上传失败', e);
         }
-    };
-    const executeExport2 = () => {
-        const workflowData = {};
-
-        nodes.forEach((node) => {
-            const {id, type, data} = node;
-
-            if (type === 'agentNode') {
-                workflowData[id] = {
-                    name: id,
-                    agent: data.agent,
-                    skill: data.skill,
-                    task: data.task || data.defaultTask,
-                    status: data.status || 'not_executed',
-                    input_params: data.input_params || {},
-                    inputs: data.inputs || {},
-                    outputs: data.outputs || {},
-                    next: {}
-                };
-            }
-
-            else if (type === 'startNode' || id === 'start_node') {
-                workflowData['start_node'] = {
-                    description: data.description || 'this is the start node',
-                    name: 'start_node',
-                    status: 'not_executed',
-                    next: {}
-                };
-            }
-
-            else if (type === 'endNode' || id === 'endNode') {
-                workflowData['endNode'] = {
-                    description: data.description || 'this is a end node.',
-                    status: 'current',
-                    type: 'end-event'
-                };
-            }
-        });
-
-        edges.forEach((edge) => {
-            const sourceId = edge.source;
-            const targetId = edge.target;
-
-            const sourceKey = (sourceId === 'startNode' || sourceId === 'start_node') ? 'start_node' : sourceId;
-            const targetKey = (targetId === 'startNode' || targetId === 'start_node') ? 'start_node' : targetId;
-
-            if (workflowData[sourceKey]) {
-                if (!workflowData[sourceKey].next) {
-                    workflowData[sourceKey].next = {};
-                }
-
-                workflowData[sourceKey].next[targetKey] = {
-                    condition: edge.data?.condition || ''
-                };
-            }
-        });
-
-        const yamlStr = yaml.dump(workflowData, {
-            indent: 2,
-            lineWidth: -1, // 禁止长行折行
-            noRefs: true,  // 禁止生成 &ref 指针
-            sortKeys: true
-        });
-        console.log('yamlStr', yamlStr)
-
-        createWorkflow({"phenomenon":phenomenon , "workflow": yamlStr}).then(r => {
-            console.log('createWorkflow success', r);
-            setShowExportModal(false);
-            setPhenomenon(""); // 重置
-        }).catch(err => {
-            console.error('Export failed', err);
-        });
     };
 
     const theme = {

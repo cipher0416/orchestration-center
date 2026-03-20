@@ -105,7 +105,6 @@ const OrchestrationCenter = ({isDark}) => {
     const handleFileChange = async (event) => {
         const file = event.target.files[0];
 
-        // 1. 前端初步校验：确保是 PDF
         if (!file) return;
         if (file.type !== "application/pdf") {
             event.target.value = ''; // 清空选择
@@ -123,8 +122,7 @@ const OrchestrationCenter = ({isDark}) => {
             console.log("解析出的内容:", contentData);
             const agentCards = await getAgentCards();
             setLoadingStatus(LOADING_STAGES.PLANNING); // 阶段 2
-            const finalPlan = await handlePlan(contentData, agentCards);
-            // 全部成功后的反馈
+            const finalPlan = await handlePlan(contentData, agentCards.data);
             console.log('finalPlan', finalPlan)
 
             setLoadingStatus(LOADING_STAGES.FINALIZING); // 阶段 3
