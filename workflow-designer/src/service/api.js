@@ -88,3 +88,23 @@ export async function handlePlan(preflow, agentCards) {
         throw new Error(errorMsg);
     }
 }
+export async function generateWorkflowFromIntent(intent, name = "AI Generated Workflow") {
+    try {
+        const response = await axios.post(`${getBaseUrl()}/generate-from-intent`, {
+            user_intent: intent,
+            workflow_name: name
+        });
+
+        if (response.data.status === "success" || response.status === 200) {
+            // 后端返回的可能是包装在 data 里的，也可能直接是 workflow
+            const workflowData = response.data.data || response.data;
+            console.log("自然语言生成成功:", workflowData);
+            return workflowData;
+        } else {
+            throw new Error(response.data?.message || "生成失败");
+        }
+    } catch (error) {
+        const errorMsg = error.response?.data?.error || error.message || "接口请求失败";
+        throw new Error(errorMsg);
+    }
+}

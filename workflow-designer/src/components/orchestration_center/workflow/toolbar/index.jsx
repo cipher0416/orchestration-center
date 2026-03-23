@@ -5,7 +5,7 @@ import {createWorkflow} from "@/service/api.js";
 import {createPortal} from "react-dom";
 import {transformReactFlowToPSOP} from "@/components/orchestration_center/workflow/utils/index.jsx";
 
-const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
+const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark, onSaveSuccess}) => {
     const [showConfirm, setShowConfirm] = useState(false);
     const {t} = useTranslation();
     const [showExportModal, setShowExportModal] = useState(false);
@@ -63,6 +63,7 @@ const Toolbar = ({nodes, edges, onCancel, onClear, onFitView, isDark}) => {
                 setToast({ show: true, msg: t('workflow.export.success'), type: 'success' }); // 成功 Toast
                 setShowExportModal(false);
                 setPhenomenon("");
+                if (onSaveSuccess) onSaveSuccess();
             }).catch(err => {
                 setToast({ show: true, msg: t('workflow.export.failed'), type: 'error' }); // 失败 Toast
             });

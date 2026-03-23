@@ -1,17 +1,17 @@
-import React, {useState, useMemo, useEffect, useRef} from 'react';
-import yaml, {dump} from 'js-yaml';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import yaml, { dump } from 'js-yaml';
 import {
     Search, Loader2, Layout, FileWarning, Hash,
     Activity, Plus, Upload, X, MessageSquare,
     ChevronRight, Save, Sparkles, Edit3, ChevronLeft, ArrowLeft, Code2, LayoutDashboard
 } from 'lucide-react';
-import {getAgentCards, getWorkflow, getWorkflowById, handlePlan, parsePdf} from "@/service/api.js";
-import {transformWorkflowToReactFlow} from "./workflow/utils/index.jsx";
+import { getAgentCards, getWorkflow, getWorkflowById, handlePlan, parsePdf, generateWorkflowFromIntent } from "@/service/api.js";
+import { transformWorkflowToReactFlow } from "./workflow/utils/index.jsx";
 import UnifiedWorkflow from "../orchestration_center/workflow/index.jsx";
 
 import axios from 'axios';
 
-const MethodCard = ({icon: Icon, title, onClick, color, loading, progress, status}) => (
+const MethodCard = ({ icon: Icon, title, onClick, color, loading, progress, status }) => (
     <button
         onClick={onClick}
         disabled={loading}
@@ -28,7 +28,7 @@ const MethodCard = ({icon: Icon, title, onClick, color, loading, progress, statu
         {loading && (
             <div
                 className="absolute inset-0 bg-blue-500/5 dark:bg-blue-400/5 transition-all duration-300 ease-out origin-left"
-                style={{width: `${progress}%`}}
+                style={{ width: `${progress}%` }}
             />
         )}
 
@@ -38,7 +38,7 @@ const MethodCard = ({icon: Icon, title, onClick, color, loading, progress, statu
             ${color} 
             shadow-outer z-10
         `}>
-            <Icon size={32} strokeWidth={2.5}/>
+            <Icon size={32} strokeWidth={2.5} />
         </div>
 
         <div className="flex flex-col items-center z-10">
@@ -46,9 +46,9 @@ const MethodCard = ({icon: Icon, title, onClick, color, loading, progress, statu
                 {title}
             </span>
             {loading && (<span className="text-[13px] font-black dark:text-zinc-200 mb-1">
-                 {status} {Math.floor(progress)}%
+                {status} {Math.floor(progress)}%
             </span>)}
-            <div className={`h-1 transition-all duration-500 rounded-full w-0 group-hover:w-8 bg-blue-500`}/>
+            <div className={`h-1 transition-all duration-500 rounded-full w-0 group-hover:w-8 bg-blue-500`} />
         </div>
 
         {/* 底部细线条进度条 */}
@@ -56,7 +56,7 @@ const MethodCard = ({icon: Icon, title, onClick, color, loading, progress, statu
             <div className="absolute bottom-0 left-0 w-full h-1.5 bg-zinc-100 dark:bg-zinc-800">
                 <div
                     className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                    style={{width: `${progress}%`}}
+                    style={{ width: `${progress}%` }}
                 />
             </div>
         )}
@@ -66,9 +66,10 @@ const LOADING_STAGES = {
     IDLE: '',
     PARSING: '正在解析SolutionPackage...',
     PLANNING: '正在编排工作流...',
+    GENERATING: '正在根据意图生成工作流...',
     FINALIZING: '正在构建预览...',
 };
-const OrchestrationCenter = ({isDark}) => {
+const OrchestrationCenter = ({ isDark }) => {
     const [workflows, setWorkflows] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [currentWf, setCurrentWf] = useState(null);
@@ -126,7 +127,7 @@ const OrchestrationCenter = ({isDark}) => {
             console.log('finalPlan', finalPlan)
 
             setLoadingStatus(LOADING_STAGES.FINALIZING); // 阶段 3
-            const {nodes: n, edges: e} = transformWorkflowToReactFlow(finalPlan);
+            const { nodes: n, edges: e } = transformWorkflowToReactFlow(finalPlan);
             setNodes(n);
             setEdges(e);
             console.log('finalPlanWorkflow', nodes, edges)
@@ -141,28 +142,30 @@ const OrchestrationCenter = ({isDark}) => {
         }
     };
 
-    useEffect(() => {
-        (async () => {
-            try {
-                setLoading(true);
-                const res = await getWorkflow();
-                console.log('getWorkflow', res)
-                if (res.status === 'success') {
-                    const data = (res.data || []).map(item => ({
-                        id: item.workflow_id,
-                        name: item.name || 'Untitled',
-                        tags: item.tags || [],
-                        description: item.description
-                    }));
-                    console.log('item', data);
-                    setWorkflows(data);
-                }
-            } catch (e) {
-                console.error("获取PSOP列表失败:", e);
-            } finally {
-                setLoading(false);
+    const fetchWorkflows = async () => {
+        try {
+            setLoading(true);
+            const res = await getWorkflow();
+            console.log('getWorkflow', res)
+            if (res.status === 'success') {
+                const data = (res.data || []).map(item => ({
+                    id: item.workflow_id,
+                    name: item.name || 'Untitled',
+                    tags: item.tags || [],
+                    description: item.description
+                }));
+                console.log('item', data);
+                setWorkflows(data);
             }
-        })();
+        } catch (e) {
+            console.error("获取PSOP列表失败:", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchWorkflows();
     }, []);
 
     useEffect(() => {
@@ -186,7 +189,7 @@ const OrchestrationCenter = ({isDark}) => {
                     });
 
                     // 转换画布节点
-                    const {nodes: n, edges: e} = transformWorkflowToReactFlow(detailData);
+                    const { nodes: n, edges: e } = transformWorkflowToReactFlow(detailData);
                     setNodes(n);
                     setEdges(e);
 
@@ -206,10 +209,10 @@ const OrchestrationCenter = ({isDark}) => {
                 return (
                     <div className="h-full w-full relative flex flex-col items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
-                             style={{
-                                 backgroundImage: 'radial-gradient(#000 1px, transparent 0)',
-                                 backgroundSize: '40px 40px'
-                             }}/>
+                            style={{
+                                backgroundImage: 'radial-gradient(#000 1px, transparent 0)',
+                                backgroundSize: '40px 40px'
+                            }} />
 
                         <div className="mb-16 text-center z-10 animate-in fade-in zoom-in-95 duration-1000">
                             <h2 className="text-4xl font-black dark:text-white  mb-3">
@@ -237,11 +240,14 @@ const OrchestrationCenter = ({isDark}) => {
                             <MethodCard
                                 icon={MessageSquare} title="自然语言编排" color="text-purple-500"
                                 onClick={() => setActiveView('ai')}
+                                loading={loading && loadingStatus === LOADING_STAGES.GENERATING}
+                                progress={progress}
+                                status="AI Generation"
                             />
                         </div>
 
                         <div
-                            className="absolute bottom-10 w-32 h-[1px] bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent"/>
+                            className="absolute bottom-10 w-32 h-[1px] bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent" />
                     </div>
                 );
 
@@ -250,24 +256,24 @@ const OrchestrationCenter = ({isDark}) => {
                     <div
                         className="h-full w-full relative flex flex-col items-center justify-center p-10 overflow-hidden bg-zinc-50/20 dark:bg-zinc-950/20">
                         <div
-                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-purple-500/10 blur-[120px] rounded-full pointer-events-none"/>
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-purple-500/10 blur-[120px] rounded-full pointer-events-none" />
                         <div
                             className="w-full max-w-6xl relative group animate-in zoom-in-95 slide-in-from-bottom-8 duration-700">
                             <div
-                                className="absolute -inset-[1px] bg-gradient-to-r from-purple-300 via-blue-500 to-purple-200 rounded-[3rem] opacity-20 group-focus-within:opacity-40 blur-[2px] transition-opacity duration-500"/>
+                                className="absolute -inset-[1px] bg-gradient-to-r from-purple-300 via-blue-500 to-purple-200 rounded-[3rem] opacity-20 group-focus-within:opacity-40 blur-[2px] transition-opacity duration-500" />
                             <div
                                 className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[3rem] p-10 shadow-2xl overflow-hidden">
                                 <div className="flex items-center justify-between mb-8">
                                     <div className="flex items-center gap-3">
                                         <div
                                             className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                                            <Sparkles size={20}/>
+                                            <Sparkles size={20} />
                                         </div>
                                         <div>
                                             <h3 className="text-base font-black dark:text-white uppercase tracking-tight">自然语言编排</h3>
                                         </div>
                                     </div>
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 </div>
                                 <textarea
                                     value={aiPrompt}
@@ -281,22 +287,40 @@ const OrchestrationCenter = ({isDark}) => {
                                     </div>
 
                                     <button
-                                        onClick={() => {
+                                        onClick={async () => {
                                             if (!aiPrompt.trim()) return;
-                                            setActiveView('editor');
+                                            setLoading(true);
+                                            setLoadingStatus(LOADING_STAGES.GENERATING);
+                                            try {
+                                                const result = await generateWorkflowFromIntent(aiPrompt);
+                                                const { nodes: n, edges: e } = transformWorkflowToReactFlow(result);
+                                                setNodes(n);
+                                                setEdges(e);
+                                                setActiveView('editor');
+                                            } catch (err) {
+                                                console.error("生成失败:", err);
+                                            } finally {
+                                                setLoading(false);
+                                                setLoadingStatus(LOADING_STAGES.IDLE);
+                                            }
                                         }}
+                                        disabled={loading}
                                         className={`
         group flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-xs tracking-widest transition-all duration-500
-        ${aiPrompt.trim()
-                                            ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 shadow-[0_10px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:-translate-x-1 active:scale-95'
-                                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed opacity-50'}
+        ${aiPrompt.trim() && !loading
+                                                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 shadow-[0_10px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:-translate-x-1 active:scale-95'
+                                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed opacity-50'}
     `}
                                     >
-    <span className="relative">
-        GENERATE
-    </span>
-                                        <ChevronRight size={18}
-                                                      className="group-hover:translate-x-1 transition-transform duration-300"/>
+                                        <span className="relative">
+                                            {loading ? 'GENERATING...' : 'GENERATE'}
+                                        </span>
+                                        {loading ? (
+                                            <Loader2 size={18} className="animate-spin" />
+                                        ) : (
+                                            <ChevronRight size={18}
+                                                className="group-hover:translate-x-1 transition-transform duration-300" />
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -309,7 +333,7 @@ const OrchestrationCenter = ({isDark}) => {
                             }}
                             className="mt-12 group flex items-center gap-2 text-[11px] font-black text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all uppercase tracking-[0.2em]"
                         >
-                            <div className="w-6 h-[1px] bg-zinc-300 dark:bg-zinc-700 group-hover:w-10 transition-all"/>
+                            <div className="w-6 h-[1px] bg-zinc-300 dark:bg-zinc-700 group-hover:w-10 transition-all" />
                             Back to Options
                         </button>
                     </div>
@@ -341,7 +365,7 @@ const OrchestrationCenter = ({isDark}) => {
                                 className={`absolute left-4 top-8 -translate-y-1/2 z-[70] p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full shadow-lg hover:scale-110 transition-all
                         ${!showConfig ? 'translate-x-0' : 'translate-x-[-10px]'}`}
                             >
-                                {showConfig ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
+                                {showConfig ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
                             </button>
                             <UnifiedWorkflow
                                 mode={activeView === 'detail' ? 'view' : 'edit'}
@@ -352,7 +376,14 @@ const OrchestrationCenter = ({isDark}) => {
                                 // Edit 模式使用的 Props
                                 importedNodes={nodes}
                                 importedEdges={edges}
-                                onCancel={() => setActiveView('detail')}
+                                onCancel={() => {
+                                    if (selectedId) {
+                                        setActiveView('detail');
+                                    } else {
+                                        setActiveView('welcome');
+                                    }
+                                }}
+                                onSaveSuccess={fetchWorkflows}
                             />
                         </div>
                     </div>
@@ -378,7 +409,7 @@ const OrchestrationCenter = ({isDark}) => {
                             }}
                             className="p-2.5 bg-zinc-900 dark:bg-white dark:text-zinc-900 text-white rounded-xl hover:scale-105 transition-all shadow-lg"
                         >
-                            <Plus size={18} strokeWidth={3}/>
+                            <Plus size={18} strokeWidth={3} />
                         </button>
                     </div>
                     <div className="relative">
@@ -388,7 +419,7 @@ const OrchestrationCenter = ({isDark}) => {
                             className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800 rounded-2xl text-xs font-bold outline-none"
                             onChange={e => setSearchTerm(e.target.value)}
                         />
-                        <Search className="absolute left-3.5 top-3.5 text-zinc-400" size={14}/>
+                        <Search className="absolute left-3.5 top-3.5 text-zinc-400" size={14} />
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar px-1">
@@ -398,7 +429,6 @@ const OrchestrationCenter = ({isDark}) => {
                             <div
                                 key={wf.id}
                                 onClick={() => {
-                                    // 仅更新 selectedId，详情获取交由 useEffect 处理
                                     if (selectedId !== wf.id) {
                                         setSelectedId(wf.id);
                                     } else {
@@ -408,19 +438,19 @@ const OrchestrationCenter = ({isDark}) => {
                                 className={`
                         group p-5 rounded-2xl border transition-all duration-300 cursor-pointer relative overflow-hidden
                         ${isSelected
-                                    ? 'bg-zinc-100 dark:bg-zinc-800 border-transparent shadow-inner'
-                                    : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 opacity-60 hover:opacity-100'
-                                }
+                                        ? 'bg-zinc-100 dark:bg-zinc-800 border-transparent shadow-inner'
+                                        : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 opacity-60 hover:opacity-100'
+                                    }
                     `}
                             >
                                 {isSelected && (
-                                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-600 animate-pulse"/>
+                                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-600 animate-pulse" />
                                 )}
 
                                 <div className="flex items-center justify-between mb-2 pl-2">
                                     <div
                                         className={`flex items-center gap-3 ${isSelected ? 'text-zinc-900 dark:text-white' : 'text-zinc-400'}`}>
-                                        <Hash size={16}/>
+                                        <Hash size={16} />
                                         <h3 className="font-black text-base uppercase leading-none truncate max-w-[180px]">
                                             {wf.name}
                                         </h3>
@@ -453,11 +483,11 @@ const OrchestrationCenter = ({isDark}) => {
         flex items-center gap-2 px-3 py-1.5 rounded-md  uppercase text-[12px] font-bold shadow-sm
         active:scale-95 active:shadow-inner
         ${isDark
-                                    ? 'bg-zinc-100 hover:bg-slate-500 text-black shadow-blue-900/20'
-                                    : 'bg-slate-900 hover:bg-slate-800 text-white shadow-blue-200'}
+                                        ? 'bg-zinc-100 hover:bg-slate-500 text-black shadow-blue-900/20'
+                                        : 'bg-slate-900 hover:bg-slate-800 text-white shadow-blue-200'}
     `}
                             >
-                                <Code2 size={14}/>
+                                <Code2 size={14} />
                                 <span>Edit</span>
                             </button>
                         )}
@@ -470,8 +500,8 @@ const OrchestrationCenter = ({isDark}) => {
             </div>
 
             <input type="file" ref={fileInput} className="hidden"
-                   accept=".pdf"
-                   onChange={handleFileChange}/>
+                accept=".pdf"
+                onChange={handleFileChange} />
         </div>
     );
 };

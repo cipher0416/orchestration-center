@@ -78,12 +78,15 @@ export const getBestHandles = (sourceNode, targetNode) => {
  * 4. 导入转换：PSOP JSON -> React Flow Nodes/Edges
  */
 export const transformWorkflowToReactFlow = (rawInput) => {
-    if (!rawInput || (!rawInput.steps && !Array.isArray(rawInput))) {
+    // 兼容 API 返回的 { data: { steps: [] } } 结构
+    const data = rawInput?.data ? rawInput.data : rawInput;
+
+    if (!data || (!data.steps && !Array.isArray(data))) {
         console.warn("无效的工作流数据格式");
         return { nodes: [], edges: [] };
     }
 
-    const steps = Array.isArray(rawInput) ? rawInput : (rawInput.steps || []);
+    const steps = Array.isArray(data) ? data : (data.steps || []);
     const nodes = [];
     const edges = [];
     const targetStepNames = new Set();
@@ -219,7 +222,7 @@ export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
         const { source, target, label, data: edgeData } = edge;
         if (source === 'START_NODE' || !stepsMap[source]) return;
 
-        const targetId = (target === 'END_OF_WORKFLOW') ? 'END' : target;
+        const targetId = (target === 'END_OF_WORKFLOW') ? 'end' : target;
         stepsMap[source].next.push({
             step: targetId,
             condition: label || edgeData?.condition || ""

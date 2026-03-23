@@ -60,7 +60,8 @@ const FlowInner = ({
                        // Edit 模式 Props
                        importedNodes,
                        importedEdges,
-                       onCancel
+                       onCancel,
+                       onSaveSuccess
                    }) => {
     const { t } = useTranslation();
     const { screenToFlowPosition, fitView, setCenter, getNode } = useReactFlow();
@@ -288,7 +289,7 @@ const FlowInner = ({
                 <>
                     <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                         <div className="pointer-events-auto">
-                            <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} onCancel={onCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} />
+                            <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} onCancel={onCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={onSaveSuccess} />
                         </div>
                     </div>
                     <div className="absolute justify-center left-8 top-12 bottom-12 w-32 z-40 pointer-events-none flex flex-col min-h-0">
@@ -319,7 +320,8 @@ const UnifiedWorkflow = ({
                              visible = true,
                              importedNodes,
                              importedEdges,
-                             onCancel
+                             onCancel,
+                             onSaveSuccess
                          }) => {
     if (mode === 'view' && isLoading) {
         return <WorkflowLoader isDark={isDark} loadingMessage={loadingMessage} />;
@@ -356,6 +358,7 @@ const UnifiedWorkflow = ({
                     importedNodes={importedNodes}
                     importedEdges={importedEdges}
                     onCancel={onCancel}
+                    onSaveSuccess={onSaveSuccess}
                 />
             </ReactFlowProvider>
         </div>
