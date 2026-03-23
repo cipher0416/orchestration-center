@@ -1,13 +1,12 @@
-import logging
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 
+from loguru import logger
+
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.persistence import WorkflowStorage
-
-logger = logging.getLogger(__name__)
 
 
 class PublishStatus(str, Enum):
@@ -133,7 +132,7 @@ class WorkflowPublisher:
         versions = self.get_published_versions(name, workflow_type)
         if not versions:
             return None
-        return max(versions, key=lambda x: x.published_at or datetime.min)
+        return max(versions, key=lambda x: x.published_at or datetime.min.replace(tzinfo=timezone.utc))
 
     def list_published(self, status: Optional[PublishStatus] = None,
                        workflow_type: Optional[str] = None) -> List[PublishedWorkflow]:

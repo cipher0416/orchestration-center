@@ -5,10 +5,10 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
 from loguru import logger
-from samples.util import load_agent_config
 from typing import List
 from urllib.parse import urlparse
 
+from framework import AgentCardLib
 from samples.agents.energy_saving_agent import EnergySavingAgentExecutor
 from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExecutor
 
@@ -46,11 +46,11 @@ async def start_server(agent_card: AgentCard, registry_url: str, port: int, host
 
 
 async def main() -> None:
-    config = load_agent_config()
-    registry_url = config["registry"]["url"]
+    agent_lib = AgentCardLib()
+    agent_cards = agent_lib.get_all_agent_cards()
+    registry_url = ""
     tasks: List[asyncio.Task] = []
-    for _, agent_card_dict in enumerate(config["agents"]):
-        agent_card = AgentCard.model_validate(agent_card_dict)
+    for agent_card in agent_cards:
         agent_name = agent_card.name
         parsed = urlparse(agent_card.url)
         task = asyncio.create_task(

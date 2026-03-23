@@ -1,13 +1,13 @@
 import asyncio
 import time
 
-from a2a.types import AgentCard
 from loguru import logger
 
+from framework import AgentCardLib
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.psop_generator import PsopGenerator
 from framework.runtime.exec_engine import DynamicWorkflowEngine
-from samples.util import load_agent_config, MOCK_ES_WORKFLOW
+from samples.util import MOCK_ES_WORKFLOW
 
 def get_pre_workflow():
     pre_md = MOCK_ES_WORKFLOW
@@ -55,9 +55,8 @@ def _get_and_validate_preflow():
 
 
 def _load_agents_and_get_cards():
-    config = load_agent_config()
-    return [AgentCard.model_validate(agent_dict) for agent_dict in config['agents']]
-
+    agent_lib = AgentCardLib()
+    return agent_lib.get_all_agent_cards()
 
 def _generate_workflow(preflow, agent_cards):
     logger.info("[STEP 3] 正在生成 PSOP 工作流...")

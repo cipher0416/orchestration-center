@@ -3,8 +3,7 @@ from loguru import logger
 from pathlib import Path
 from typing import Optional
 
-from common.llm.config.llm_config import LLMType, get_llm_config_by_type
-from common.llm.provider.llm_provider_registry import get_or_create_llm_instance
+from framework.orchestration.llm import get_or_create_deepseek_llm_instance
 
 
 class PDFParsingError(Exception):
@@ -16,8 +15,8 @@ class ChapterNotFoundError(PDFParsingError):
 
 
 class SolutionPackageParser:
-    def __init__(self, llm_type: LLMType = LLMType.QWEN3_32B):
-        self.llm_type = llm_type
+    def __init__(self):
+        self.llm = get_or_create_deepseek_llm_instance()
 
     @staticmethod
     def find_chapter_range(doc, chapter_title: str) -> tuple:
@@ -77,8 +76,7 @@ class SolutionPackageParser:
             raise PDFParsingError(f'Chapter text is empty')
         prompt = self.build_markdown_prompt(chapter_text)
         try:
-            llm = get_or_create_llm_instance(get_llm_config_by_type(self.llm_type))
-            _, res = llm.ask_llm(prompt)
+            _, res = self.llm.ask_llm(prompt)
             return res
         except Exception as e:
             raise PDFParsingError(f"LLM conversion failed: {e}") from e

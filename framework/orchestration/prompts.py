@@ -170,3 +170,133 @@ def get_generate_psop_prompt(preflow: str, tasks: list, psop_scheme: str) -> str
 {PSOP_EXAMPLE}
 ```
 """
+
+
+def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_schema: str) -> str:
+    return f"""作为一个资深的电信网络运维专家，请根据用户意图直接生成PSOP（Parallel-Standard Operation Process）工作流。
+
+## 用户意图
+{user_intent}
+
+## 可用Agent及技能
+{agent_cards_json}
+
+## PSOP格式要求
+{psop_schema}
+
+## 生成规则
+1. **步骤分解**：将用户意图分解为具体的、可执行的步骤
+2. **技能匹配**：为每个步骤选择合适的Agent和Skill，确保选择的Agent和Skill在可用列表中
+3. **依赖分析**：分析步骤间的依赖关系，确定并行/串行执行逻辑
+4. **条件跳转**：为每个步骤设置合理的跳转条件
+5. **命名规范**：步骤名称使用"step1"、"step2"等格式，每个步骤的type默认为"AllSuccess"
+
+## 输出格式
+请直接输出完整的PSOP JSON，用```json```包裹。
+
+## 示例
+用户意图：诊断基站批量掉站故障
+
+可用Agent及技能：[包含MAE故障Agent等]
+
+输出：
+```json
+{{
+    "name": "基站批量掉站故障诊断与恢复",
+    "steps": [
+        {{
+            "name": "step1",
+            "type": "AllSuccess",
+            "subtasks": [
+                {{
+                    "description": "检查退服基站的动力环境故障",
+                    "agent": "MAE故障Agent",
+                    "skill": "检查基站动力环境故障"
+                }},
+                {{
+                    "description": "检查退服基站的软硬件故障",
+                    "agent": "MAE故障Agent", 
+                    "skill": "检查基站软硬件故障"
+                }}
+            ],
+            "next": [
+                {{
+                    "step": "step2",
+                    "condition": "基站侧未发现明显问题"
+                }},
+                {{
+                    "step": "step3", 
+                    "condition": "基站侧发现故障原因"
+                }}
+            ]
+        }},
+        {{
+            "name": "step2",
+            "type": "AllSuccess",
+            "subtasks": [
+                {{
+                    "description": "查询传输网元告警信息",
+                    "agent": "MAE故障Agent",
+                    "skill": "查询传输网元告警"
+                }},
+                {{
+                    "description": "检查传输侧是否存在光缆中断",
+                    "agent": "MAE故障Agent",
+                    "skill": "检查传输侧是否存在光缆中断"
+                }}
+            ],
+            "next": [
+                {{
+                    "step": "step3",
+                    "condition": "传输侧发现异常"
+                }},
+                {{
+                    "step": "step4",
+                    "condition": "传输侧未发现异常"
+                }}
+            ]
+        }},
+        {{
+            "name": "step3",
+            "type": "AllSuccess",
+            "subtasks": [
+                {{
+                    "description": "传输侧处理故障",
+                    "agent": "MAE故障Agent",
+                    "skill": "故障处理"
+                }}
+            ],
+            "next": [
+                {{
+                    "step": "end",
+                    "condition": "故障处理完成"
+                }}
+            ]
+        }},
+        {{
+            "name": "step4",
+            "type": "AllSuccess",
+            "subtasks": [
+                {{
+                    "description": "处理无线网络故障",
+                    "agent": "MAE故障Agent",
+                    "skill": "处理无线网络故障"
+                }}
+            ],
+            "next": [
+                {{
+                    "step": "end",
+                    "condition": "故障处理完成"
+                }}
+            ]
+        }}
+    ]
+}}
+```
+
+## 注意事项
+1. 最后一步的next属性设置为：[{{"step": "end", "condition": ""}}]
+2. 保持电信运维的专业术语和逻辑严谨性
+3. 确保生成的PSOP符合格式要求
+4. 仅输出JSON，不要有其他解释性文字
+"""

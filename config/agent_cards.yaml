@@ -1,5 +1,7 @@
-registry:
-  url: "http://127.0.0.1:5000"
+# AgentCard配置
+# 如果设置了source_url，则优先从URL获取AgentCard
+# 否则使用下面的agents字段
+# source_url: "http://example.com/agents"
 
 agents:
   - name: "RAN Energy Saving Agent"

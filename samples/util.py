@@ -1,15 +1,4 @@
-from pathlib import Path
-
-import yaml
-
 from framework.orchestration.model.psop import PSOP
-
-
-def load_agent_config():
-    script_dir = Path(__file__).parent.resolve()
-    config_path = script_dir / "agent-cards" / "config.yaml"
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
 
 
 MOCK_ES_WORKFLOW = """

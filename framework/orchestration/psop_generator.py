@@ -16,7 +16,7 @@ Key components:
 """
 
 import json
-import logging
+from loguru import logger
 import re
 from typing import Type, Optional, Union, Any, Dict, List
 
@@ -28,8 +28,6 @@ from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.prompts import get_generate_psop_prompt, get_choose_skill_prompt, \
     get_preprocess_input_prompt
-
-logger = logging.getLogger(__name__)
 
 
 class WorkflowGeneratorError(Exception):
@@ -194,7 +192,7 @@ class PsopGenerator:
             if not tasks:
                 raise ValueError("Tasks list cannot be empty")
             psop_schema = json.dumps(PSOP.model_json_schema(), ensure_ascii=False, indent=2)
-            prompt = get_generate_psop_prompt(str(preflow), tasks, psop_schema)
+            prompt = get_generate_psop_prompt(preflow.steps_md, tasks, psop_schema)
             _, llm_res = self._llm.ask_llm(prompt)
 
             psop_data = self._parse_json_response(llm_res, PSOP)

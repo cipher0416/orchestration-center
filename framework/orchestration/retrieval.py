@@ -1,12 +1,9 @@
-import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.persistence import WorkflowStorage
-
-logger = logging.getLogger(__name__)
 
 
 class WorkflowSearchResult:
@@ -87,7 +84,7 @@ class WorkflowRetrieval:
                 return any(st in workflow_tags_lower for st in search_tags_lower)
 
         if workflow_type in ("all", "psop"):
-            for wf_id in self.storage.list_preflows():
+            for wf_id in self.storage.list_psops():
                 psop = self.storage.load_psop(wf_id)
                 if psop and matches_tags(psop.tags):
                     results.append(WorkflowSearchResult(
@@ -175,5 +172,6 @@ class WorkflowRetrieval:
                         tags=preflow.tags,
                         created_at=preflow.created_at
                     ))
-        results.sort(key=lambda x: x.created_at, reverse=True)
+        # 使用timestamp进行排序，避免offset-naive和offset-aware datetime比较错误
+        results.sort(key=lambda x: x.created_at.timestamp() if x.created_at.tzinfo else x.created_at.replace(tzinfo=timezone.utc).timestamp(), reverse=True)
         return results[:limit]
