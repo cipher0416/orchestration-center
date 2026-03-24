@@ -10,10 +10,15 @@ class WorkflowStorageError(Exception):
 
 
 class WorkflowStorage:
-    def __init__(self, storage_dir: str = "./workflow_storage"):
-        self.storage_dir = Path(storage_dir)
-        self.psop_dir = self.storage_dir / "psop"
-        self.preflow_dir = self.storage_dir / "preflow"
+    def __init__(self, storage_dir: Optional[str] = None):
+        if storage_dir is None:
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parent.parent
+            self.psop_dir = project_root / "data" / "workflow_storage" / "psop"
+            self.preflow_dir = project_root / "data" / "workflow_storage" / "preflow"
+        else:
+            self.psop_dir = Path(storage_dir) / "workflow_storage" / "psop"
+            self.preflow_dir = Path(storage_dir) / "workflow_storage" / "preflow"
         self._init_storage()
 
     def save_psop(self, psop: PSOP) -> str:
@@ -110,8 +115,9 @@ class WorkflowStorage:
 
     def _init_storage(self) -> None:
         self.psop_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"PSOP storage initialized at : {self.psop_dir}")
         self.preflow_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Workflow storage initialized at : {self.storage_dir}")
+        logger.info(f"Preflow storage initialized at : {self.preflow_dir}")
 
     def _get_file_path(self, workflow_id: str, workflow_type: str) -> Path:
         if workflow_type == "psop":
