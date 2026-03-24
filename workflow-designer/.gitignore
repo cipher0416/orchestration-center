@@ -23,4 +23,5 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
-.coverage/
+# 测试覆盖
+coverage/
