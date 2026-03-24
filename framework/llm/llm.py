@@ -14,6 +14,7 @@ Key Features:
 import os
 from typing import Tuple
 from openai import OpenAI
+from loguru import logger
 
 
 class DeepSeekLLM:
@@ -57,23 +58,32 @@ class DeepSeekLLM:
             Tuple containing (reasoning_content, final_answer)
             - reasoning_content: Chain-of-thought reasoning (empty for non-reasoning models)
             - final_answer: The final response from the LLM
+
+        Raises:
+            Exception: If LLM API call fails
         """
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            message = response.choices[0].message
 
-        message = response.choices[0].message
+            if hasattr(message, 'reasoning_content'):
+                reasoning = message.reasoning_content or ''
+                content = message.content or ''
+            else:
+                reasoning = ''
+                content = message.content or ''
+            return reasoning, content
 
-        if hasattr(message, 'reasoning_content'):
-            reasoning = message.reasoning_content or ''
-            content = message.content or ''
-        else:
-            reasoning = ''
-            content = message.content or ''
-        return reasoning, content
+        except Exception as e:
+            error_msg = f"LLM API调用失败: {str(e)}"
+            logger.error(error_msg)
+            logger.error(f"错误类型: {type(e).__name__}")
+            raise Exception(f"LLM调用失败: {str(e)}")
 
 
 def get_or_create_deepseek_llm_instance():

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 import concurrent.futures
 
-from framework.orchestration.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_or_create_deepseek_llm_instance
 
 
 class PDFParsingError(Exception):

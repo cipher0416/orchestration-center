@@ -6,7 +6,7 @@ from a2a.types import (
     Task, TaskStatus, TaskState, Artifact, TextPart, Part,
 )
 
-from framework.orchestration.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_or_create_deepseek_llm_instance
 
 
 class EnergySavingAgentExecutor(AgentExecutor):
