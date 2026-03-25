@@ -1,8 +1,9 @@
 import os
 import tempfile
+import json
 
 from a2a.types import AgentCard
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from loguru import logger
 from flask_cors import CORS
 
@@ -14,6 +15,7 @@ from framework.orchestration.persistence import WorkflowStorage
 from framework.orchestration.retrieval import WorkflowRetrieval
 from framework.solution_package.parse_flow import SolutionPackageParser
 from framework.agentcard_lib import AgentCardLib
+from framework.runtime.exec_engine import DynamicWorkflowEngine
 
 app = Flask(__name__)
 CORS(app)
@@ -78,6 +80,8 @@ def plan():
         generator = PsopGenerator()
         workflow = generator.generate_psop_workflow(PreFlow.model_validate(preflow_dict),
                                                     [AgentCard.model_validate(card) for card in agent_cards_list])
+        storage.save_psop(workflow)
+
         return jsonify({
             "status": "success",
             "data": workflow.model_dump_json()
@@ -102,7 +106,6 @@ def get_all_psops():
     except Exception as e:
         return jsonify({"error": f"获取PSOP列表失败: {str(e)}"}), 500
 
-
 @app.route('/psops/<workflow_id>', methods=['GET'])
 def get_psop_by_id(workflow_id):
     try:
@@ -124,7 +127,7 @@ def save_psop():
         data = request.get_json()
         if not data:
             return jsonify({"error": "请求体为空"}), 400
-        
+
         psop = PSOP.model_validate(data)
         saved_id = storage.save_psop(psop)
         
@@ -235,6 +238,130 @@ def generate_psop_from_intent():
         return jsonify({"error": f"生成PSOP失败: {str(e)}"}), 500
 
 
+# SSE事件队列用于存储推送事件
+sse_events = {}
+
+
+@app.route('/rest/start_process_stream', methods=['GET'])
+def start_process_stream():
+    psop_id = request.args.get('psop_id')
+    if not psop_id:
+        return jsonify({"error": "缺少psop_id参数"}), 400
+
+    psop = retrieval.get_psop_by_id(psop_id)
+    if not psop:
+        return jsonify({"error": f"未找到ID为 {psop_id} 的PSOP"}), 404
+
+    agent_cards = agent_lib.get_all_agent_cards()
+    if not agent_cards:
+        return jsonify({"error": "未找到可用的AgentCard"}), 404
+
+    def generate():
+        import asyncio
+        import threading
+        import queue
+        
+        event_queue = queue.Queue()
+        
+        def push_callback(event_type: str, data: dict):
+            try:
+                # 序列化数据，处理无法JSON序列化的对象
+                serializable_data = {}
+                for key, value in data.items():
+                    if hasattr(value, 'model_dump'):
+                        # 如果是Pydantic模型，使用model_dump()
+                        serializable_data[key] = value.model_dump()
+                    elif hasattr(value, '__dict__'):
+                        # 如果是普通对象，尝试转换为字典
+                        try:
+                            serializable_data[key] = value.__dict__
+                        except:
+                            serializable_data[key] = str(value)
+                    elif isinstance(value, (tuple, list)):
+                        # 处理列表和元组
+                        serializable_data[key] = []
+                        for item in value:
+                            if hasattr(item, 'model_dump'):
+                                serializable_data[key].append(item.model_dump())
+                            elif hasattr(item, '__dict__'):
+                                try:
+                                    serializable_data[key].append(item.__dict__)
+                                except:
+                                    serializable_data[key].append(str(item))
+                            else:
+                                serializable_data[key].append(item)
+                    else:
+                        serializable_data[key] = value
+                
+                event_data = {
+                    "type": event_type,
+                    "data": serializable_data,
+                    "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
+                }
+                event_queue.put(event_data)
+            except Exception as e:
+                logger.error(f"推送事件到队列失败: {e}")
+        
+        async def run_workflow_async():
+            try:
+                engine = DynamicWorkflowEngine(psop, agent_cards)
+                engine.set_push_callback(push_callback)
+                
+                event_queue.put({
+                    "type": "start",
+                    "data": {"psop_id": psop_id, "message": "开始执行工作流"}
+                })
+                
+                execution_history = await engine.run()
+                
+                event_queue.put({
+                    "type": "complete",
+                    "data": {"psop_id": psop_id, "execution_history": execution_history}
+                })
+                
+            except Exception as e:
+                logger.error(f"工作流执行失败: {e}")
+                event_queue.put({
+                    "type": "error",
+                    "data": {"psop_id": psop_id, "error": str(e)}
+                })
+        
+        def run_workflow():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                loop.run_until_complete(run_workflow_async())
+            finally:
+                loop.close()
+        
+        workflow_thread = threading.Thread(target=run_workflow)
+        workflow_thread.daemon = True
+        workflow_thread.start()
+        
+        yield f"data: {json.dumps({'type': 'init', 'data': {'psop_id': psop_id, 'message': '初始化执行引擎'}})}\n\n"
+        
+        while workflow_thread.is_alive() or not event_queue.empty():
+            try:
+                event = event_queue.get(timeout=1)
+                yield f"data: {json.dumps(event)}\n\n"
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.error(f"处理事件失败: {e}")
+        
+        yield "event: close\ndata: {}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+    
 if __name__ == '__main__':
     logger.info("=" * 50)
     logger.info("  PSOP 服务器接口")
@@ -253,7 +380,9 @@ if __name__ == '__main__':
     logger.info("  意图生成接口:")
     logger.info("  POST /generate-from-intent - 根据自然语言意图生成PSOP")
     logger.info("")
-    logger.info("  服务器启动在: http://localhost:60000")
+    logger.info("  SSE执行接口:")
+    logger.info("  GET  /rest/start_process_stream?psop_id=<id> - 启动PSOP执行并推送实时进展")
+    logger.info("")
     logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
-    app.run(host='localhost', port=60000, debug=True)
+    app.run(host='0.0.0.0', port=60000)
