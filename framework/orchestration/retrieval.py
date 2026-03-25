@@ -55,7 +55,7 @@ class WorkflowRetrieval:
                         tags=psop.tags,
                         created_at=psop.created_at
                     ))
-        if workflow_type in ("all", "psop"):
+        if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)
                 if preflow and name_lower in preflow.name.lower():
