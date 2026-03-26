@@ -1,54 +1,136 @@
-# PSOP API 接口文档
+# PSOP Orchestration Center API 文档
 
 ## 概述
 
 PSOP (Parallel-Standard Operation Process) 是运行时工作流，用于系统执行。它定义了明确的任务及其在智能体粒度上的关系。每个任务指定了使用哪个智能体和技能。
 
-本文档描述了 `framework/server/frontend_support_server.py` 中新增的三个PSOP管理接口。
+本文档描述了 `framework/server/frontend_support_server.py` 中的所有API接口。
 
 ## 服务器信息
 
-- **服务器地址**: `http://localhost:6000`
+- **服务器地址**: `http://localhost:60000`
 - **启动命令**: `python -m framework.server.frontend_support_server`
+- **默认端口**: 60000
 - **日志输出**: 启动时会显示所有可用接口
 
-## 接口列表
+## 接口概览
 
-### 1. 获取PSOP列表接口
-### 2. 按ID获取PSOP详情接口
-### 3. 保存PSOP接口
+### 1. PDF解析接口
+- `POST /parse-pdf` - 上传PDF文件并解析
+
+### 2. 工作流规划接口
+- `POST /plan` - 提交任务和步骤，获取规划结果
+
+### 3. PSOP管理接口
+- `GET /psops` - 获取PSOP列表
+- `GET /psops/<workflow_id>` - 根据ID获取PSOP详情
+- `POST /psops` - 保存PSOP
+- `DELETE /psops/<workflow_id>` - 删除PSOP
+
+### 4. AgentCard管理接口
+- `GET /agent-cards` - 获取全量AgentCard列表
+
+### 5. 意图生成接口
+- `POST /generate-from-intent` - 根据自然语言意图生成PSOP
+- `POST /retrieve-by-intent` - 根据自然语言意图检索PSOP
+
+### 6. SSE执行接口
+- `GET /rest/start_process_stream?psop_id=<id>` - 启动PSOP执行并推送实时进展
 
 ---
 
 ## 接口详情
 
-### 1. 获取PSOP列表接口
+### 1. PDF解析接口
 
-#### 基本信息
-- **端点**: `GET /psops`
-- **功能**: 获取所有PSOP的列表
-- **描述**: 返回存储中的所有PSOP，支持分页和类型过滤
+#### `POST /parse-pdf`
 
-#### 请求参数
-| 参数名 | 类型 | 必填 | 默认值 | 描述 |
-|--------|------|------|--------|------|
-| `limit` | integer | 否 | 10 | 返回结果数量限制 |
-| `workflow_type` | string | 否 | "psop" | 工作流类型，可选值: "all", "psop", "preflow" |
+上传PDF文件并解析"5. Interaction Flow"章节。
 
-#### 请求示例
-```bash
-# 获取前10个PSOP
-curl -X GET "http://localhost:6000/psops"
+**请求**:
+- **方法**: POST
+- **Content-Type**: multipart/form-data
 
-# 获取前5个PSOP
-curl -X GET "http://localhost:6000/psops?limit=5"
+**参数**:
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| file | file | 是 | PDF文件 |
 
-# 获取所有类型的工作流
-curl -X GET "http://localhost:6000/psops?workflow_type=all"
+**响应**:
+```json
+{
+  "status": "success",
+  "message": "PDF文件解析成功",
+  "content": "PreFlow JSON数据"
+}
 ```
 
-#### 响应格式
-**成功响应 (200 OK):**
+**错误响应**:
+- 400: 未提供文件、文件名为空、非PDF文件
+- 400: PDF解析失败，未找到指定章节
+- 500: 解析失败
+
+---
+
+### 2. 工作流规划接口
+
+#### `POST /plan`
+
+提交任务和步骤，获取规划结果。
+
+**请求**:
+- **方法**: POST
+- **Content-Type**: application/json
+
+**请求体**:
+```json
+{
+  "preflow": {
+    "name": "工作流名称",
+    "description": "工作流描述",
+    "steps_md": "Markdown格式的步骤描述"
+  },
+  "agent_cards": [
+    {
+      "name": "Agent名称",
+      "description": "Agent描述",
+      "skills": ["技能1", "技能2"]
+    }
+  ]
+}
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": "PSOP工作流JSON数据"
+}
+```
+
+**错误响应**:
+- 400: 请求体为空
+- 400: 缺少必要字段
+- 500: 规划失败
+
+---
+
+### 3. PSOP管理接口
+
+#### 3.1 `GET /psops`
+
+获取所有PSOP的列表。
+
+**请求**:
+- **方法**: GET
+
+**查询参数**:
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| limit | integer | 否 | 10 | 返回结果数量限制 |
+| workflow_type | string | 否 | "psop" | 工作流类型，可选值: "all", "psop", "preflow" |
+
+**响应**:
 ```json
 {
   "status": "success",
@@ -62,53 +144,21 @@ curl -X GET "http://localhost:6000/psops?workflow_type=all"
       "tags": ["energy", "analysis", "automation"],
       "created_at": "2026-03-18T18:18:26.264191",
       "score": 1.0
-    },
-    {
-      "workflow_id": "test-psop-002",
-      "workflow_type": "psop",
-      "name": "故障诊断流程",
-      "description": "用于系统故障诊断的PSOP",
-      "tags": ["diagnosis", "troubleshooting", "maintenance"],
-      "created_at": "2026-03-18T18:18:26.270861",
-      "score": 1.0
     }
   ]
 }
 ```
 
-**错误响应 (500 Internal Server Error):**
-```json
-{
-  "error": "获取PSOP列表失败: [错误详情]"
-}
-```
+#### 3.2 `GET /psops/<workflow_id>`
 
-#### 状态码
-- `200`: 成功获取PSOP列表
-- `500`: 服务器内部错误
+根据ID获取单个PSOP的完整详情。
 
----
-
-### 2. 按ID获取PSOP详情接口
-
-#### 基本信息
-- **端点**: `GET /psops/<workflow_id>`
-- **功能**: 根据ID获取单个PSOP的完整详情
-- **描述**: 返回指定ID的PSOP完整数据
-
-#### 路径参数
+**路径参数**:
 | 参数名 | 类型 | 必填 | 描述 |
 |--------|------|------|------|
-| `workflow_id` | string | 是 | PSOP的唯一标识符 |
+| workflow_id | string | 是 | PSOP的唯一标识符 |
 
-#### 请求示例
-```bash
-# 获取ID为test-psop-001的PSOP详情
-curl -X GET "http://localhost:6000/psops/test-psop-001"
-```
-
-#### 响应格式
-**成功响应 (200 OK):**
+**响应**:
 ```json
 {
   "status": "success",
@@ -130,25 +180,53 @@ curl -X GET "http://localhost:6000/psops/test-psop-001"
           }
         ],
         "next": null
-      },
-      {
-        "name": "分析处理",
-        "type": "AllSuccess",
-        "subtasks": [
-          {
-            "description": "分析能源使用模式",
-            "agent": "analyst",
-            "skill": "pattern-analysis",
-            "status": "pending"
-          }
-        ],
-        "next": null
       }
     ],
     "related_preflow": null,
     "user_intent": null,
     "tags": ["energy", "analysis", "automation"]
   }
+}
+```
+
+#### 3.3 `POST /psops`
+
+保存PSOP到存储系统。
+
+**请求**:
+- **方法**: POST
+- **Content-Type**: application/json
+
+**请求体**:
+PSOP的JSON数据，必须符合PSOP模型定义。
+
+**响应**:
+```json
+{
+  "status": "success",
+  "message": "PSOP保存成功",
+  "workflow_id": "test-psop-003"
+}
+```
+
+#### 3.4 `DELETE /psops/<workflow_id>`
+
+删除指定ID的PSOP工作流。
+
+**请求**:
+- **方法**: DELETE
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| workflow_id | string | 是 | PSOP的唯一标识符 |
+
+**响应**:
+**成功响应 (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "PSOP test-psop-001 删除成功"
 }
 ```
 
@@ -162,87 +240,164 @@ curl -X GET "http://localhost:6000/psops/test-psop-001"
 **错误响应 (500 Internal Server Error):**
 ```json
 {
-  "error": "获取PSOP详情失败: [错误详情]"
+  "error": "删除PSOP失败: 文件可能不存在"
 }
 ```
 
-#### 状态码
-- `200`: 成功获取PSOP详情
-- `404`: 指定的PSOP不存在
-- `500`: 服务器内部错误
+**使用示例**:
+```bash
+# 删除ID为test-psop-001的PSOP
+curl -X DELETE "http://localhost:60000/psops/test-psop-001"
+```
 
 ---
 
-### 3. 保存PSOP接口
+### 4. AgentCard管理接口
 
-#### 基本信息
-- **端点**: `POST /psops`
-- **功能**: 保存PSOP到存储系统
-- **描述**: 创建新的PSOP或更新现有PSOP
+#### `GET /agent-cards`
 
-#### 请求头
-```
-Content-Type: application/json
-```
+获取全量AgentCard列表。
 
-#### 请求体
-PSOP的JSON数据，必须符合PSOP模型定义。
+**请求**:
+- **方法**: GET
 
-#### 请求示例
-```bash
-# 保存一个新的PSOP
-curl -X POST "http://localhost:6000/psops" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "test-psop-003",
-    "name": "数据备份流程",
-    "description": "用于系统数据备份的PSOP",
-    "tags": ["backup", "data-protection", "automation"],
-    "steps": [
-      {
-        "name": "备份准备",
-        "type": "AllSuccess",
-        "subtasks": [
-          {
-            "description": "检查备份存储空间",
-            "agent": "storage-manager",
-            "skill": "storage-check",
-            "status": "pending"
-          }
-        ]
-      }
-    ]
-  }'
-```
-
-#### 响应格式
-**成功响应 (201 Created):**
+**响应**:
 ```json
 {
   "status": "success",
-  "message": "PSOP保存成功",
-  "workflow_id": "test-psop-003"
+  "count": 5,
+  "data": [
+    {
+      "name": "Agent名称",
+      "description": "Agent描述",
+      "skills": ["技能1", "技能2"],
+      "config": {}
+    }
+  ]
 }
 ```
 
-**错误响应 (400 Bad Request):**
+---
+
+### 5. 意图生成接口
+
+#### 5.1 `POST /generate-from-intent`
+
+根据自然语言意图生成PSOP工作流。
+
+**请求**:
+- **方法**: POST
+- **Content-Type**: application/json
+
+**请求体**:
 ```json
 {
-  "error": "请求体为空"
+  "user_intent": "自然语言描述的业务意图",
+  "workflow_name": "可选的工作流名称"
 }
 ```
 
-**错误响应 (500 Internal Server Error):**
+**响应**:
 ```json
 {
-  "error": "保存PSOP失败: 1 validation error for PSOP\nsteps\n  Field required [type=missing, input_value={'id': 'test-psop-003',...}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing"
+  "status": "success",
+  "message": "PSOP生成成功",
+  "data": {
+    "id": "psop-uuid",
+    "name": "PSOP名称",
+    "description": "PSOP描述",
+    "steps": [...],
+    "tags": [...],
+    "created_at": "2024-01-01T00:00:00"
+  }
 }
 ```
 
-#### 状态码
-- `201`: PSOP保存成功
-- `400`: 请求体为空或格式错误
-- `500`: 服务器内部错误或数据验证失败
+#### 5.2 `POST /retrieve-by-intent`
+
+根据自然语言意图检索最合适的PSOP工作流。
+
+**请求**:
+- **方法**: POST
+- **Content-Type**: application/json
+
+**请求体**:
+```json
+{
+  "user_intent": "自然语言描述的业务意图"
+}
+```
+
+**响应**:
+找到匹配的PSOP:
+```json
+{
+  "status": "success",
+  "message": "PSOP检索成功",
+  "data": {
+    "id": "psop-uuid",
+    "name": "PSOP名称",
+    "description": "PSOP描述",
+    "steps": [...],
+    "tags": [...],
+    "created_at": "2024-01-01T00:00:00"
+  }
+}
+```
+
+未找到匹配的PSOP:
+```json
+{
+  "status": "success",
+  "message": "未找到匹配的PSOP",
+  "data": null
+}
+```
+
+---
+
+### 6. SSE执行接口
+
+#### `GET /rest/start_process_stream`
+
+启动PSOP工作流执行，并通过Server-Sent Events (SSE) 实时推送执行进度和事件到前端。
+
+**请求**:
+- **方法**: GET
+- **Content-Type**: text/event-stream
+
+**查询参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| psop_id | string | 是 | 要执行的PSOP工作流ID |
+
+**响应格式**:
+SSE事件流，每个事件格式如下：
+```
+data: {"type": "事件类型", "data": {事件数据}, "timestamp": 时间戳}
+```
+
+**事件类型**:
+1. **init** - 初始化事件
+2. **start** - 开始执行事件
+3. **agent_request** - Agent请求事件
+4. **agent_response** - Agent响应事件
+5. **psop_update** - PSOP状态更新事件
+6. **complete** - 完成事件
+7. **error** - 错误事件
+8. **close** - 关闭事件
+
+**示例事件**:
+```json
+{
+  "type": "agent_request",
+  "data": {
+    "agent": "RAN Energy Saving Agent",
+    "request": "{\"contextId\": null, \"extensions\": null, \"kind\": \"message\", \"messageId\": \"73d37d27-7cd7-4b70-a099-8ec90aef1858\", \"metadata\": null, \"parts\": [{\"kind\": \"text\", \"metadata\": null, \"text\": \"获取包含目标最佳可能值的RAN节能探索报告\"}], \"referenceTaskIds\": null, \"role\": \"user\", \"taskId\": null}"
+  },
+  "timestamp": 1234567890.789
+}
+```
 
 ---
 
@@ -299,15 +454,14 @@ class StepType(str, Enum):
 
 ---
 
-## 完整使用示例
+## 使用示例
 
 ### Python示例
 ```python
 import requests
 import json
 
-# 服务器地址
-BASE_URL = "http://localhost:6000"
+BASE_URL = "http://localhost:60000"
 
 # 1. 获取PSOP列表
 def get_psop_list(limit=10):
@@ -328,142 +482,95 @@ def save_psop(psop_data):
     else:
         raise Exception(f"保存失败: {response.text}")
 
-# 3. 获取PSOP详情
-def get_psop_detail(workflow_id):
-    response = requests.get(f"{BASE_URL}/psops/{workflow_id}")
+# 3. 根据意图检索PSOP
+def retrieve_psop_by_intent(user_intent):
+    url = f"{BASE_URL}/retrieve-by-intent"
+    payload = {"user_intent": user_intent}
+    
+    try:
+        response = requests.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"请求失败: {e}")
+        return None
+
+# 4. 删除PSOP
+def delete_psop(workflow_id):
+    response = requests.delete(f"{BASE_URL}/psops/{workflow_id}")
     if response.status_code == 200:
         return response.json()
     elif response.status_code == 404:
         raise Exception(f"PSOP不存在: {workflow_id}")
     else:
-        raise Exception(f"获取详情失败: {response.text}")
+        raise Exception(f"删除失败: {response.text}")
 
-# 使用示例
-if __name__ == "__main__":
-    # 创建PSOP数据
-    new_psop = {
-        "id": "my-custom-psop",
-        "name": "自定义工作流",
-        "description": "这是一个自定义的PSOP示例",
-        "tags": ["custom", "example", "test"],
-        "steps": [
-            {
-                "name": "第一步",
-                "type": "AllSuccess",
-                "subtasks": [
-                    {
-                        "description": "执行初始化任务",
-                        "agent": "init-agent",
-                        "skill": "initialization",
-                        "status": "pending"
-                    }
-                ]
-            }
-        ]
-    }
+# 5. 启动PSOP执行（SSE）
+def start_psop_execution(psop_id):
+    url = f"{BASE_URL}/rest/start_process_stream?psop_id={psop_id}"
+    event_source = requests.get(url, stream=True)
     
-    try:
-        # 保存PSOP
-        result = save_psop(new_psop)
-        print(f"保存成功: {result}")
-        
-        # 获取列表
-        psop_list = get_psop_list()
-        print(f"PSOP列表: {psop_list}")
-        
-        # 获取详情
-        detail = get_psop_detail("my-custom-psop")
-        print(f"PSOP详情: {detail}")
-        
-    except Exception as e:
-        print(f"操作失败: {str(e)}")
+    for line in event_source.iter_lines():
+        if line:
+            line_str = line.decode('utf-8')
+            if line_str.startswith('data: '):
+                event_data = json.loads(line_str[6:])
+                print(f"事件类型: {event_data['type']}")
+                print(f"事件数据: {event_data['data']}")
 ```
 
-### JavaScript示例
+### JavaScript SSE示例
 ```javascript
-// 使用fetch API
-const BASE_URL = 'http://localhost:6000';
+// 创建EventSource连接
+const psopId = 'd188df84-0dba-48af-ad49-8a7eafee1abb';
+const eventSource = new EventSource(`/rest/start_process_stream?psop_id=${psopId}`);
 
-// 获取PSOP列表
-async function getPsopList(limit = 10) {
-    const response = await fetch(`${BASE_URL}/psops?limit=${limit}`);
-    if (!response.ok) {
-        throw new Error(`获取列表失败: ${response.status}`);
-    }
-    return await response.json();
-}
-
-// 保存PSOP
-async function savePsop(psopData) {
-    const response = await fetch(`${BASE_URL}/psops`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(psopData)
-    });
+// 监听消息事件
+eventSource.onmessage = function(event) {
+  try {
+    const data = JSON.parse(event.data);
     
-    if (!response.ok) {
-        throw new Error(`保存失败: ${response.status}`);
-    }
-    return await response.json();
-}
-
-// 获取PSOP详情
-async function getPsopDetail(workflowId) {
-    const response = await fetch(`${BASE_URL}/psops/${workflowId}`);
-    if (response.status === 404) {
-        throw new Error(`PSOP不存在: ${workflowId}`);
-    }
-    if (!response.ok) {
-        throw new Error(`获取详情失败: ${response.status}`);
-    }
-    return await response.json();
-}
-
-// 使用示例
-async function example() {
-    const newPsop = {
-        id: 'js-test-psop',
-        name: 'JavaScript测试PSOP',
-        description: '通过JavaScript创建的PSOP',
-        tags: ['javascript', 'test', 'frontend'],
-        steps: [
-            {
-                name: '前端处理',
-                type: 'AllSuccess',
-                subtasks: [
-                    {
-                        description: '处理用户输入',
-                        agent: 'frontend-agent',
-                        skill: 'input-processing',
-                        status: 'pending'
-                    }
-                ]
-            }
-        ]
-    };
-    
-    try {
-        // 保存PSOP
-        const saveResult = await savePsop(newPsop);
-        console.log('保存成功:', saveResult);
+    switch(data.type) {
+      case 'init':
+        console.log('初始化:', data.data.message);
+        break;
         
-        // 获取列表
-        const list = await getPsopList(5);
-        console.log('PSOP列表:', list);
+      case 'start':
+        console.log('开始执行工作流:', data.data.psop_id);
+        break;
         
-        // 获取详情
-        const detail = await getPsopDetail('js-test-psop');
-        console.log('PSOP详情:', detail);
+      case 'agent_request':
+        console.log(`Agent请求: ${data.data.agent}`);
+        break;
         
-    } catch (error) {
-        console.error('操作失败:', error.message);
+      case 'agent_response':
+        console.log(`Agent响应: ${data.data.agent}`);
+        break;
+        
+      case 'psop_update':
+        console.log('PSOP状态更新');
+        break;
+        
+      case 'complete':
+        console.log('工作流执行完成');
+        eventSource.close();
+        break;
+        
+      case 'error':
+        console.error('执行错误:', data.data.error);
+        eventSource.close();
+        break;
     }
-}
+  } catch (error) {
+    console.error('解析事件数据失败:', error);
+  }
+};
 
-// 运行示例
-example();
+// 监听错误事件
+eventSource.onerror = function(error) {
+  console.error('SSE连接错误:', error);
+  eventSource.close();
+};
 ```
 
 ---
@@ -483,17 +590,14 @@ example();
 3. **500 Internal Server Error**
    - **原因**: 服务器内部错误或数据验证失败
    - **解决方法**: 
-     - 检查PSOP数据结构是否符合模型定义
+     - 检查数据结构是否符合模型定义
      - 查看服务器日志获取详细错误信息
      - 确保所有必需字段都已提供
 
-### 数据验证错误示例
-```json
-{
-  "error": "保存PSOP失败: 1 validation error for PSOP\nsteps\n  Field required [type=missing, input_value={'id': 'test', 'name': 'test'}, input_type=dict]"
-}
-```
-**解决方法**: 确保提供了`steps`字段，且其值为非空数组。
+### SSE连接问题
+- **连接中断**: SSE连接可能因网络问题中断，建议前端实现重连机制
+- **超时处理**: 长时间无响应应考虑超时处理
+- **浏览器兼容性**: 确保目标浏览器支持EventSource API
 
 ---
 
@@ -504,16 +608,39 @@ example();
 3. **数据持久化**: PSOP数据保存在`workflow_storage/psop/`目录下的JSON文件中
 4. **并发安全**: 接口支持并发访问，但同一ID的PSOP多次保存会覆盖之前的数据
 5. **数据验证**: 所有输入数据都会进行严格的Pydantic验证
+6. **LLM调用**: 意图生成和检索接口需要调用LLM API，响应时间可能较长
+7. **环境变量**: 需要设置`DEEPSEEK_API_KEY`环境变量用于LLM调用
 
 ---
 
-## 相关接口
+## 接口关系图
 
-除了PSOP接口外，服务器还提供以下接口：
+```
+PDF解析 → 生成PreFlow → 规划 → 生成PSOP → 保存 → 执行
+    ↑           ↑          ↑         ↑         ↑
+    └───────────┴──────────┴─────────┴─────────┘
+          AgentCard管理          意图生成/检索
+```
 
-1. **POST /parse-pdf** - 上传PDF文件并解析
-2. **POST /plan** - 提交任务和步骤，获取规划结果
+## 调试建议
 
-启动服务器时会显示所有可用接口的日志信息。
+1. **查看日志**: 服务器启动时会显示所有可用接口
+2. **测试顺序**: 建议按以下顺序测试接口：
+   - 获取AgentCard列表 (`GET /agent-cards`)
+   - 获取PSOP列表 (`GET /psops`)
+   - 保存PSOP (`POST /psops`)
+   - 删除PSOP (`DELETE /psops/<id>`)
+   - 执行PSOP (`GET /rest/start_process_stream`)
+3. **使用工具**: 使用Postman或curl测试API接口
+4. **检查端口**: 确保服务器端口(60000)可访问
+5. **验证数据**: 确保PSOP数据结构正确
 
 ---
+
+## 更新日志
+
+- **2026-03-26**: 新增PSOP删除接口 (`DELETE /psops/<id>`)
+- **2026-03-24**: 新增SSE执行接口
+- **2026-03-23**: 新增意图检索接口
+- **2026-03-18**: 新增PSOP管理接口
+- **2026-03-15**: 初始版本，包含PDF解析和规划接口
