@@ -172,7 +172,7 @@ def get_generate_psop_prompt(preflow: str, tasks: list, psop_scheme: str) -> str
 """
 
 
-def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_schema: str) -> str:
+def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_schema: str, rag: str = "") -> str:
     return f"""作为一个资深的电信网络运维专家，请根据用户意图直接生成PSOP（Parallel-Standard Operation Process）工作流。
 
 ## 用户意图
@@ -180,6 +180,9 @@ def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_sche
 
 ## 可用Agent及技能
 {agent_cards_json}
+
+## 规划知识
+{"无" if not rag else rag}
 
 ## PSOP格式要求
 {psop_schema}
@@ -299,4 +302,34 @@ def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_sche
 2. 保持电信运维的专业术语和逻辑严谨性
 3. 确保生成的PSOP符合格式要求
 4. 仅输出JSON，不要有其他解释性文字
+"""
+
+
+def get_retrieve_psop_prompt(user_intent: str, psop_list: str) -> str:
+    return f"""作为一个资深的电信网络运维专家，请根据用户意图从现有的PSOP工作流中选择最合适的一个。
+
+## 用户意图
+{user_intent}
+
+## 可用PSOP工作流列表
+{psop_list}
+
+## 选择规则
+1. **意图匹配**：分析用户意图与每个PSOP的名称和描述的匹配程度
+2. **功能覆盖**：评估PSOP的功能是否能够满足用户意图的需求
+3. **专业领域**：考虑电信运维的专业领域匹配度
+4. **最佳匹配**：选择最符合用户意图的PSOP工作流
+
+## 输出格式
+请直接输出最匹配的PSOP名称，用```json```包裹。
+
+## 输出示例
+```json
+"基站批量掉站故障诊断与恢复"
+```
+
+## 注意事项
+1. 只输出PSOP名称，不要有其他解释性文字
+2. 如果找不到合适的PSOP，输出空字符串：""
+3. 确保选择的PSOP名称与列表中的名称完全一致
 """

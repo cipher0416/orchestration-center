@@ -6,7 +6,7 @@ from a2a.types import (
     Task, TaskStatus, TaskState, Artifact, TextPart, Part,
 )
 
-from framework.orchestration.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_or_create_deepseek_llm_instance
 
 
 class EnergySavingAgentExecutor(AgentExecutor):
@@ -33,10 +33,10 @@ class EnergySavingAgentExecutor(AgentExecutor):
 
     def answer_query(self, user_message: str):
         prompt = f"""
-        你是电信领域的无线节能agent模拟器，请根据收到的用户任务，模拟一个靠谱的成功响应。
+        你是电信领域的无线节能agent模拟器，请根据收到的用户任务，模拟一个简短的成功响应。
         
         任务如下: {user_message}
-        直接输出中文响应，不用输出其他内容。/no_think
+        直接输出中文响应，不用输出其他内容。
         """
         _, res = self.llm.ask_llm(prompt)
         return res

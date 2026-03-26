@@ -1,9 +1,13 @@
+import json
+import re
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
+from framework.llm import get_or_create_deepseek_llm_instance
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.persistence import WorkflowStorage
+from framework.orchestration.prompts import get_retrieve_psop_prompt
 
 
 class WorkflowSearchResult:
@@ -55,7 +59,7 @@ class WorkflowRetrieval:
                         tags=psop.tags,
                         created_at=psop.created_at
                     ))
-        if workflow_type in ("all", "psop"):
+        if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)
                 if preflow and name_lower in preflow.name.lower():
@@ -175,3 +179,84 @@ class WorkflowRetrieval:
         # 使用timestamp进行排序，避免offset-naive和offset-aware datetime比较错误
         results.sort(key=lambda x: x.created_at.timestamp() if x.created_at.tzinfo else x.created_at.replace(tzinfo=timezone.utc).timestamp(), reverse=True)
         return results[:limit]
+
+    def _parse_json_response(self, llm_response: str) -> str:
+        """Parse JSON response from LLM output.
+        
+        Extracts JSON from code blocks in LLM responses.
+        
+        Args:
+            llm_response: Raw LLM response string containing JSON code blocks
+            
+        Returns:
+            Parsed string value from JSON
+            
+        Raises:
+            ValueError: If no JSON code block found, empty content, or invalid JSON
+        """
+        matches = re.findall(r'```json(.*?)```', llm_response, re.DOTALL)
+        if not matches:
+            raise ValueError("No JSON code block found in LLM answer")
+
+        json_str = matches[-1].strip()
+        if not json_str:
+            raise ValueError("Empty JSON content found in code block")
+
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON format: {e}")
+
+    def retrieve_psop_by_intent(self, user_intent: str) -> Optional[PSOP]:
+        """Retrieve the most suitable PSOP based on user's natural language intent.
+        
+        Uses LLM to analyze user intent and select the most appropriate PSOP
+        from all available PSOPs based on their names and descriptions.
+        
+        Args:
+            user_intent: Natural language description of user's intent
+            
+        Returns:
+            The most suitable PSOP object, or None if no suitable PSOP found
+            
+        Raises:
+            Exception: If LLM API call fails or parsing fails
+        """
+        # 获取所有PSOP数据
+        psop_list = []
+        for wf_id in self.storage.list_psops():
+            psop = self.storage.load_psop(wf_id)
+            if psop:
+                psop_list.append({
+                    "name": psop.name,
+                    "description": psop.description or "",
+                    "id": psop.id
+                })
+        
+        if not psop_list:
+            return None
+            
+        # 准备PSOP列表字符串
+        psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
+        
+        # 获取LLM实例并调用
+        llm = get_or_create_deepseek_llm_instance()
+        prompt = get_retrieve_psop_prompt(user_intent, psop_list_str)
+        
+        try:
+            _, llm_res = llm.ask_llm(prompt)
+            selected_psop_name = self._parse_json_response(llm_res)
+            
+            # 如果LLM返回空字符串，表示没有找到合适的PSOP
+            if not selected_psop_name:
+                return None
+                
+            # 根据选择的PSOP名称查找对应的PSOP对象
+            for psop_info in psop_list:
+                if psop_info["name"] == selected_psop_name:
+                    return self.storage.load_psop(psop_info["id"])
+                    
+            return None
+            
+        except Exception as e:
+            raise Exception(f"Failed to retrieve PSOP by intent: {e}")

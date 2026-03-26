@@ -25,6 +25,7 @@ class StepType(str, Enum):
 
 
 class Task(BaseModel):
+    task_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique task identifier")
     description: str = Field(..., description="Task description", examples=['Execute energy saving analysis'])
     agent: str = Field(..., description="Name of the agent executing the task")
     skill: str = Field(..., description="Skill required to execute the task",

@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 
 import httpx
 from a2a.client import ClientConfig, ClientFactory, create_text_message_object
@@ -7,7 +7,7 @@ from a2a.types import TransportProtocol
 from a2a.utils import get_message_text
 from loguru import logger
 
-from framework.orchestration.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_or_create_deepseek_llm_instance
 from framework.orchestration.model.psop import PSOP, Step, TaskStatus
 
 
@@ -18,6 +18,18 @@ class DynamicWorkflowEngine:
         self.execution_history = []
         self.llm_client = get_or_create_deepseek_llm_instance()
         self.agent_cards = agent_cards
+        self.push_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
+    
+    def set_push_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
+        self.push_callback = callback
+    
+    def _push_event(self, event_type: str, data: Dict[str, Any]):
+        logger.info(f'push {event_type}:{data}')
+        if self.push_callback:
+            try:
+                self.push_callback(event_type, data)
+            except Exception as e:
+                logger.error(f"推送事件失败: {e}")
 
     async def run(self):
         logger.info(f"启动PSOP工作流，共 {len(self.workflow.steps)} 个步骤")
@@ -27,6 +39,7 @@ class DynamicWorkflowEngine:
         except Exception as e:
             logger.critical(f"引擎发生未预期异常：{e}", exc_info=True)
             raise
+        
         return self.execution_history
 
     async def send_message_to_agent(self, agent_name: str, task: str, httpx_client=None):
@@ -34,11 +47,14 @@ class DynamicWorkflowEngine:
         for card in self.agent_cards:
             if card.name == agent_name:
                 agent_card = card
+        if not agent_card:
+            raise RuntimeError(f"未找到Agent: {agent_name}")
+        
         try:
             timeout_config = httpx.Timeout(
-                connect=5.0,
-                read=30.0,
-                write=30.0,
+                connect=60,
+                read=60,
+                write=60,
                 pool=10.0
             )
             config = ClientConfig(
@@ -47,15 +63,57 @@ class DynamicWorkflowEngine:
                     TransportProtocol.jsonrpc,
                     TransportProtocol.http_json,
                 ],
-                streaming=agent_card.capabilities.streaming,
+                streaming=agent_card.capabilities.streaming if agent_card.capabilities else False,
             )
             client = ClientFactory(config).create(agent_card)
             request = create_text_message_object(content=task)
-
+            # 推送请求信息
+            try:
+                request_data = request.model_dump_json() if hasattr(request, 'model_dump_json') else str(request)
+            except:
+                request_data = str(request)
+            
+            self._push_event("agent_request", {
+                "agent": agent_name,
+                "request": request_data
+            })
+            response_text = None
+            last_response = None
+            
             async for response in client.send_message(request):
-                task, _ = response
-                return get_message_text(task.artifacts[-1])
-            raise RuntimeError("Agent completed but no text artifact found")
+                # response is a tuple of (task, metadata)
+                task_obj, metadata = response
+                last_response = response
+                # Try to get text from artifacts
+                try:
+                    # 使用类型忽略来避免静态类型检查错误
+                    if hasattr(task_obj, 'artifacts') and task_obj.artifacts:  # type: ignore
+                        response_text = get_message_text(task_obj.artifacts[-1])  # type: ignore
+                    else:
+                        response_text = str(task_obj)
+                except Exception as artifact_error:
+                    logger.warning(f"获取artifact文本失败: {artifact_error}")
+                    response_text = str(task_obj)
+                finally:
+                    # 推送响应信息
+                    try:
+                        response_data = task_obj.model_dump_json() if hasattr(task_obj, 'model_dump_json') else str(task_obj)
+                    except:
+                        response_data = str(task_obj)
+                    
+                    self._push_event("agent_response", {
+                        "agent": agent_name,
+                        "response": response_data
+                    })
+
+            
+            if response_text is not None:
+                return response_text
+            elif last_response is not None:
+                # 如果无法提取文本，至少返回最后一个响应对象
+                return str(last_response)
+            else:
+                raise RuntimeError("Agent completed but no response received")
         except httpx.TimeoutException as e:
             raise RuntimeError(f"Agent call timed out") from e
         except httpx.ConnectError as e:
@@ -105,9 +163,21 @@ class DynamicWorkflowEngine:
         for task in step.subtasks:
             try:
                 logger.info(f"   > 调用Agent ： {task.agent}, Skill: {task.skill}, Desc : {task.description}")
-                raw_output = await  self.send_message_to_agent(task.agent, task.description)
+                
+                raw_output = await self.send_message_to_agent(task.agent, task.description)
                 task.status = TaskStatus.SUCCESS
                 results[task.description] = raw_output
+
+                # 推送完整的PSOP状态
+                try:
+                    psop_data = self.workflow.model_dump_json() if hasattr(self.workflow, 'model_dump_json') else self.workflow.model_dump()
+                except:
+                    psop_data = str(self.workflow)
+                
+                self._push_event("psop_update", {
+                    "psop": psop_data
+                })
+                
                 self.execution_history.append({
                     "step": step.name,
                     "task": task.description,
@@ -121,6 +191,17 @@ class DynamicWorkflowEngine:
                 error_msg = f"Agent call failed : {str(e)}"
                 results[task.skill] = {"error": error_msg}
                 logger.error(f"  >Task失败：{task.description} | Error : {error_msg}")
+                
+                # 推送失败时的PSOP状态
+                try:
+                    psop_data = self.workflow.model_dump_json() if hasattr(self.workflow, 'model_dump_json') else self.workflow.model_dump()
+                except:
+                    psop_data = str(self.workflow)
+                
+                self._push_event("psop_update", {
+                    "psop": psop_data
+                })
+                
                 self.execution_history.append({
                     "step": step.name,
                     "task": task.description,
@@ -152,7 +233,7 @@ class DynamicWorkflowEngine:
 {results_text}
 
 # Next Conditions (Required for Transition)
-{json.dumps([{"step": c.step, "condition": c.condition} for c in current_step.next], ensure_ascii=False, indent=2)}
+{json.dumps([{"step": c.step, "condition": c.condition} for c in (current_step.next or [])], ensure_ascii=False, indent=2)}
 
 # Decision Logic
 1. 分析上述【Execution Results】。
