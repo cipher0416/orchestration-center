@@ -11,12 +11,13 @@ export const BACKEND_STATUS = {
 };
 
 export const normalizeStatus = (status) => {
-    const s = String(status || '').toLowerCase();
-    if (s.includes('run') || s === 'executing') return BACKEND_STATUS.RUNNING;
-    if (s.includes('success') || s === 'completed' || s === 'executed') return BACKEND_STATUS.SUCCESS;
-    if (s.includes('fail') || s === 'error') return BACKEND_STATUS.FAILED;
+    const s = String(status || '').toLowerCase().trim();
+    if (s.includes('run') || s === 'executing' || s === 'active' || s === 'processing' || s === 'started' || s === 'running') return BACKEND_STATUS.RUNNING;
+    if (s.includes('success') || s === 'completed' || s === 'executed' || s === 'finished') return BACKEND_STATUS.SUCCESS;
+    if (s.includes('fail') || s === 'error' || s === 'stopped') return BACKEND_STATUS.FAILED;
     return BACKEND_STATUS.PENDING;
 };
+
 
 /**
  * 2. Dagre 自动排版逻辑
@@ -120,9 +121,10 @@ export const transformWorkflowToReactFlow = (rawInput) => {
         
         const agents = subtasks.map(t => t.agent).join(', ');
         const skills = subtasks.map(t => t.skill).join(', ');
-        const nodeStatus = subtasks.some(t => t.status === 'running')
-            ? 'running'
-            : (subtasks.every(t => t.status === 'success') ? 'success' : 'pending');
+        const nodeStatus = subtasks.some(t => normalizeStatus(t.status) === BACKEND_STATUS.RUNNING)
+            ? BACKEND_STATUS.RUNNING
+            : (subtasks.every(t => normalizeStatus(t.status) === BACKEND_STATUS.SUCCESS) ? BACKEND_STATUS.SUCCESS : BACKEND_STATUS.PENDING);
+
 
         nodes.push({
             id: nodeId,

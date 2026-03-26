@@ -5,12 +5,19 @@ import {createWorkflow} from "@/service/api.js";
 import {createPortal} from "react-dom";
 import {transformReactFlowToPSOP} from "@/components/orchestration_center/workflow/utils/index.jsx";
 
-const Toolbar = ({nodes, edges, workflowId, workflowName, onCancel, onClear, onFitView, isDark, onSaveSuccess}) => {
+const Toolbar = ({nodes, edges, workflowId, workflowName, workflowDescription, onCancel, onClear, onFitView, isDark, onSaveSuccess}) => {
     const [showConfirm, setShowConfirm] = useState(false);
     const {t} = useTranslation();
     const [showExportModal, setShowExportModal] = useState(false);
-    const [phenomenon, setPhenomenon] = useState("");
+    const [phenomenon, setPhenomenon] = useState(workflowDescription || "");
     const [toast, setToast] = useState({ show: false, msg: "", type: "error" });
+
+    useEffect(() => {
+        if (workflowDescription) {
+            setPhenomenon(workflowDescription);
+        }
+    }, [workflowDescription]);
+
     useEffect(() => {
         if (toast.show) {
             const timer = setTimeout(() => setToast({ ...toast, show: false }), 3000);
@@ -203,7 +210,13 @@ const Toolbar = ({nodes, edges, workflowId, workflowName, onCancel, onClear, onF
             </button>
 
             <button
-                onClick={()=>{setShowExportModal(true)}}
+                onClick={()=>{
+                    if (workflowId) {
+                        executeExport();
+                    } else {
+                        setShowExportModal(true);
+                    }
+                }}
                 className={`ml-2 px-4 py-1.5 text-sm font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 ${theme.primaryBtn}`}
             >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
