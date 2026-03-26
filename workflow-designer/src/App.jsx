@@ -4,6 +4,7 @@ import {switchLanguage} from "@/service/api.js";
 import Header from "@/components/common/header/index.jsx";
 import AgentRegistry from "./components/registry_center/index.jsx";
 import OrchestrationCenter from "@/components/orchestration_center/index.jsx";
+import ExecutionCenter from "@/components/execution_center/index.jsx";
 
 const MainContainer = () => {
     const {t, i18n} = useTranslation();
@@ -63,6 +64,10 @@ const MainContainer = () => {
 
                 <div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
                     <OrchestrationCenter isDark={isDark}/>
+                </div>
+
+                <div className={`h-full w-full ${activeTab === 'execution' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
+                    <ExecutionCenter isDark={isDark}/>
                 </div>
             </main>
         </div>

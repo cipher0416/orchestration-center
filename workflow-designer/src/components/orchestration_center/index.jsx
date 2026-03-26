@@ -378,6 +378,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                 importedEdges={edges}
                                 workflowId={selectedId}
                                 workflowName={currentWf?.name}
+                                workflowDescription={currentWf?.rawText?.description}
                                 onCancel={() => {
                                     if (selectedId) {
                                         setActiveView('detail');
