@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-    Play, 
-    StopCircle, 
-    Activity, 
-    Terminal, 
-    CheckCircle, 
-    AlertCircle, 
-    Clock, 
+import {
+    Play,
+    StopCircle,
+    Activity,
+    Terminal,
+    CheckCircle,
+    AlertCircle,
+    Clock,
     Search,
     Hash,
     ChevronRight,
@@ -32,20 +32,18 @@ const ExecutionCenter = ({ isDark }) => {
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
     const [eventSource, setEventSource] = useState(null);
-    
-    // Intent-based Matching State
+
     const [userIntent, setUserIntent] = useState('');
     const [workflowSource, setWorkflowSource] = useState(null); // 'retrieved' | 'generated'
     const [isMatching, setIsMatching] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    
-    // Auto-scroll logic refs
+
     const logScrollRef = useRef(null);
     const [autoScroll, setAutoScroll] = useState(true);
 
     const handleMatchIntent = async () => {
         if (!userIntent.trim()) return;
-        
+
         setIsMatching(true);
         setNodes([]);
         setEdges([]);
@@ -55,28 +53,24 @@ const ExecutionCenter = ({ isDark }) => {
 
         try {
             const results = await matchWorkflows(userIntent);
-            
+
             if (results && results.length > 0) {
                 const match = results[0];
                 setSelectedId(match.workflow_id);
                 setWorkflowSource('retrieved');
                 setIsMatching(false);
             } else {
-                // 未检索到，自动触发生成
                 setIsMatching(false);
                 setIsGenerating(true);
-                
+
                 try {
                     const generated = await generateWorkflowFromIntent(userIntent);
                     if (generated) {
-                        // 如果生成结果有 ID 则设置，如果没有可能需要转换展示或报错
-                        // 注意：generateWorkflowFromIntent 返回的是完整的 workflow 数据
                         const wfId = generated.workflow_id || generated.id;
                         if (wfId) {
                             setSelectedId(wfId);
                             setWorkflowSource('generated');
                         } else {
-                            // 如果没返回 ID，手动转换数据展示
                             const { nodes: n, edges: e } = transformWorkflowToReactFlow(generated);
                             setNodes(n);
                             setEdges(e);
@@ -99,7 +93,6 @@ const ExecutionCenter = ({ isDark }) => {
         }
     };
 
-    // Handle Auto-scroll
     useEffect(() => {
         if (autoScroll && logScrollRef.current) {
             const container = logScrollRef.current;
@@ -118,7 +111,6 @@ const ExecutionCenter = ({ isDark }) => {
         }
     };
 
-    // 处理工作流转换
     useEffect(() => {
         if (psopStatus) {
             const { nodes: n, edges: e } = transformWorkflowToReactFlow(psopStatus);
@@ -152,7 +144,7 @@ const ExecutionCenter = ({ isDark }) => {
     // 开始执行
     const startExecution = useCallback(() => {
         if (!selectedId) return;
-        
+
         setError(null);
         setEvents([]);
         setPsopStatus(null);
@@ -172,8 +164,8 @@ const ExecutionCenter = ({ isDark }) => {
                 switch (data.type) {
                     case 'psop_update':
                         try {
-                            const status = typeof data.data.psop === 'string' 
-                                ? JSON.parse(data.data.psop) 
+                            const status = typeof data.data.psop === 'string'
+                                ? JSON.parse(data.data.psop)
                                 : data.data.psop;
                             setPsopStatus(status);
                         } catch (e) {
@@ -212,8 +204,8 @@ const ExecutionCenter = ({ isDark }) => {
     }, [eventSource]);
 
     const theme = useMemo(() => ({
-        sidebarCard: isDark 
-            ? 'bg-zinc-900 border-zinc-800 shadow-xl border-t-4 border-t-zinc-700' 
+        sidebarCard: isDark
+            ? 'bg-zinc-900 border-zinc-800 shadow-xl border-t-4 border-t-zinc-700'
             : 'bg-white border-zinc-200 shadow-xl border-t-4 border-t-zinc-300',
         mainCard: isDark
             ? 'bg-zinc-900 border-zinc-800 shadow-2xl'
@@ -230,13 +222,9 @@ const ExecutionCenter = ({ isDark }) => {
         const raw = type === 'agent_request' ? data.request : data.response;
         try {
             const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            if (type === 'agent_response' && parsed.artifacts?.[0]?.parts?.[0]?.root?.text) {
-                return parsed.artifacts[0].parts[0].root.text;
-            }
-            if (type === 'agent_request' && parsed.parts?.[0]?.text) {
-                return parsed.parts[0].text;
-            }
-            return typeof raw === 'string' ? raw : JSON.stringify(raw);
+            console.log(JSON.stringify(parsed, null, 2));
+
+            return JSON.stringify(parsed, null, 2);
         } catch (e) {
             return String(raw);
         }
@@ -244,10 +232,8 @@ const ExecutionCenter = ({ isDark }) => {
 
     return (
         <div className="h-full p-8 flex flex-col gap-8 max-w-[1750px] mx-auto w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
-            {/* Header: Optimized Search & Controls */}
             <div className={`shrink-0 rounded-[3rem] border flex items-center justify-between px-10 py-6 bg-zinc-50/10 dark:bg-zinc-900/40 ${theme.mainCard} shadow-xl`}>
-                
-                {/* Search Bar (Elongated) */}
+
                 <div className="flex-1 relative group mr-12 min-w-0">
                     <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
                     <input
@@ -260,9 +246,7 @@ const ExecutionCenter = ({ isDark }) => {
                     />
                 </div>
 
-                {/* Combined Right Controls Section */}
                 <div className="shrink-0 flex items-center gap-8">
-                    {/* Primary Button Group */}
                     <div className="flex items-center gap-4 pr-8 border-r border-zinc-100 dark:border-zinc-800">
                         <button
                             onClick={handleMatchIntent}
@@ -293,7 +277,6 @@ const ExecutionCenter = ({ isDark }) => {
                         )}
                     </div>
 
-                    {/* Status Display Area */}
                     <div className="flex flex-col items-end">
                         <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Engine Status</span>
                         <div className="flex items-center gap-2">
@@ -306,9 +289,7 @@ const ExecutionCenter = ({ isDark }) => {
                 </div>
             </div>
 
-            {/* Bottom Content Area */}
             <div className="flex-1 flex gap-8 min-h-0 overflow-hidden">
-                {/* Workflow Card (Left) */}
                 <div className={`flex-1 flex flex-col rounded-[3.5rem] border overflow-hidden relative shadow-2xl ${theme.mainCard}`}>
                     <div className="px-10 py-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/5 dark:bg-zinc-900/20">
                         <div className="flex items-center gap-4">
@@ -361,7 +342,6 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
 
-                {/* Event Logs Card (Right) */}
                 <div className={`w-[500px] rounded-[3.5rem] border flex flex-col overflow-hidden shadow-2xl ${theme.logCard} shrink-0`}>
                     <div className="px-10 py-8 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-4">
@@ -387,7 +367,7 @@ const ExecutionCenter = ({ isDark }) => {
                             events.map((event, index) => (
                                 <div key={index} className="relative pl-8 border-l-2 border-zinc-100 dark:border-zinc-800/50 animate-in-basic">
                                     <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
-                                        ${event.type === 'agent_request' ? 'bg-blue-500' : 'bg-purple-500'}`} 
+                                        ${event.type === 'agent_request' ? 'bg-blue-500' : 'bg-purple-500'}`}
                                     />
                                     <div className="flex items-center justify-between mb-3">
                                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${event.type === 'agent_request' ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-600' : 'bg-purple-100 dark:bg-purple-500/10 text-purple-600'}`}>
@@ -400,7 +380,9 @@ const ExecutionCenter = ({ isDark }) => {
                                             <Bot size={12} className="text-zinc-400" />
                                             <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider font-mono">{event.data.agent}</span>
                                         </div>
-                                        <div className="opacity-80 break-words">{parseLogData(event.data, event.type)}</div>
+                                        <div className="opacity-80 break-words font-mono whitespace-pre-wrap text-[11px] bg-zinc-50/50 dark:bg-black/20 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/50 overflow-x-auto max-h-[400px]">
+                                            {parseLogData(event.data, event.type)}
+                                        </div>
                                     </div>
                                 </div>
                             ))

@@ -2,7 +2,7 @@ import axios from "axios";
 
 const STORAGE_KEY = 'server_config';
 export const defaultIp = '127.0.0.1';
-export const defaultPort = '60000';
+export const defaultPort = '60001';
 
 export const getBaseUrl = () => {
     try {
@@ -17,7 +17,7 @@ export const getBaseUrl = () => {
     }
 }
 
-const api = axios.create({timeout: 10000});
+const api = axios.create({ timeout: 10000 });
 
 api.interceptors.response.use(
     (response) => response.data,
@@ -36,9 +36,14 @@ export async function getWorkflowById(id) {
     return api.get(`${getBaseUrl()}/psops/${id}`);
 }
 
+export async function delWorkflowById(id) {
+    return api.delete(`${getBaseUrl()}/psops/${id}`);
+}
+
 export async function createWorkflow(data) {
     return api.post(`${getBaseUrl()}/psops`, data);
 }
+
 
 export async function switchLanguage(local) {
     return axios.post(`${getBaseUrl()}/rest/agents/switch-language?scenario='5g'`, {
@@ -96,7 +101,6 @@ export async function generateWorkflowFromIntent(intent, name = "AI Generated Wo
         });
 
         if (response.data.status === "success" || response.status === 200) {
-            // 后端返回的可能是包装在 data 里的，也可能直接是 workflow
             const workflowData = response.data.data || response.data;
             console.log("自然语言生成成功:", workflowData);
             return workflowData;
@@ -108,3 +112,56 @@ export async function generateWorkflowFromIntent(intent, name = "AI Generated Wo
         throw new Error(errorMsg);
     }
 }
+
+export async function getWorkflowQuestions() {
+    return api.get(`${getBaseUrl()}/rest/workflow_questions`);
+}
+
+export async function getWorkFlowRecords(questionId) {
+    return api.get(`${getBaseUrl()}/rest/workflow_records?questionId=${questionId}`);
+}
+
+export async function startProcess(questionId, questionText) {
+    return api.post(`${getBaseUrl()}/rest/start_process`, {
+        question_id: questionId,
+        question_text: questionText
+    });
+}
+
+export async function deleteWorkflowByQuestionId(questionId) {
+    return api.delete(`${getBaseUrl()}/rest/workflow_question?questionId=${questionId}`);
+}
+
+export async function deleteWorkflowDbByQuestionId(questionId) {
+    return api.delete(`${getBaseUrl()}/rest/workflow_db?questionId=${questionId}`);
+}
+
+export function getStartProcessStreamUrl(psopId) {
+    return `${getBaseUrl()}/rest/start_process_stream?psop_id=${psopId}`;
+}
+
+export async function matchWorkflows(intent) {
+    try {
+        const response = await axios.post(`${getBaseUrl()}/retrieve-by-intent`, {
+            user_intent: intent,
+        });
+
+        if (response.data.status === "success" || response.status === 200) {
+            const data = response.data.data;
+            if (!data) return [];
+
+            return [{
+                workflow_id: data.id,
+                name: data.name,
+                description: data.description,
+                tags: data.tags || []
+            }];
+        } else {
+            throw new Error(response.data?.error || "检索失败");
+        }
+    } catch (error) {
+        const errorMsg = error.response?.data?.error || error.message || "接口请求失败";
+        throw new Error(errorMsg);
+    }
+}
+
