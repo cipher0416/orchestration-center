@@ -1,0 +1,2 @@
+class CertParseException(Exception):
+    pass

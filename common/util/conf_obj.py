@@ -26,7 +26,7 @@ class ConfObj:
     port = DEFAULT_PORT
     ssl_certfile = DEFAULT_SSL_CERT_FILE
     ssl_keyfile = DEFAULT_SSL_KEYFILE
-    ssl_key_password = DEFAULT_KEY_PASSWORD
+    ssl_keyfile_password = DEFAULT_KEY_PASSWORD
     ssl_ca_certs = DEFAULT_SSL_CA_CERTS
     ssl_crl_file = DEFAULT_SSL_CRLFILE
     verify_client = DEFAULT_VERIFY_CLIENT
@@ -42,7 +42,7 @@ class ConfObj:
         obj.port = port
         obj.ssl_certfile = as_absolute_path(in_dict.get('ssl_certfile', DEFAULT_SSL_CERT_FILE))
         obj.ssl_keyfile = as_absolute_path(in_dict.get('ssl_keyfile', DEFAULT_SSL_KEYFILE))
-        obj.ssl_key_password = as_absolute_path(in_dict.get('ssl_key_password', DEFAULT_KEY_PASSWORD))
+        obj.ssl_keyfile_password = as_absolute_path(in_dict.get('ssl_keyfile_password', DEFAULT_KEY_PASSWORD))
         obj.ssl_ca_certs = as_absolute_path(in_dict.get('ssl_ca_certs', DEFAULT_SSL_CA_CERTS))
 
         crl_path = in_dict.get('ssl_crl_file', "")
