@@ -1,12 +1,21 @@
 import os
+import ssl
+import sys
 import tempfile
 import json
 
+import uvicorn
 from a2a.types import AgentCard
 from flask import Flask, request, jsonify, Response, stream_with_context
 from loguru import logger
 from flask_cors import CORS
+from uvicorn import config
 
+from common.cert.cert_validater import CertValidator
+from common.util.cipher_converter import CipherConverter
+from common.util.cipher_util import DEFAULT_ENCODING
+from common.util.conf_util import conf_singleton_obj, set_ssl_folder_permissions, load_cert_password
+from common.util.config_util import get_conf
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.psop_generator import PsopGenerator
@@ -46,7 +55,7 @@ def parse_pdf():
         )
         if not pre_md:
             return jsonify({"error": "PDF解析失败，未找到指定章节"}), 400
-        
+
         preflow = PreFlow(
             name=file.filename,
             description=f"从PDF文件 {file.filename} 解析的工作流",
@@ -95,9 +104,9 @@ def get_all_psops():
     try:
         limit = request.args.get('limit', default=10, type=int)
         workflow_type = request.args.get('workflow_type', default='psop', type=str)
-        
+
         recent_workflows = retrieval.list_recent_workflows(limit=limit, workflow_type=workflow_type)
-        
+
         return jsonify({
             "status": "success",
             "count": len(recent_workflows),
@@ -106,13 +115,14 @@ def get_all_psops():
     except Exception as e:
         return jsonify({"error": f"获取PSOP列表失败: {str(e)}"}), 500
 
+
 @app.route('/psops/<workflow_id>', methods=['GET'])
 def get_psop_by_id(workflow_id):
     try:
         psop = retrieval.get_psop_by_id(workflow_id)
         if not psop:
             return jsonify({"error": f"未找到ID为 {workflow_id} 的PSOP"}), 404
-        
+
         return jsonify({
             "status": "success",
             "data": psop.model_dump()
@@ -130,7 +140,7 @@ def save_psop():
 
         psop = PSOP.model_validate(data)
         saved_id = storage.save_psop(psop)
-        
+
         return jsonify({
             "status": "success",
             "message": "PSOP保存成功",
@@ -157,12 +167,12 @@ def delete_psop(workflow_id):
         psop = retrieval.get_psop_by_id(workflow_id)
         if not psop:
             return jsonify({"error": f"未找到ID为 {workflow_id} 的PSOP"}), 404
-        
+
         # 删除PSOP
         deleted = storage.delete_psop(workflow_id)
         if not deleted:
             return jsonify({"error": f"删除PSOP失败: 文件可能不存在"}), 500
-        
+
         return jsonify({
             "status": "success",
             "message": f"PSOP {workflow_id} 删除成功"
@@ -187,7 +197,7 @@ def get_all_agent_cards():
     try:
         # 获取所有AgentCard
         agent_cards = agent_lib.get_all_agent_cards()
-        
+
         # 将AgentCard转换为字典格式
         agent_cards_data = []
         for card in agent_cards:
@@ -199,7 +209,7 @@ def get_all_agent_cards():
             "count": len(agent_cards_data),
             "data": agent_cards_data
         }), 200
-        
+
     except FileNotFoundError as e:
         return jsonify({
             "error": f"配置文件不存在: {str(e)}"
@@ -232,18 +242,18 @@ def generate_psop_from_intent():
         data = request.get_json()
         if not data:
             return jsonify({"error": "请求体为空"}), 400
-        
+
         user_intent = data.get("user_intent")
         workflow_name = data.get("workflow_name")
-        
+
         if not user_intent:
             return jsonify({"error": "缺少必要字段: user_intent"}), 400
-        
+
         # 获取AgentCards（复用agent-cards接口的逻辑）
         agent_cards = agent_lib.get_all_agent_cards()
         if not agent_cards:
             return jsonify({"error": "未找到可用的AgentCard"}), 404
-        
+
         # 使用IntentPsopGenerator生成PSOP
         generator = IntentPsopGenerator()
         psop = generator.generate_psop_from_intent(
@@ -251,19 +261,19 @@ def generate_psop_from_intent():
             agent_cards=agent_cards,
             workflow_name=workflow_name
         )
-        
+
         # 可选：自动保存生成的PSOP
         try:
             storage.save_psop(psop)
         except Exception as save_error:
             logger.warning(f"PSOP保存失败（不影响返回）: {save_error}")
-        
+
         return jsonify({
             "status": "success",
             "message": "PSOP生成成功",
             "data": psop.model_dump()
         }), 200
-        
+
     except Exception as e:
         logger.error(f"根据意图生成PSOP失败: {e}")
         return jsonify({"error": f"生成PSOP失败: {str(e)}"}), 500
@@ -286,32 +296,32 @@ def retrieve_psop_by_intent():
         data = request.get_json()
         if not data:
             return jsonify({"error": "请求体为空"}), 400
-        
+
         user_intent = data.get("user_intent")
-        
+
         if not user_intent:
             return jsonify({"error": "缺少必要字段: user_intent"}), 400
-        
+
         logger.info(f"开始根据意图检索PSOP: {user_intent}")
-        
+
         # 使用WorkflowRetrieval的retrieve_psop_by_intent方法
         psop = retrieval.retrieve_psop_by_intent(user_intent)
-        
+
         if not psop:
             return jsonify({
                 "status": "success",
                 "message": "未找到匹配的PSOP",
                 "data": None
             }), 200
-        
+
         logger.info(f"成功检索到PSOP: {psop.name} (ID: {psop.id})")
-        
+
         return jsonify({
             "status": "success",
             "message": "PSOP检索成功",
             "data": psop.model_dump()
         }), 200
-        
+
     except Exception as e:
         logger.error(f"根据意图检索PSOP失败: {e}")
         return jsonify({"error": f"检索PSOP失败: {str(e)}"}), 500
@@ -339,9 +349,9 @@ def start_process_stream():
         import asyncio
         import threading
         import queue
-        
+
         event_queue = queue.Queue()
-        
+
         def push_callback(event_type: str, data: dict):
             try:
                 # 序列化数据，处理无法JSON序列化的对象
@@ -371,7 +381,7 @@ def start_process_stream():
                                 serializable_data[key].append(item)
                     else:
                         serializable_data[key] = value
-                
+
                 event_data = {
                     "type": event_type,
                     "data": serializable_data,
@@ -380,46 +390,46 @@ def start_process_stream():
                 event_queue.put(event_data)
             except Exception as e:
                 logger.error(f"推送事件到队列失败: {e}")
-        
+
         async def run_workflow_async():
             try:
                 engine = DynamicWorkflowEngine(psop, agent_cards)
                 engine.set_push_callback(push_callback)
-                
+
                 event_queue.put({
                     "type": "start",
                     "data": {"psop_id": psop_id, "message": "开始执行工作流"}
                 })
-                
+
                 execution_history = await engine.run()
-                
+
                 event_queue.put({
                     "type": "complete",
                     "data": {"psop_id": psop_id, "execution_history": execution_history}
                 })
-                
+
             except Exception as e:
                 logger.error(f"工作流执行失败: {e}")
                 event_queue.put({
                     "type": "error",
                     "data": {"psop_id": psop_id, "error": str(e)}
                 })
-        
+
         def run_workflow():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             try:
                 loop.run_until_complete(run_workflow_async())
             finally:
                 loop.close()
-        
+
         workflow_thread = threading.Thread(target=run_workflow)
         workflow_thread.daemon = True
         workflow_thread.start()
-        
+
         yield f"data: {json.dumps({'type': 'init', 'data': {'psop_id': psop_id, 'message': '初始化执行引擎'}})}\n\n"
-        
+
         while workflow_thread.is_alive() or not event_queue.empty():
             try:
                 event = event_queue.get(timeout=1)
@@ -428,9 +438,9 @@ def start_process_stream():
                 continue
             except Exception as e:
                 logger.error(f"处理事件失败: {e}")
-        
+
         yield "event: close\ndata: {}\n\n"
-    
+
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
@@ -440,7 +450,76 @@ def start_process_stream():
             'X-Accel-Buffering': 'no'
         }
     )
-    
+
+
+def customized_create_ssl_context(certfile: str | os.PathLike[str],
+                                  keyfile: str | os.PathLike[str] | None,
+                                  password: str | None,
+                                  ssl_version: int,
+                                  cert_reqs: int,
+                                  ca_certs: str | os.PathLike[str] | None,
+                                  ciphers: str | None) -> ssl.SSLContext:
+    try:
+        ctx = ssl.SSLContext(ssl_version)
+        get_password = (lambda: password) if password else None
+        ctx.load_cert_chain(certfile, keyfile, get_password)
+        ctx.verify_mode = ssl.VerifyMode(cert_reqs)
+        if ca_certs:
+            ctx.load_verify_locations(ca_certs)
+            if len(conf_singleton_obj.get_crl_list()) > 0:
+                ctx.load_verify_locations(conf_singleton_obj.ssl_crl_file)
+                ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
+        if ciphers:
+            ctx.set_ciphers(ciphers)
+        return  ctx
+    except BaseException as e:
+        logger.error(f"customized_create_ssl_context error: {e}")
+        raise e
+
+config.create_ssl_context = customized_create_ssl_context
+
+
+class CustomUvicornServer:
+    def __init__(self, server_config, conf_obj):
+        self.server_config = server_config
+        self.conf_obj = conf_obj
+
+    def run(self):
+        os.environ.setdefault("FORWARDED_ALLOW_IPS", self.server_config.get("forwarded_allow_ips"))
+        server_config = uvicorn.Config(
+            app=app,
+            host=self.server_config.get('ip', "127.0.0.1"),
+            port=int(self.server_config.get('port', 60000)),
+            ssl_certfile=self.conf_obj.ssl_certfile,
+            ssl_keyfile=self.conf_obj.ssl_keyfile,
+            ssl_keyfile_password=load_cert_password(self.conf_obj.ssl_keyfile_password).decode(DEFAULT_ENCODING),
+            ssl_ca_certs=self.conf_obj.ssl_ca_certs,
+            ssl_cert_reqs=self.conf_obj.verify_client,
+            ssl_ciphers=CipherConverter.convert(self.server_config.get("tls.cipher")),
+            timeout_keep_alive=0,
+            timeout_graceful_shutdown=int(self.server_config.get("connection.timeout", 30)),
+            log_level="info",
+            proxy_headers=True
+        )
+        server = uvicorn.Server(server_config)
+        server.run()
+
+
+def main():
+    server_config = get_conf()
+    try:
+        conf_obj = conf_singleton_obj
+        result = CertValidator(conf_obj).validate()
+        if not result.is_valid:
+            sys.exit(result.message)
+        set_ssl_folder_permissions()
+        server = CustomUvicornServer(server_config, conf_obj)
+        server.run()
+    except Exception as e:
+        logger.error(f"server start failed {e}")
+        sys.exit(f"server start failed {e}")
+
+
 if __name__ == '__main__':
     logger.info("=" * 50)
     logger.info("  PSOP 服务器接口")
@@ -466,4 +545,4 @@ if __name__ == '__main__':
     logger.info("")
     logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
-    app.run(host='0.0.0.0', port=60000)
+    main()

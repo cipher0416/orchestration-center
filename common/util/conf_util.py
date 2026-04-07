@@ -37,6 +37,7 @@ def load_cert_password(password_path: str) -> bytes:
 def set_ssl_folder_permissions():
     if platform.system().lower() != "linux":
         logger.info(f"current system type is: {platform.system().lower()}")
+        return
     os.chmod(SSL_PATH, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     for root, _, files in os.walk(SSL_PATH):
         for file_name in files:

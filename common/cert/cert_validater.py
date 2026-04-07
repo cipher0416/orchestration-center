@@ -165,7 +165,7 @@ class PrivateKeyValidator(CommonContentValidator):
                                         f"PEM private key password is too week, please check the password complexity!"
                                         f"Min length is {self.min_length} and must contains at least two of the "
                                         f"following character types: digits, uppercase, lowercase and special characters"
-                                        f"(`~!@#$%^&*()_=+|\[{{}}\];:'\",<.>/?), and spaces.")
+                                        f"(`~!@#$%^&*()_=+|[{{}}];:'\",<.>/?), and spaces.")
             private_key = cert_parse.parse_pem_files(self.cert_path, self.password_bytes)
             if not self.validate_private_key_length(private_key):
                 return ValidationResult(False,
