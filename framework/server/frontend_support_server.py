@@ -1,13 +1,17 @@
 import os
 import tempfile
 import json
+import asyncio
+import threading
+import queue
+from typing import Optional, List
 
 from a2a.types import AgentCard
-from flask import Flask, request, jsonify, Response, stream_with_context
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, BackgroundTasks
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from flask_cors import CORS
+from pydantic import BaseModel
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.psop_generator import PsopGenerator
@@ -18,38 +22,101 @@ from framework.solution_package.parse_flow import SolutionPackageParser
 from framework.agentcard_lib import AgentCardLib
 from framework.runtime.exec_engine import DynamicWorkflowEngine
 
-app = Flask(__name__)
-CORS(app)
+# 创建FastAPI应用
+app = FastAPI(title="Workflow Orchestration API", version="1.0.0")
 
+# 配置CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 初始化存储和检索组件
 storage = WorkflowStorage()
 retrieval = WorkflowRetrieval(storage)
 agent_lib = AgentCardLib()
 
-@app.errorhandler(429)
-def rate_limit_handler(e):
-    return jsonify({
-        'error': '请求过于频繁，请稍后再试',
-        'limit': str(e.limit),
-    }), 429
 
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["10 per second"],
-)
+# 定义请求/响应模型
+class PlanRequest(BaseModel):
+    preflow: dict
+    agent_cards: List[dict]
 
-@app.route('/parse-pdf', methods=['POST'])
-@limiter.limit("1 per second")
-def parse_pdf():
-    if 'file' not in request.files:
-        return jsonify({'error': '未提供文件'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "文件名为空"}), 400
+
+class SavePSOPRequest(BaseModel):
+    psop: dict
+
+
+class IntentRequest(BaseModel):
+    user_intent: str
+    workflow_name: Optional[str] = None
+
+
+class RetrieveIntentRequest(BaseModel):
+    user_intent: str
+
+
+class ParsePDFResponse(BaseModel):
+    status: str
+    message: str
+    content: str
+
+
+class PlanResponse(BaseModel):
+    status: str
+    data: str
+
+
+class PSOPListResponse(BaseModel):
+    status: str
+    count: int
+    data: List[dict]
+
+
+class PSOPDetailResponse(BaseModel):
+    status: str
+    data: dict
+
+
+class PSOPDeleteResponse(BaseModel):
+    status: str
+    message: str
+
+
+class AgentCardResponse(BaseModel):
+    status: str
+    count: int
+    data: List[dict]
+
+
+class IntentResponse(BaseModel):
+    status: str
+    message: str
+    data: dict
+
+
+class RetrieveIntentResponse(BaseModel):
+    status: str
+    message: str
+    data: Optional[dict] = None
+
+
+@app.post("/parse-pdf", response_model=ParsePDFResponse)
+async def parse_pdf(file: UploadFile = File(...)):
+    """
+    解析PDF文件，提取工作流定义
+    """
+    # 验证文件类型
     if not file.filename or not file.filename.lower().endswith('.pdf'):
-        return jsonify({"error": "仅支持 PDF 文件"}), 400
+        raise HTTPException(status_code=400, detail="仅支持 PDF 文件")
+
+    # 保存临时文件
     with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-        file.save(tmp.name)
+        content = await file.read()
+        tmp.write(content)
         tmp_file_path = tmp.name
 
     try:
@@ -59,219 +126,172 @@ def parse_pdf():
             "5. Interaction Flow"
         )
         if not pre_md:
-            return jsonify({"error": "PDF解析失败，未找到指定章节"}), 400
+            raise HTTPException(status_code=400, detail="PDF解析失败，未找到指定章节")
 
         preflow = PreFlow(
             name=file.filename,
             description=f"从PDF文件 {file.filename} 解析的工作流",
             steps_md=pre_md
         )
-        return {
-            "status": "success",
-            "message": "PDF文件解析成功",
-            "content": preflow.model_dump_json()
-        }, 200
+        return ParsePDFResponse(
+            status="success",
+            message="PDF文件解析成功",
+            content=preflow.model_dump_json()
+        )
     except Exception as e:
-        return jsonify({"error": f"解析失败：{str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"解析失败：{str(e)}")
     finally:
         if os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
 
 
-@app.route('/plan', methods=['POST'])
-@limiter.limit("1 per second")
-def plan():
+@app.post("/plan", response_model=PlanResponse)
+async def plan(request: PlanRequest):
+    """
+    根据PreFlow和AgentCards生成PSOP工作流
+    """
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "请求体为空"}), 400
-        preflow_dict = data.get("preflow")
-        agent_cards_list = data.get("agent_cards")
-
-        if not preflow_dict or not agent_cards_list:
-            return jsonify({
-                "error": "缺少必要字段: task 和 steps 必须提供"
-            }), 400
         generator = PsopGenerator()
-        workflow = generator.generate_psop_workflow(PreFlow.model_validate(preflow_dict),
-                                                    [AgentCard.model_validate(card) for card in agent_cards_list])
+        workflow = generator.generate_psop_workflow(
+            PreFlow.model_validate(request.preflow),
+            [AgentCard.model_validate(card) for card in request.agent_cards]
+        )
         storage.save_psop(workflow)
 
-        return jsonify({
-            "status": "success",
-            "data": workflow.model_dump_json()
-        }), 200
+        return PlanResponse(
+            status="success",
+            data=workflow.model_dump_json()
+        )
     except Exception as e:
-        return jsonify({"error": f"规划失败 : {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"规划失败 : {str(e)}")
 
 
-@app.route('/psops', methods=['GET'])
-@limiter.limit("1 per second")
-def get_all_psops():
+@app.get("/psops", response_model=PSOPListResponse)
+async def get_all_psops(limit: int = 10, workflow_type: str = 'psop'):
+    """
+    获取所有PSOP工作流列表
+    """
     try:
-        limit = request.args.get('limit', default=10, type=int)
-        workflow_type = request.args.get('workflow_type', default='psop', type=str)
-
         recent_workflows = retrieval.list_recent_workflows(limit=limit, workflow_type=workflow_type)
 
-        return jsonify({
-            "status": "success",
-            "count": len(recent_workflows),
-            "data": [wf.to_dict() for wf in recent_workflows]
-        }), 200
+        return PSOPListResponse(
+            status="success",
+            count=len(recent_workflows),
+            data=[wf.to_dict() for wf in recent_workflows]
+        )
     except Exception as e:
-        return jsonify({"error": f"获取PSOP列表失败: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"获取PSOP列表失败: {str(e)}")
 
 
-@app.route('/psops/<workflow_id>', methods=['GET'])
-@limiter.limit("1 per second")
-def get_psop_by_id(workflow_id):
+@app.get("/psops/{workflow_id}", response_model=PSOPDetailResponse)
+async def get_psop_by_id(workflow_id: str):
+    """
+    根据ID获取PSOP工作流详情
+    """
     try:
         psop = retrieval.get_psop_by_id(workflow_id)
         if not psop:
-            return jsonify({"error": f"未找到ID为 {workflow_id} 的PSOP"}), 404
+            raise HTTPException(status_code=404, detail=f"未找到ID为 {workflow_id} 的PSOP")
 
-        return jsonify({
-            "status": "success",
-            "data": psop.model_dump()
-        }), 200
+        return PSOPDetailResponse(
+            status="success",
+            data=psop.model_dump()
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        return jsonify({"error": f"获取PSOP详情失败: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"获取PSOP详情失败: {str(e)}")
 
 
-@app.route('/psops', methods=['POST'])
-@limiter.limit("1 per second")
-def save_psop():
+@app.post("/psops", status_code=201)
+async def save_psop(request: SavePSOPRequest):
+    """
+    保存PSOP工作流
+    """
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "请求体为空"}), 400
-
-        psop = PSOP.model_validate(data)
+        psop = PSOP.model_validate(request.psop)
         saved_id = storage.save_psop(psop)
 
-        return jsonify({
-            "status": "success",
-            "message": "PSOP保存成功",
-            "workflow_id": saved_id
-        }), 201
+        return JSONResponse(
+            status_code=201,
+            content={
+                "status": "success",
+                "message": "PSOP保存成功",
+                "workflow_id": saved_id
+            }
+        )
     except Exception as e:
-        return jsonify({"error": f"保存PSOP失败: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"保存PSOP失败: {str(e)}")
 
 
-@app.route('/psops/<workflow_id>', methods=['DELETE'])
-@limiter.limit("1 per second")
-def delete_psop(workflow_id):
+@app.delete("/psops/{workflow_id}", response_model=PSOPDeleteResponse)
+async def delete_psop(workflow_id: str):
     """
-    删除指定ID的PSOP工作流。
-    
-    路径参数:
-        workflow_id: PSOP的唯一标识符
-    
-    返回:
-        成功: 200 OK
-        失败: 404 Not Found 或 500 Internal Server Error
+    删除指定ID的PSOP工作流
     """
     try:
         # 先检查PSOP是否存在
         psop = retrieval.get_psop_by_id(workflow_id)
         if not psop:
-            return jsonify({"error": f"未找到ID为 {workflow_id} 的PSOP"}), 404
+            raise HTTPException(status_code=404, detail=f"未找到ID为 {workflow_id} 的PSOP")
 
         # 删除PSOP
         deleted = storage.delete_psop(workflow_id)
         if not deleted:
-            return jsonify({"error": f"删除PSOP失败: 文件可能不存在"}), 500
+            raise HTTPException(status_code=500, detail="删除PSOP失败: 文件可能不存在")
 
-        return jsonify({
-            "status": "success",
-            "message": f"PSOP {workflow_id} 删除成功"
-        }), 200
+        return PSOPDeleteResponse(
+            status="success",
+            message=f"PSOP {workflow_id} 删除成功"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        return jsonify({"error": f"删除PSOP失败: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"删除PSOP失败: {str(e)}")
 
 
-@app.route('/agent-cards', methods=['GET'])
-@limiter.limit("1 per second")
-def get_all_agent_cards():
+@app.get("/agent-cards", response_model=AgentCardResponse)
+async def get_all_agent_cards():
     """
-    获取全量AgentCard列表。
-    
-    逻辑：
-    1. 读取配置文件 config/agent_cards.yaml
-    2. 如果配置文件中包含 source_url 字段，则从该URL获取AgentCard
-    3. 否则，使用配置文件中的 agents 字段
-    
-    Returns:
-        JSON响应，包含AgentCard列表和来源信息
+    获取全量AgentCard列表
     """
     try:
         # 获取所有AgentCard
         agent_cards = agent_lib.get_all_agent_cards()
 
         # 将AgentCard转换为字典格式
-        agent_cards_data = []
-        for card in agent_cards:
-            card_dict = card.model_dump()
-            agent_cards_data.append(card_dict)
+        agent_cards_data = [card.model_dump() for card in agent_cards]
 
-        return jsonify({
-            "status": "success",
-            "count": len(agent_cards_data),
-            "data": agent_cards_data
-        }), 200
-
+        return AgentCardResponse(
+            status="success",
+            count=len(agent_cards_data),
+            data=agent_cards_data
+        )
     except FileNotFoundError as e:
-        return jsonify({
-            "error": f"配置文件不存在: {str(e)}"
-        }), 404
+        raise HTTPException(status_code=404, detail=f"配置文件不存在: {str(e)}")
     except ValueError as e:
-        return jsonify({
-            "error": f"数据格式错误: {str(e)}"
-        }), 400
+        raise HTTPException(status_code=400, detail=f"数据格式错误: {str(e)}")
     except Exception as e:
-        return jsonify({
-            "error": f"获取AgentCard失败: {str(e)}"
-        }), 500
+        raise HTTPException(status_code=500, detail=f"获取AgentCard失败: {str(e)}")
 
 
-@app.route('/generate-from-intent', methods=['POST'])
-@limiter.limit("1 per second")
-def generate_psop_from_intent():
+@app.post("/generate-from-intent", response_model=IntentResponse)
+async def generate_psop_from_intent(request: IntentRequest):
     """
-    根据自然语言意图生成PSOP工作流。
-    
-    请求体格式:
-    {
-        "user_intent": "自然语言描述的业务意图",
-        "workflow_name": "可选的工作流名称"
-    }
-    
-    返回:
-        JSON响应，包含生成的PSOP工作流
+    根据自然语言意图生成PSOP工作流
     """
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "请求体为空"}), 400
-
-        user_intent = data.get("user_intent")
-        workflow_name = data.get("workflow_name")
-
-        if not user_intent:
-            return jsonify({"error": "缺少必要字段: user_intent"}), 400
-
-        # 获取AgentCards（复用agent-cards接口的逻辑）
+        # 获取AgentCards
         agent_cards = agent_lib.get_all_agent_cards()
         if not agent_cards:
-            return jsonify({"error": "未找到可用的AgentCard"}), 404
+            raise HTTPException(status_code=404, detail="未找到可用的AgentCard")
 
         # 使用IntentPsopGenerator生成PSOP
         generator = IntentPsopGenerator()
         psop = generator.generate_psop_from_intent(
-            user_intent=user_intent,
+            user_intent=request.user_intent,
             agent_cards=agent_cards,
-            workflow_name=workflow_name
+            workflow_name=request.workflow_name
         )
 
         # 可选：自动保存生成的PSOP
@@ -280,90 +300,65 @@ def generate_psop_from_intent():
         except Exception as save_error:
             logger.warning(f"PSOP保存失败（不影响返回）: {save_error}")
 
-        return jsonify({
-            "status": "success",
-            "message": "PSOP生成成功",
-            "data": psop.model_dump()
-        }), 200
-
+        return IntentResponse(
+            status="success",
+            message="PSOP生成成功",
+            data=psop.model_dump()
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"根据意图生成PSOP失败: {e}")
-        return jsonify({"error": f"生成PSOP失败: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"生成PSOP失败: {str(e)}")
 
 
-@app.route('/retrieve-by-intent', methods=['POST'])
-@limiter.limit("1 per second")
-def retrieve_psop_by_intent():
+@app.post("/retrieve-by-intent", response_model=RetrieveIntentResponse)
+async def retrieve_psop_by_intent(request: RetrieveIntentRequest):
     """
-    根据自然语言意图检索最合适的PSOP工作流。
-    
-    请求体格式:
-    {
-        "user_intent": "自然语言描述的业务意图"
-    }
-    
-    返回:
-        JSON响应，包含检索到的PSOP工作流或错误信息
+    根据自然语言意图检索最合适的PSOP工作流
     """
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "请求体为空"}), 400
-
-        user_intent = data.get("user_intent")
-
-        if not user_intent:
-            return jsonify({"error": "缺少必要字段: user_intent"}), 400
-
-        logger.info(f"开始根据意图检索PSOP: {user_intent}")
+        logger.info(f"开始根据意图检索PSOP: {request.user_intent}")
 
         # 使用WorkflowRetrieval的retrieve_psop_by_intent方法
-        psop = retrieval.retrieve_psop_by_intent(user_intent)
+        psop = retrieval.retrieve_psop_by_intent(request.user_intent)
 
         if not psop:
-            return jsonify({
-                "status": "success",
-                "message": "未找到匹配的PSOP",
-                "data": None
-            }), 200
+            return RetrieveIntentResponse(
+                status="success",
+                message="未找到匹配的PSOP",
+                data=None
+            )
 
         logger.info(f"成功检索到PSOP: {psop.name} (ID: {psop.id})")
 
-        return jsonify({
-            "status": "success",
-            "message": "PSOP检索成功",
-            "data": psop.model_dump()
-        }), 200
-
+        return RetrieveIntentResponse(
+            status="success",
+            message="PSOP检索成功",
+            data=psop.model_dump()
+        )
     except Exception as e:
         logger.error(f"根据意图检索PSOP失败: {e}")
-        return jsonify({"error": f"检索PSOP失败: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"检索PSOP失败: {str(e)}")
 
 
-# SSE事件队列用于存储推送事件
-sse_events = {}
-
-
-@app.route('/rest/start_process_stream', methods=['GET'])
-@limiter.limit("1 per second")
-def start_process_stream():
-    psop_id = request.args.get('psop_id')
+@app.get("/rest/start_process_stream")
+async def start_process_stream(psop_id: str):
+    """
+    SSE流式执行工作流
+    """
     if not psop_id:
-        return jsonify({"error": "缺少psop_id参数"}), 400
+        raise HTTPException(status_code=400, detail="缺少psop_id参数")
 
     psop = retrieval.get_psop_by_id(psop_id)
     if not psop:
-        return jsonify({"error": f"未找到ID为 {psop_id} 的PSOP"}), 404
+        raise HTTPException(status_code=404, detail=f"未找到ID为 {psop_id} 的PSOP")
 
     agent_cards = agent_lib.get_all_agent_cards()
     if not agent_cards:
-        return jsonify({"error": "未找到可用的AgentCard"}), 404
+        raise HTTPException(status_code=404, detail="未找到可用的AgentCard")
 
-    def generate():
-        import asyncio
-        import threading
-        import queue
-
+    async def event_generator():
         event_queue = queue.Queue()
 
         def push_callback(event_type: str, data: dict):
@@ -432,7 +427,6 @@ def start_process_stream():
         def run_workflow():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-
             try:
                 loop.run_until_complete(run_workflow_async())
             finally:
@@ -442,8 +436,10 @@ def start_process_stream():
         workflow_thread.daemon = True
         workflow_thread.start()
 
+        # 发送初始化消息
         yield f"data: {json.dumps({'type': 'init', 'data': {'psop_id': psop_id, 'message': '初始化执行引擎'}})}\n\n"
 
+        # 持续发送事件直到工作流完成
         while workflow_thread.is_alive() or not event_queue.empty():
             try:
                 event = event_queue.get(timeout=1)
@@ -455,9 +451,9 @@ def start_process_stream():
 
         yield "event: close\ndata: {}\n\n"
 
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
         headers={
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
