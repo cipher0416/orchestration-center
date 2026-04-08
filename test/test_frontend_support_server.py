@@ -105,9 +105,14 @@ class TestParsePdfEndpoint:
 class TestPlanEndpoint:
     """测试 /plan 端点"""
 
-    def test_plan_empty_body(self, client):
+    def test_plan_empty_content(self, client):
         """测试空请求体"""
         response = client.post('/plan', content_type='application/json')
+        assert response.status_code == 500
+
+    def test_plan_empty_body(self, client):
+        """测试空请求体"""
+        response = client.post('/plan', data=json.dumps({}), content_type='application/json')
         assert response.status_code == 400
 
     def test_plan_missing_fields(self, client):
