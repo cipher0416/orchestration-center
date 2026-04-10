@@ -15,6 +15,8 @@
 
 import os
 
+from dotenv import load_dotenv
+
 from agent_registry_client.client import AgentRegistryClient
 
 
@@ -22,6 +24,7 @@ class AgentRegistryClientFactory:
     """Create an AgentRegistryClient instance based on the configuration"""
 
     def __init__(self, config: dict = None):
+        load_dotenv()
         self.config = config or {}
         self.default_base_url = os.environ.get("AGENT_REGISTRY_URL", "http://127.0.0.1:5000")
 
