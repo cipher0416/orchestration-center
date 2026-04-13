@@ -197,5 +197,4 @@ if __name__ == '__main__':
     logger.info("")
     logger.info("  For detailed documentation, refer to: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
-    # main()
-    uvicorn.run(app, host="0.0.0.0", port=60000)
+    main()
