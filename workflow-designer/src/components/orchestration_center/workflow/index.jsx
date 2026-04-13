@@ -237,16 +237,18 @@ const FlowInner = ({
     }, [importedNodes, setEditNodes, isDark, mode]);
 
     useEffect(() => {
-        setEditEdges(importedEdges.map(edge => ({
-            ...edge,
-            type: 'custom',
-            data: { ...edge.data, condition: edge.data?.condition || edge.label || '' },
-            zIndex: 0,
-            animated: true,
-            style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
-        })));
-        setIsDirty(false);
-    }, [importedEdges, setEditEdges, mode]);
+        if (mode === 'edit' && importedEdges) {
+            setEditEdges(importedEdges.map(edge => ({
+                ...edge,
+                type: 'custom',
+                data: { ...edge.data, condition: edge.data?.condition || edge.label || '' },
+                zIndex: 0,
+                animated: true,
+                style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
+            })));
+            setIsDirty(false);
+        }
+    }, [importedEdges, setEditEdges, mode, isDark]);
 
     // Track changes for isDirty
     const onNodesChangeWithDirty = useCallback((changes) => {
@@ -487,7 +489,7 @@ const FlowInner = ({
                 }}
             >
                 <Background color={themeClasses.gridColor} gap={20} variant="dots" />
-                <Controls showInteractive={mode === 'edit'} position="bottom-right" />
+                <Controls showInteractive={mode === 'edit'} position="bottom-left" />
             </ReactFlow>
 
             {mode === 'view' && (
@@ -505,8 +507,8 @@ const FlowInner = ({
                             <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} workflowDescription={workflowDescription} onCancel={handleCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); setIsDirty(true); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={handleSaveSuccess} />
                         </div>
                     </div>
-                    <div className="absolute justify-center left-8 top-12 bottom-12 w-32 z-40 pointer-events-none flex flex-col min-h-0">
-                        <div className={`pointer-events-auto flex flex-col backdrop-blur-md border rounded-2xl overflow-hidden transition-all ${themeClasses.panel}`}>
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-8 h-32 z-40 pointer-events-none flex items-center min-h-0">
+                        <div className={`pointer-events-auto flex items-center backdrop-blur-md border rounded-[2rem] overflow-hidden transition-all shadow-2xl ${themeClasses.panel}`}>
                             <Sidebar isDark={isDark} />
                         </div>
                     </div>

@@ -1,10 +1,10 @@
-import React, {useState, useEffect, useRef} from 'react';
-import {getAgentCards} from "../../../../service/api.js";
-import {useTranslation} from "react-i18next";
+import React, { useState, useEffect, useRef } from 'react';
+import { getAgentCards } from "../../../../service/api.js";
+import { useTranslation } from "react-i18next";
 import Tooltip from "../../../common/tooltip_component/index.tsx";
 
-const Sidebar = ({isDark}) => {
-    const {t} = useTranslation();
+const Sidebar = ({ isDark }) => {
+    const { t } = useTranslation();
     const [agentGroups, setAgentGroups] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -32,7 +32,7 @@ const Sidebar = ({isDark}) => {
             inputs: {},
             outputs: {},
             description: agentInfo.description,
-            defaultTask: t('workflow.sidebar.defaultTask', {name: agentInfo.name || agentKey})
+            defaultTask: t('workflow.sidebar.defaultTask', { name: agentInfo.name || agentKey })
         };
 
         event.dataTransfer.setData('application/agent-template', JSON.stringify(templateData));
@@ -66,7 +66,7 @@ const Sidebar = ({isDark}) => {
         className={`p-4 text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{t('common.loading')}</div>;
 
     return (
-        <div className="flex flex-col h-full w-full">
+        <div className="flex items-center h-full px-8 py-4 gap-8">
             <style>{`
                 @keyframes scrollTextOneWay {
                     0%, 15% { transform: translateX(0); }
@@ -77,19 +77,19 @@ const Sidebar = ({isDark}) => {
                 }
             `}</style>
 
-            <div className={`p-3 border-b transition-colors z-10 ${styles.header}`}>
-                <h2 className={`text-sm font-bold tracking-tight opacity-70 ${styles.title}`}>
+            <div className="shrink-0 flex flex-col justify-center pr-6 border-r border-zinc-200 dark:border-zinc-700">
+                <h2 className={`text-[10px] font-black tracking-widest opacity-40 uppercase ${styles.title}`}>
                     {t('workflow.sidebar.title')}
                 </h2>
             </div>
 
-            <div className={`flex-1 overflow-y-auto p-4 space-y-10 transition-colors ${styles.listArea}`}>
+            <div className={`flex items-center space-x-14 overflow-x-auto h-full px-4 py-2 transition-colors no-scrollbar ${styles.listArea}`}>
                 {agentGroups.map((info) => {
                     const key = info.name || info.id;
                     return (
                         <Tooltip
                             key={key}
-                            side="right"
+                            side="top"
                             sideOffset={25}
                             content={
                                 <div className="flex flex-col gap-1 px-1">
@@ -105,8 +105,8 @@ const Sidebar = ({isDark}) => {
                             <div
                                 draggable
                                 onDragStart={(e) => onDragStart(e, key, info)}
-                                style={{touchAction: 'none'}}
-                                className="group relative w-16 h-16 mx-auto cursor-grab active:scale-90 transition-transform"
+                                style={{ touchAction: 'none' }}
+                                className="group relative w-16 h-16 shrink-0 cursor-grab active:scale-90 transition-transform"
                             >
                                 <div className={`
                             w-full h-full rounded-full flex items-center justify-center text-xl
@@ -121,13 +121,13 @@ const Sidebar = ({isDark}) => {
                                 <div className={`
                             absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2
                             w-auto max-w-[100px] min-w-[40px] px-2.5 py-0
-                            rounded-full text-[14px] font-bold text-center whitespace-nowrap
+                            rounded-full text-[13px] font-black text-center whitespace-nowrap
                             shadow-md border bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200
                             group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600
                             transition-all duration-100 z-20
                             ${styles.nameBadge || ''}
                         `}>
-                                    <AutoScrollText text={key}/>
+                                    <AutoScrollText text={key} />
                                 </div>
                             </div>
                         </Tooltip>
@@ -140,7 +140,7 @@ const Sidebar = ({isDark}) => {
     );
 };
 
-const AutoScrollText = ({text}) => {
+const AutoScrollText = ({ text }) => {
     const [overflowAmount, setOverflowAmount] = useState(0);
     const textRef = useRef(null);
     const containerRef = useRef(null);

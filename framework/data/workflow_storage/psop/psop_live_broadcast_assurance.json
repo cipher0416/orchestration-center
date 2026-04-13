@@ -2,15 +2,16 @@
   "id": "psop_live_broadcast_assurance",
   "name": "直播业务保障流程",
   "description": "基于用户意图，通过多智能体协作，完成直播业务的保障。",
-  "created_at": "2024-05-20T10:00:00Z",
+  "created_at": "2026-04-13T12:12:34.996743",
   "steps": [
     {
       "name": "step1",
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "c755c9bd-0f86-4264-a85e-0ceee2a1b7fe",
           "description": "提取赛事的路线与业务需求",
-          "agent": "live-streaming-agent",
+          "agent": "Live Streaming Agent",
           "skill": "赛事信息解析",
           "status": "pending"
         }
@@ -27,8 +28,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "0ef77d00-b2b1-4d1a-87b9-746aa8f0de19",
           "description": "将赛事保障需求转换为网络需求，包含带宽上下行要求等",
-          "agent": "assurance-agent",
+          "agent": "Assurance Agent",
           "skill": "策略生成",
           "status": "pending"
         }
@@ -45,8 +47,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "2c207081-8aa8-4f23-91af-75587ad0309a",
           "description": "分析网络负载现状",
-          "agent": "ran-agent",
+          "agent": "RAN Agent",
           "skill": "分析评估",
           "status": "pending"
         }
@@ -63,8 +66,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "f19ae05a-30cb-41e9-adfe-a5405c8a5416",
           "description": "根据网络负载现状及网络保障需求规划网络策略方案",
-          "agent": "ran-agent",
+          "agent": "RAN Agent",
           "skill": "方案规划",
           "status": "pending"
         }
@@ -81,8 +85,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "7bc90c22-f4c4-4b03-b856-f304e5a96376",
           "description": "执行网络策略",
-          "agent": "ran-agent",
+          "agent": "RAN Agent",
           "skill": "网络策略执行",
           "status": "pending"
         }
@@ -99,8 +104,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "a8670a63-3a08-4dc3-9319-fa08a0453ac9",
           "description": "实时反馈保障任务关键质量指标及任务状态",
-          "agent": "live-streaming-agent",
+          "agent": "Live Streaming Agent",
           "skill": "KQI指标监控",
           "status": "pending"
         }
@@ -117,8 +123,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "6974dcb4-7f87-44bf-9412-fb8f51f1990e",
           "description": "恢复保障前网络配置",
-          "agent": "assurance-agent",
+          "agent": "Assurance Agent",
           "skill": "恢复策略下发",
           "status": "pending"
         }
@@ -135,8 +142,9 @@
       "type": "AllSuccess",
       "subtasks": [
         {
+          "task_id": "ccb0c8ba-894c-4da6-bb92-4a39298675e4",
           "description": "恢复网络配置",
-          "agent": "ran-agent",
+          "agent": "RAN Agent",
           "skill": "网络策略执行",
           "status": "pending"
         }
@@ -150,11 +158,6 @@
     }
   ],
   "related_preflow": null,
-  "user_intent": "根据用户输入的赛事信息，自动生成并执行网络保障策略，并在任务结束后恢复网络配置。",
-  "tags": [
-    "Live Streaming",
-    "Network Assurance",
-    "Multi-Agent",
-    "Closed Loop"
-  ]
+  "user_intent": null,
+  "tags": []
 }

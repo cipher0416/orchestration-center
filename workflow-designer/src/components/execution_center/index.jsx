@@ -204,35 +204,121 @@ const ExecutionCenter = ({ isDark }) => {
     }, [eventSource]);
 
     const theme = useMemo(() => ({
-        sidebarCard: isDark
-            ? 'bg-zinc-900 border-zinc-800 shadow-xl border-t-4 border-t-zinc-700'
-            : 'bg-white border-zinc-200 shadow-xl border-t-4 border-t-zinc-300',
-        mainCard: isDark
-            ? 'bg-zinc-900 border-zinc-800 shadow-2xl'
-            : 'bg-white border-slate-200 shadow-2xl',
-        logCard: isDark
-            ? 'bg-zinc-900/90 border-zinc-800 shadow-2xl backdrop-blur-xl'
-            : 'bg-white/90 border-slate-200 shadow-2xl backdrop-blur-xl',
-        intentInput: isDark
+        panel: isDark
+            ? 'bg-zinc-900 border-zinc-800 shadow-2xl backdrop-blur-xl'
+            : 'bg-white border-zinc-200 shadow-2xl backdrop-blur-xl',
+        header: isDark
+            ? 'bg-zinc-800/20 border-zinc-800'
+            : 'bg-zinc-50/50 border-zinc-100',
+        input: isDark
             ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
-            : 'bg-slate-100 border-slate-200 text-slate-900 placeholder-slate-400',
+            : 'bg-zinc-100 border-zinc-200 text-zinc-900 placeholder-zinc-400',
     }), [isDark]);
 
     const parseLogData = (data, type) => {
         const raw = type === 'agent_request' ? data.request : data.response;
         try {
-            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            console.log(JSON.stringify(parsed, null, 2));
+            let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-            return JSON.stringify(parsed, null, 2);
+            // Unwrap the outermost 'request' or 'response' key if it exists
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                if (type === 'agent_request' && parsed.request) {
+                    parsed = parsed.request;
+                } else if (type === 'agent_response' && parsed.response) {
+                    parsed = parsed.response;
+                }
+            }
+
+            return parsed; // Return the object instead of string for better processing
         } catch (e) {
-            return String(raw);
+            return raw;
         }
     };
 
+    const LogEntry = ({ event, isDark }) => {
+        const [showDetail, setShowDetail] = useState(false);
+        const parsed = useMemo(() => parseLogData(event.data, event.type), [event]);
+
+        const textContent = useMemo(() => {
+            if (!parsed) return '';
+            if (typeof parsed === 'string') return parsed;
+
+            const findText = (obj) => {
+                if (!obj || typeof obj !== 'object') return typeof obj === 'string' ? [obj] : [];
+                if (Array.isArray(obj)) return obj.flatMap(findText);
+
+                let results = [];
+                // Collect specific content keys
+                if (obj.text && typeof obj.text === 'string') results.push(obj.text);
+                if (obj.message && typeof obj.message === 'string') results.push(obj.message);
+
+                // Recurse into common containers if no text was found at this level
+                if (results.length === 0) {
+                    if (obj.parts) results = results.concat(findText(obj.parts));
+                    if (obj.artifacts) results = results.concat(findText(obj.artifacts));
+                }
+
+                // If still nothing, do a shallow scan for nested structures that might have text
+                if (results.length === 0) {
+                    Object.keys(obj).forEach(key => {
+                        if (typeof obj[key] === 'object' && obj[key] !== null) {
+                            results = results.concat(findText(obj[key]));
+                        }
+                    });
+                }
+
+                return results;
+            };
+
+            const allText = Array.from(new Set(findText(parsed))); // Deduplicate just in case
+            return allText.join('\n\n');
+        }, [parsed]);
+
+        return (
+            <div className="relative pl-10 border-l-2 border-zinc-100 dark:border-zinc-800/50 py-4 animate-in-basic">
+                <div className={`absolute -left-[9px] top-6 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
+                    ${event.type === 'agent_request' ? 'bg-blue-600' : 'bg-purple-600'}`}
+                />
+
+                <div className="flex items-center gap-4 mb-3">
+                    <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all
+                        ${event.type === 'agent_request'
+                            ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400'
+                            : 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800/50 dark:text-purple-400'}`}
+                    >
+                        <Bot size={15} className="opacity-80" />
+                        <span className="text-[12.5px] font-black uppercase tracking-widest font-mono">{event.data.agent}</span>
+                    </div>
+
+                    <span className="ml-auto text-[11px] font-mono opacity-30">{new Date(event.timestamp * 1000).toLocaleTimeString()}</span>
+                </div>
+
+                <div className={`group relative opacity-95 break-words font-sans text-[14.5px] leading-relaxed bg-white dark:bg-black/30 p-6 rounded-2xl border border-zinc-100 dark:border-zinc-800/50 shadow-lg transition-all duration-300 ring-1 ring-black/5 dark:ring-white/5
+                    ${showDetail ? 'ring-blue-500/30' : ''}`}>
+                    {showDetail ? (
+                        <pre className="font-mono text-[12.5px] overflow-x-auto whitespace-pre-wrap max-h-[600px] custom-scrollbar">
+                            {JSON.stringify(parsed, null, 2)}
+                        </pre>
+                    ) : (
+                        <div className="text-zinc-800 dark:text-zinc-200">
+                            {textContent || <span className="italic opacity-40">{t('execution.no_text')}</span>}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={() => setShowDetail(!showDetail)}
+                        className="mt-5 flex items-center gap-2 ml-auto text-[11px] font-black uppercase tracking-tighter text-blue-600 hover:text-blue-500 transition-colors py-1.5 px-4 bg-blue-500/5 hover:bg-blue-500/10 rounded-full border border-blue-500/10"
+                    >
+                        {showDetail ? t('execution.show_less') : t('execution.view_detail')}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="h-full p-8 flex flex-col gap-8 w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
-            <div className={`shrink-0 rounded-[3rem] border flex items-center justify-between px-10 py-6 bg-zinc-50/10 dark:bg-zinc-900/40 ${theme.mainCard} shadow-xl`}>
+        <div className="h-full p-12 flex flex-col gap-8 w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
+            <div className={`shrink-0 rounded-[3.5rem] border flex items-center justify-between px-10 py-6 ${theme.panel}`}>
 
                 <div className="flex-1 relative group mr-12 min-w-0">
                     <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
@@ -241,8 +327,8 @@ const ExecutionCenter = ({ isDark }) => {
                         value={userIntent}
                         onChange={(e) => setUserIntent(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleMatchIntent()}
-                        placeholder="please input your intent..."
-                        className={`w-full h-16 pl-16 pr-8 rounded-[1.5rem] border-2 text-lg font-bold outline-none transition-all duration-300 focus:shadow-[0_0_0_8px_rgba(59,130,246,0.1)] focus:border-blue-500 ${theme.intentInput}`}
+                        placeholder={t('execution.intent_placeholder')}
+                        className={`w-full h-16 pl-16 pr-8 rounded-[1.5rem] border-2 text-lg font-bold outline-none transition-all duration-300 focus:shadow-[0_0_0_8px_rgba(59,130,246,0.1)] focus:border-blue-500 ${theme.input} shadow-inner`}
                     />
                 </div>
 
@@ -254,7 +340,7 @@ const ExecutionCenter = ({ isDark }) => {
                             className="flex items-center gap-3 px-8 h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.5rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
                         >
                             <Search size={18} strokeWidth={3} />
-                            {isMatching ? 'Matching...' : 'Match'}
+                            {isMatching ? t('execution.matching') : t('execution.match')}
                         </button>
 
                         {isRunning ? (
@@ -263,7 +349,7 @@ const ExecutionCenter = ({ isDark }) => {
                                 className="flex items-center gap-3 px-8 h-16 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.5rem] text-sm font-black transition-all shadow-xl active:scale-95 shadow-rose-600/20"
                             >
                                 <StopCircle size={18} />
-                                TERMINATE
+                                {t('execution.terminate')}
                             </button>
                         ) : (
                             <button
@@ -272,33 +358,33 @@ const ExecutionCenter = ({ isDark }) => {
                                 className="group flex items-center gap-3 px-8 h-16 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:grayscale text-white rounded-[1.5rem] text-sm font-black transition-all shadow-xl active:scale-95 relative overflow-hidden"
                             >
                                 <Zap size={18} className="fill-white" />
-                                EXECUTE
+                                {t('execution.execute_btn')}
                             </button>
                         )}
                     </div>
 
                     <div className="flex flex-col items-end">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Engine Status</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t('execution.engine_status')}</span>
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-emerald-500 animate-ping' : (psopStatus ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700')}`} />
                             <span className={`text-[11px] font-black uppercase tracking-wider ${isRunning ? 'text-emerald-500' : 'dark:text-white'}`}>
-                                {isRunning ? t('execution.running') : (psopStatus ? t('execution.completed') : 'Ready')}
+                                {isRunning ? t('execution.running') : (psopStatus ? t('execution.completed') : t('execution.ready'))}
                             </span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 flex gap-8 min-h-0 overflow-hidden">
-                <div className={`flex-1 flex flex-col rounded-[3.5rem] border overflow-hidden relative shadow-2xl ${theme.mainCard}`}>
-                    <div className="px-10 py-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/5 dark:bg-zinc-900/20">
+            <div className="flex-1 flex gap-8 min-h-0">
+                <div className={`flex-1 flex flex-col rounded-[3.5rem] border overflow-hidden relative ${theme.panel}`}>
+                    <div className={`h-28 px-10 border-b flex justify-between items-center ${theme.header}`}>
                         <div className="flex items-center gap-4">
-                            <h2 className="text-xl font-black uppercase dark:text-white tracking-tight italic">
-                                {(isMatching || isGenerating) ? 'Processing Input...' : (nodes.length > 0 ? (workflowSource === 'generated' ? 'AI Planned sequence' : 'Workflow') : 'Workflow Interface')}
+                            <h2 className="text-xl font-black dark:text-white ">
+                                {(isMatching || isGenerating) ? t('execution.processing_input') : (nodes.length > 0 ? (workflowSource === 'generated' ? t('execution.ai_planned') : t('execution.workflow_label')) : t('execution.interface_label'))}
                             </h2>
                             {workflowSource && (
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${workflowSource === 'generated' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600'}`}>
-                                    {workflowSource === 'generated' ? 'AI Gen' : 'Native'}
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black  ${workflowSource === 'generated' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600'}`}>
+                                    {workflowSource === 'generated' ? t('execution.ai_gen') : t('execution.native')}
                                 </span>
                             )}
                         </div>
@@ -308,7 +394,7 @@ const ExecutionCenter = ({ isDark }) => {
                         {isGenerating && (
                             <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-md">
                                 <Zap size={48} className="text-blue-600 animate-bounce mb-6" />
-                                <h3 className="text-lg font-black uppercase tracking-widest text-blue-600">Generating workflow...</h3>
+                                <h3 className="text-lg font-black uppercase tracking-widest text-blue-600">{t('execution.generating_wf')}</h3>
                             </div>
                         )}
 
@@ -324,8 +410,8 @@ const ExecutionCenter = ({ isDark }) => {
                         ) : (
                             !isGenerating && (
                                 <div className="h-full flex flex-col items-center justify-center opacity-10">
-                                    <Bot size={100} />
-                                    <p className="text-xl font-black uppercase tracking-[0.3em] mt-8">Standby</p>
+                                    <Bot size={50} />
+                                    <p className="text-xl font-black">{t('execution.standby')}</p>
                                 </div>
                             )
                         )}
@@ -342,49 +428,30 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
 
-                <div className={`w-[500px] rounded-[3.5rem] border flex flex-col overflow-hidden shadow-2xl ${theme.logCard} shrink-0`}>
-                    <div className="px-10 py-8 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                <div className={`w-[500px] rounded-[3.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0`}>
+                    <div className={`h-28 px-10 border-b flex items-center justify-between shrink-0 ${theme.header}`}>
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-blue-500/10 rounded-xl">
                                 <Terminal size={20} className="text-blue-500" />
                             </div>
-                            <h3 className="text-lg font-black uppercase tracking-widest dark:text-white">Interaction</h3>
+                            <h3 className="text-xl font-black dark:text-white">{t('execution.interaction')}</h3>
                         </div>
                         {!autoScroll && (
                             <button onClick={() => setAutoScroll(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase">
-                                Sync
+                                {t('execution.sync')}
                             </button>
                         )}
                     </div>
 
                     <div ref={logScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar scroll-smooth">
                         {events.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center opacity-20 italic text-sm gap-4">
-                                <History size={48} className="mb-2" />
-                                <p className="font-black uppercase tracking-[0.2em]">Idle</p>
+                            <div className="h-full flex flex-col items-center justify-center opacity-20 text-sm4">
+                                <History size={48} />
+                                <p className="font-black">{t('execution.idle')}</p>
                             </div>
                         ) : (
                             events.map((event, index) => (
-                                <div key={index} className="relative pl-8 border-l-2 border-zinc-100 dark:border-zinc-800/50 animate-in-basic">
-                                    <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
-                                        ${event.type === 'agent_request' ? 'bg-blue-500' : 'bg-purple-500'}`}
-                                    />
-                                    <div className="flex items-center justify-between mb-3">
-                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${event.type === 'agent_request' ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-600' : 'bg-purple-100 dark:bg-purple-500/10 text-purple-600'}`}>
-                                            {event.type.replace('agent_', '')}
-                                        </span>
-                                        <span className="text-[10px] font-mono opacity-30">{new Date(event.timestamp * 1000).toLocaleTimeString()}</span>
-                                    </div>
-                                    <div className="p-6 rounded-[2rem] border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-800/30 text-[13px] leading-relaxed dark:text-zinc-300">
-                                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-dashed border-zinc-100 dark:border-zinc-800/50">
-                                            <Bot size={12} className="text-zinc-400" />
-                                            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider font-mono">{event.data.agent}</span>
-                                        </div>
-                                        <div className="opacity-80 break-words font-mono whitespace-pre-wrap text-[11px] bg-zinc-50/50 dark:bg-black/20 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/50 overflow-x-auto max-h-[400px]">
-                                            {parseLogData(event.data, event.type)}
-                                        </div>
-                                    </div>
-                                </div>
+                                <LogEntry key={index} event={event} isDark={isDark} />
                             ))
                         )}
                     </div>
