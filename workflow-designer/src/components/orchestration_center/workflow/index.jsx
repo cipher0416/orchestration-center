@@ -82,7 +82,7 @@ const FlowInner = ({
         activeStrokeWidth: 2,
         inactiveEdgeColor: isDark ? '#475569' : '#94a3b8',
         inactiveStrokeWidth: 1,
-        panel: isDark ? 'bg-slate-900/80 border-slate-700 shadow-[0_0_20px_rgba(0,0,0,0.4)]' : 'bg-white/80 border-white/20 shadow-2xl',
+        panel: isDark ? 'bg-zinc-900/80 border-zinc-700 shadow-[0_0_20px_rgba(0,0,0,0.4)]' : 'bg-white/80 border-white/20 shadow-2xl',
     }), [isDark]);
 
     const [viewSelectedNodeId, setViewSelectedNodeId] = useState(null);

@@ -45,7 +45,7 @@ const Sidebar = ({ isDark }) => {
             : 'border-zinc-200 bg-zinc-50/50',
         title: isDark ? 'text-zinc-100' : 'text-zinc-800',
 
-        listArea: isDark ? 'custom-scrollbar-dark bg-zinc-950' : 'custom-scrollbar bg-white',
+        listArea: isDark ? 'custom-scrollbar-dark' : 'custom-scrollbar bg-white',
 
         card: isDark
             ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-500 hover:bg-zinc-800/80 hover:shadow-[0_0_15px_rgba(255,255,255,0.05)]'
@@ -110,7 +110,7 @@ const Sidebar = ({ isDark }) => {
                             >
                                 <div className={`
                             w-full h-full rounded-full flex items-center justify-center text-xl
-                            bg-slate-100 dark:bg-slate-800 border-2 border-transparent
+                            bg-zinc-100 dark:bg-zinc-800 border-2 border-transparent
                             shadow-sm transition-all duration-300
                             group-hover:border-blue-500 group-hover:shadow-lg
                             ${styles.icon}

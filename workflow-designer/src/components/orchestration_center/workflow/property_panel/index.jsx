@@ -292,44 +292,6 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon,setNodes, 
                                 <ReadOnlyField label={t('workflow.panel.executeSkill')} value={data.skill} isDark={isDark} />
                             </>
                         )}
-                        <div className="space-y-2">
-                            <label className={`text-[14px] ml-1 font-bold uppercase tracking-wide ${theme.label}`}>
-                                {t('workflow.panel.inputDefine')}
-                            </label>
-                            <div className={`text-[14px] p-3 rounded-xl border transition-colors ${isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-400' : 'bg-white border-zinc-200 text-zinc-600'}`}>
-                                {Object.entries(data.inputs || {}).map(([k, v]) => (
-                                    <div key={k} className="mb-1.5 last:mb-0 flex items-start gap-2">
-                                        <span className={`font-mono font-bold ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>{k}:</span>
-                                        <span className="opacity-80">{renderSafeValue(v)}</span>
-                                    </div>
-                                ))}
-                                {(!data.inputs || Object.keys(data.inputs).length === 0) &&
-                                    <span className="text-zinc-600 italic">{t('workflow.panel.noInput')}</span>}
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className={`text-[14px] ml-1 font-bold uppercase tracking-wide ${theme.label}`}>
-                                {t('workflow.panel.outputDefine')}
-                            </label>
-                            <div className={`text-[14px] p-3 rounded-xl border transition-colors ${isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-400' : 'bg-white border-zinc-200 text-zinc-600'}`}>
-                                {Object.entries(data.outputs || {}).map(([k, v]) => (
-                                    <div key={k} className="mb-1.5 last:mb-0 flex items-start gap-2">
-                                        <span className={`font-mono font-bold ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>{k}:</span>
-                                        <span className="opacity-80">{renderSafeValue(v)}</span>
-                                    </div>
-                                ))}
-                                {(!data.outputs || Object.keys(data.outputs).length === 0) &&
-                                    <span className="text-zinc-600 italic">{t('workflow.panel.noOutput')}</span>}
-                            </div>
-                        </div>
-
-                        <KvIndex
-                            title={t('workflow.panel.inputParams')}
-                            data={data.input_params || {}}
-                            onChange={(v) => updateData('input_params', v)}
-                            isDark={isDark}
-                        />
                     </>
                 ) : (
                     <section className="space-y-4">
