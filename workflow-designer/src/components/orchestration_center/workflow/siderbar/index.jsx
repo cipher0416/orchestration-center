@@ -89,7 +89,7 @@ const Sidebar = ({isDark}) => {
                     return (
                         <Tooltip
                             key={key}
-                            side="right"
+                            side="left"
                             sideOffset={25}
                             content={
                                 <div className="flex flex-col gap-1 px-1">
