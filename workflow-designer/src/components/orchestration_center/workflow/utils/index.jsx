@@ -66,12 +66,12 @@ export const getBestHandles = (sourceNode, targetNode) => {
 
     if (Math.abs(dy) > Math.abs(dx)) {
         return dy > 0
-            ? { sourceHandle: 's-bottom', targetHandle: 't-top' }
-            : { sourceHandle: 's-top', targetHandle: 't-bottom' };
+            ? { sourceHandle: 's-bottom', targetHandle: 'target' }
+            : { sourceHandle: 's-top', targetHandle: 'target' };
     } else {
         return dx > 0
-            ? { sourceHandle: 's-right', targetHandle: 't-left' }
-            : { sourceHandle: 's-left', targetHandle: 't-right' };
+            ? { sourceHandle: 's-right', targetHandle: 'target' }
+            : { sourceHandle: 's-left', targetHandle: 'target' };
     }
 };
 

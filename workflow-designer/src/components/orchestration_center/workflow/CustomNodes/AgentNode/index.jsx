@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useConnection } from '@xyflow/react';
 
 const AGENT_COLORS = [
     { light: 'bg-blue-100 text-blue-700', dark: 'bg-blue-500/20 text-blue-300', bar: 'bg-blue-500' },
@@ -25,6 +25,9 @@ const getAgentTheme = (agentName) => {
 };
 
 const AgentNode = ({ data, selected }) => {
+    const connection = useConnection();
+    const isConnecting = connection.inProgress;
+
     const isDark = data.isDark || false;
     const status = data.status || 'pending'; // pending, running, success, failed
     const stepName = data.label || 'Step';
@@ -41,28 +44,34 @@ const AgentNode = ({ data, selected }) => {
     };
 
     const handleBaseStyle = `
-        /* 1. 基础外观 */
-        !w-[4px] !h-[4px] border-[1.5px] border-white dark:border-zinc-800
+        !w-[10px] !h-[10px] !bg-blue-500 border-2 border-white dark:border-zinc-800
         transition-all duration-300 ease-out cursor-crosshair
+        hover:!w-[16px] hover:!h-[16px] hover:shadow-lg
+        z-[110]
         
-        /* 2. 悬停反馈 (Hover)：面积增加 */
-        hover:!w-[28.5px] hover:!h-[28.5px] hover:shadow-sm
+        /* 连线起点反馈 */
+        [&.react-flow__handle-connecting]:ring-4 [&.react-flow__handle-connecting]:ring-blue-500/20
         
-        /* 3. 连线起点反馈 (Connecting)： */
-        [&.react-flow__handle-connecting]:!w-[8.5px] [&.react-flow__handle-connecting]:!h-[8.5px]
-        [&.react-flow__handle-connecting]:ring-2 [&.react-flow__handle-connecting]:ring-black/10 dark:[&.react-flow__handle-connecting]:ring-white/10
-        
-        /* 4. 隐形热区：绝对固定为 60x60px */
+        /* 隐形热区 */
         after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 
-        after:w-[60px] after:h-[60px] after:bg-transparent after:z-10
-        
-        /* 5. 目标吸附动效 (Valid)：底部的波纹光晕 */
-        before:content-[''] before:absolute before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2 
-        before:w-0 before:h-0 before:rounded-full before:transition-all before:duration-300 before:z-[-1]
-        
-        [&.react-flow__handle-valid]:!w-[8.5px] [&.react-flow__handle-valid]:!h-[8.5px]
-        [&.react-flow__handle-valid]:before:w-10 [&.react-flow__handle-valid]:before:h-10 
+        after:w-[40px] after:h-[40px] after:bg-transparent
     `;
+
+    // 目标点样式：平时隐藏且不拦截点击，连线时变为全屏拦截
+    const targetHandleStyle = {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        top: 0,
+        left: 0,
+        transform: 'none',
+        background: 'transparent',
+        border: 'none',
+        borderRadius: '12px',
+        zIndex: isConnecting ? 100 : -1,
+        pointerEvents: isConnecting ? 'auto' : 'none',
+        transition: 'all 0.2s',
+    };
 
     const getStatusColor = (s) => {
         const normalized = (s || '').toLowerCase();
@@ -82,63 +91,63 @@ const AgentNode = ({ data, selected }) => {
             `}
         >
             <div className={`h-[4px] w-full transition-colors duration-500 bg-blue-500/50`} />
-
-            <div className="px-4 py-3 flex flex-col gap-2">
-                {/* Step Header */}
-                <div className="flex justify-between items-start gap-2">
-                    <div className="flex flex-col">
-                        <span className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Workflow Step</span>
-                        <h3 className="text-[14px] font-bold leading-tight truncate max-w-[280px]">
-                            {stepName}
-                        </h3>
-                    </div>
-                    {/* Overall Status */}
-                    <div className="mt-1">
-                        <div className="relative flex h-2.5 w-2.5">
-                            {(status === 'running' || status === 'current') && (
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                            )}
-                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 transition-colors duration-300 ${getStatusColor(status)}`}></span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Subtasks List */}
-                <div className="flex flex-col gap-1.5 mt-1">
-                    {subtasks.map((task, idx) => (
-                        <div key={idx} className={`
-                            group/task relative p-2 px-3 rounded-lg border flex flex-col gap-0.5 transition-all
-                            ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
-                        `}>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 truncate max-w-[150px]">
-                                    {task.agent || 'Agent'}
-                                </span>
-                                <div className={`h-1.5 w-1.5 rounded-full ${getStatusColor(task.status)} opacity-60`} />
-                            </div>
-                            <div className={`text-[11px] font-medium leading-tight truncate ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
-                                {task.skill || 'No skill specified'}
-                            </div>
-                        </div>
-                    ))}
-                    {subtasks.length === 0 && (
-                        <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
-                            No subtasks configured
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <Handle type="target" position={Position.Top} id="t-top" style={{ left: '40%' }} className={`!bg-blue-400 [&.react-flow__handle-valid]:before:bg-blue-400/40 ${handleBaseStyle}`} />
-            <Handle type="source" position={Position.Top} id="s-top" style={{ left: '60%' }} className={`!bg-green-500 [&.react-flow__handle-valid]:before:bg-green-500/40 ${handleBaseStyle}`} />
-            <Handle type="target" position={Position.Bottom} id="t-bottom" style={{ left: '40%' }} className={`!bg-blue-400 [&.react-flow__handle-valid]:before:bg-blue-400/40 ${handleBaseStyle}`} />
-            <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ left: '60%' }} className={`!bg-green-500 [&.react-flow__handle-valid]:before:bg-green-500/40 ${handleBaseStyle}`} />
-            <Handle type="target" position={Position.Left} id="t-left" style={{ top: '40%' }} className={`!bg-slate-400 [&.react-flow__handle-valid]:before:bg-slate-400/40 ${handleBaseStyle}`} />
-            <Handle type="source" position={Position.Left} id="s-left" style={{ top: '60%' }} className={`!bg-blue-500 [&.react-flow__handle-valid]:before:bg-blue-500/40 ${handleBaseStyle}`} />
-            <Handle type="target" position={Position.Right} id="t-right" style={{ top: '40%' }} className={`!bg-slate-400 [&.react-flow__handle-valid]:before:bg-slate-400/40 ${handleBaseStyle}`} />
-            <Handle type="source" position={Position.Right} id="s-right" style={{ top: '60%' }} className={`!bg-blue-500 [&.react-flow__handle-valid]:before:bg-blue-500/40 ${handleBaseStyle}`} />
-        </div>
-    );
-};
+ 
+             <div className="px-4 py-3 flex flex-col gap-2">
+                 {/* Step Header */}
+                 <div className="flex justify-between items-start gap-2">
+                     <div className="flex flex-col">
+                         <span className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Workflow Step</span>
+                         <h3 className="text-[14px] font-bold leading-tight truncate max-w-[280px]">
+                             {stepName}
+                         </h3>
+                     </div>
+                     {/* Overall Status */}
+                     <div className="mt-1">
+                         <div className="relative flex h-2.5 w-2.5">
+                             {(status === 'running' || status === 'current') && (
+                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                             )}
+                             <span className={`relative inline-flex rounded-full h-2.5 w-2.5 transition-colors duration-300 ${getStatusColor(status)}`}></span>
+                         </div>
+                     </div>
+                 </div>
+ 
+                 {/* Subtasks List */}
+                 <div className="flex flex-col gap-1.5 mt-1">
+                     {subtasks.map((task, idx) => (
+                         <div key={idx} className={`
+                             group/task relative p-2 px-3 rounded-lg border flex flex-col gap-0.5 transition-all
+                             ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
+                         `}>
+                             <div className="flex justify-between items-center">
+                                 <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 truncate max-w-[150px]">
+                                     {task.agent || 'Agent'}
+                                 </span>
+                                 <div className={`h-1.5 w-1.5 rounded-full ${getStatusColor(task.status)} opacity-60`} />
+                             </div>
+                             <div className={`text-[11px] font-medium leading-tight truncate ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
+                                 {task.skill || 'No skill specified'}
+                             </div>
+                         </div>
+                     ))}
+                     {subtasks.length === 0 && (
+                         <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
+                             No subtasks configured
+                         </div>
+                     )}
+                 </div>
+             </div>
+ 
+             {/* Target Handle (Hidden drop zone covering the entire node) */}
+             <Handle type="target" position={Position.Top} id="target" style={targetHandleStyle} />
+ 
+             {/* Source Handles (Visibility trigger points) */}
+             <Handle type="source" position={Position.Top} id="s-top" style={{ left: '50%' }} className={handleBaseStyle} />
+             <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ left: '50%' }} className={handleBaseStyle} />
+             <Handle type="source" position={Position.Left} id="s-left" style={{ top: '50%' }} className={handleBaseStyle} />
+             <Handle type="source" position={Position.Right} id="s-right" style={{ top: '50%' }} className={handleBaseStyle} />
+         </div>
+     );
+ };
 
 export default memo(AgentNode);

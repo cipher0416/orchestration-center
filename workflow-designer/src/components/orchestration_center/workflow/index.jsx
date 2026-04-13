@@ -138,7 +138,7 @@ const FlowInner = ({
 
             return {
                 ...edge,
-                type: 'straight',
+                type: 'floating',
                 label: edge.label || null,
                 animated: isActive,
                 style: {
@@ -234,7 +234,7 @@ const FlowInner = ({
         if (mode === 'edit' && importedEdges) {
             setEditEdges(importedEdges.map(edge => ({
                 ...edge,
-                type: 'straight',
+                type: 'floating',
                 zIndex: 1000,
                 animated: edge.animated !== undefined ? edge.animated : true,
             })));
@@ -341,7 +341,7 @@ const FlowInner = ({
     const onConnect = useCallback((params) => {
         const newEdge = {
             ...params,
-            type: 'straight',
+            type: 'floating',
             zIndex: 1000,
             animated: true,
             markerEnd: { type: MarkerType.ArrowClosed, color: isDark ? '#3b82f6' : '#2563eb' },
@@ -475,7 +475,7 @@ const FlowInner = ({
                 proOptions={{ hideAttribution: true }}
 
                 defaultEdgeOptions={{
-                    type: 'straight',
+                    type: 'floating',
                     animated: false,
                     zIndex: 1000,
                 }}
