@@ -237,16 +237,18 @@ const FlowInner = ({
     }, [importedNodes, setEditNodes, isDark, mode]);
 
     useEffect(() => {
-        setEditEdges(importedEdges.map(edge => ({
-            ...edge,
-            type: 'custom',
-            data: { ...edge.data, condition: edge.data?.condition || edge.label || '' },
-            zIndex: 0,
-            animated: true,
-            style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
-        })));
-        setIsDirty(false);
-    }, [importedEdges, setEditEdges, mode]);
+        if (mode === 'edit' && importedEdges) {
+            setEditEdges(importedEdges.map(edge => ({
+                ...edge,
+                type: 'custom',
+                data: { ...edge.data, condition: edge.data?.condition || edge.label || '' },
+                zIndex: 0,
+                animated: true,
+                style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
+            })));
+            setIsDirty(false);
+        }
+    }, [importedEdges, setEditEdges, mode, isDark]);
 
     // Track changes for isDirty
     const onNodesChangeWithDirty = useCallback((changes) => {
