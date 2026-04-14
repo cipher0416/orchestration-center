@@ -120,7 +120,7 @@ revocationlist.crl:可选，吊销列表，仅支持pem编码格式，仅支持.
       ./stop.sh
     ```
 ### 启动和停止Samples
-1. **启动后端服务**
+1. **启动Samples**
    
    方式一:
 
@@ -136,7 +136,7 @@ revocationlist.crl:可选，吊销列表，仅支持pem编码格式，仅支持.
    ```bash
       python -m samples.start_agents_server
     ```
-2. **停止后端服务**
+2. **停止Samples**
 
    **进入项目目录下的`bin`文件夹**
     ```bash
