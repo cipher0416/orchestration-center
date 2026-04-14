@@ -45,7 +45,7 @@ const Sidebar = ({ isDark }) => {
             : 'border-zinc-200 bg-zinc-50/50',
         title: isDark ? 'text-zinc-100' : 'text-zinc-800',
 
-        listArea: isDark ? 'custom-scrollbar-dark' : 'custom-scrollbar bg-white',
+        listArea: isDark ? 'custom-scrollbar' : 'custom-scrollbar bg-white',
 
         card: isDark
             ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-500 hover:bg-zinc-800/80 hover:shadow-[0_0_15px_rgba(255,255,255,0.05)]'
@@ -62,11 +62,19 @@ const Sidebar = ({ isDark }) => {
             : 'bg-zinc-50 text-zinc-500 border-zinc-200'
     };
 
+    const scrollRef = useRef(null);
+
+    const handleWheel = (event) => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollLeft += event.deltaY;
+        }
+    };
+
     if (loading) return <div
         className={`p-4 text-xs ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{t('common.loading')}</div>;
 
     return (
-        <div className="flex items-center h-full px-8 py-4 gap-8">
+        <div className="flex items-center px-4 py-0 gap-6 select-none">
             <style>{`
                 @keyframes scrollTextOneWay {
                     0%, 15% { transform: translateX(0); }
@@ -83,7 +91,11 @@ const Sidebar = ({ isDark }) => {
                 </h2>
             </div>
 
-            <div className={`flex items-center space-x-14 overflow-x-auto h-full px-4 py-2 transition-colors no-scrollbar ${styles.listArea}`}>
+            <div
+                ref={scrollRef}
+                onWheel={handleWheel}
+                className={`flex items-center space-x-14 overflow-x-auto overflow-y-hidden px-4 pt-3 pb-8 transition-colors ${styles.listArea}`}
+            >
                 {agentGroups.map((info) => {
                     const key = info.name || info.id;
                     return (

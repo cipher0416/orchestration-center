@@ -44,13 +44,13 @@ const initialEditNodes = [
     {
         id: 'startNode',
         type: 'startNode',
-        position: { x: 400, y: 50 },
+        position: { x: 50, y: 300 },
         data: { description: 'this is the start node', name: 'start_node', status: 'start-event' }
     },
     {
         id: 'endNode',
         type: 'endNode',
-        position: { x: 400, y: 600 },
+        position: { x: 1000, y: 300 },
         data: { description: 'this is a end node.', status: 'end_node', type: 'end-event' }
     }
 ];
@@ -447,7 +447,7 @@ const FlowInner = ({
     const displayEdges = mode === 'view' ? processedEdges : editEdges;
 
     return (
-        <div className={`h-full w-full relative overflow-hidden transition-colors duration-300 ${themeClasses.container}`}>
+        <div className={`h-full w-full relative overflow-hidden select-none transition-colors duration-300 ${themeClasses.container}`}>
             <ReactFlow
                 nodes={displayNodes}
                 edges={displayEdges}
@@ -481,6 +481,7 @@ const FlowInner = ({
                 fitView
                 fitViewOptions={{ padding: 0.1 }}
                 proOptions={{ hideAttribution: true }}
+                connectionRadius={50}
 
                 defaultEdgeOptions={{
                     type: 'custom',
@@ -507,7 +508,7 @@ const FlowInner = ({
                             <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} workflowDescription={workflowDescription} onCancel={handleCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); setIsDirty(true); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={handleSaveSuccess} />
                         </div>
                     </div>
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-8 h-32 z-40 pointer-events-none flex items-center min-h-0">
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-8 h-auto z-40 pointer-events-none flex items-center min-h-0">
                         <div className={`pointer-events-auto flex items-center backdrop-blur-md border rounded-[2rem] overflow-hidden transition-all shadow-2xl ${themeClasses.panel}`}>
                             <Sidebar isDark={isDark} />
                         </div>

@@ -7,7 +7,7 @@ export const StartNode = ({ selected }) => {
     const handleBaseStyle = `
         !w-[8px] !h-[8px] !bg-emerald-400 border-2 border-white 
         transition-all duration-300 ease-out cursor-crosshair
-        hover:!w-[12px] hover:!h-[12px] hover:shadow-lg
+        hover:!w-[14px] hover:!h-[14px] hover:shadow-lg
         z-[110]
         
         /* 连线起点反馈 */
@@ -15,7 +15,7 @@ export const StartNode = ({ selected }) => {
         
         /* 隐形热区 */
         after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 
-        after:w-[30px] after:h-[30px] after:bg-transparent
+        after:w-[60px] after:h-[60px] after:bg-transparent
     `;
 
     return (
@@ -56,7 +56,7 @@ export const EndNode = ({ selected }) => {
             END
 
             {/* End nodes only have Left Target (whole node) for L-R flow */}
-            <Handle type="target" position={Position.Left} id="t-left" style={{ left: 0, top: '50%' }} className={`${targetHandleBaseClasses} after:w-[64px] after:h-[64px] after:left-[32px] after:top-1/2 after:-translate-y-1/2`} />
+            <Handle type="target" position={Position.Left} id="t-left" style={{ left: 0, top: '50%' }} className={`${targetHandleBaseClasses} after:w-[64px] after:h-[64px] after:left-[32px] after:top-0 after:-translate-x-1/2 after:-translate-y-1/2`} />
         </div>
     );
 };

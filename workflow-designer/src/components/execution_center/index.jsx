@@ -22,6 +22,115 @@ import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflows,
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 
+const parseLogData = (data, type) => {
+    const raw = type === 'agent_request' ? data.request : data.response;
+    try {
+        let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+        // Unwrap the outermost 'request' or 'response' key if it exists
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            if (type === 'agent_request' && parsed.request) {
+                parsed = parsed.request;
+            } else if (type === 'agent_response' && parsed.response) {
+                parsed = parsed.response;
+            }
+        }
+
+        return parsed; // Return the object instead of string for better processing
+    } catch (e) {
+        return raw;
+    }
+};
+
+const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
+    const [showDetail, setShowDetail] = useState(false);
+    const parsed = useMemo(() => parseLogData(event.data, event.type), [event]);
+
+    const textContent = useMemo(() => {
+        if (!parsed) return '';
+        if (typeof parsed === 'string') return parsed;
+
+        const findText = (obj) => {
+            if (!obj || typeof obj !== 'object') return typeof obj === 'string' ? [obj] : [];
+            if (Array.isArray(obj)) return obj.flatMap(findText);
+
+            let results = [];
+            // Collect specific content keys
+            if (obj.text && typeof obj.text === 'string') results.push(obj.text);
+            if (obj.message && typeof obj.message === 'string') results.push(obj.message);
+
+            // Recurse into common containers if no text was found at this level
+            if (results.length === 0) {
+                if (obj.parts) results = results.concat(findText(obj.parts));
+                if (obj.artifacts) results = results.concat(findText(obj.artifacts));
+            }
+
+            // If still nothing, do a shallow scan for nested structures that might have text
+            if (results.length === 0) {
+                Object.keys(obj).forEach(key => {
+                    if (typeof obj[key] === 'object' && obj[key] !== null) {
+                        results = results.concat(findText(obj[key]));
+                    }
+                });
+            }
+
+            return results;
+        };
+
+        const allText = Array.from(new Set(findText(parsed))); // Deduplicate just in case
+        return allText.join('\n\n');
+    }, [parsed]);
+
+    return (
+        <div 
+            data-agent={event.data.agent}
+            className={`relative pl-10 border-l-2 py-4 animate-in-basic transition-all duration-500 rounded-r-2xl
+                ${isSelected 
+                    ? 'bg-blue-500/5 border-blue-500 shadow-[inset_4px_0_0_0_#3b82f6]' 
+                    : 'border-zinc-100 dark:border-zinc-800/50'}`}
+        >
+            <div className={`absolute -left-[9px] top-6 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
+                ${event.type === 'agent_request' ? 'bg-blue-600' : 'bg-purple-600'}
+                ${isSelected ? 'ring-4 ring-blue-500/20 scale-125 transition-transform' : ''}`}
+            />
+
+            <div className="flex items-center gap-4 mb-3">
+                <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all
+                    ${event.type === 'agent_request'
+                        ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400'
+                        : 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800/50 dark:text-purple-400'}`}
+                >
+                    <Bot size={15} className="opacity-80" />
+                    <span className="text-[12.5px] font-black uppercase tracking-widest font-mono">{event.data.agent}</span>
+                </div>
+
+                <span className="ml-auto text-[11px] font-mono opacity-30">{new Date(event.timestamp * 1000).toLocaleTimeString()}</span>
+            </div>
+
+            <div className={`group relative opacity-95 break-words font-sans text-[14.5px] leading-relaxed bg-white dark:bg-black/30 p-6 rounded-2xl border transition-all duration-300 ring-1 ring-black/5 dark:ring-white/5
+                ${isSelected ? 'border-blue-500/40 shadow-blue-500/10' : 'border-zinc-100 dark:border-zinc-800/50'}
+                ${showDetail ? 'ring-blue-500/30' : ''}`}>
+                {showDetail ? (
+                    <pre className="font-mono text-[12.5px] overflow-x-auto whitespace-pre-wrap max-h-[600px] custom-scrollbar">
+                        {JSON.stringify(parsed, null, 2)}
+                    </pre>
+                ) : (
+                    <div className="text-zinc-800 dark:text-zinc-200">
+                        {textContent || <span className="italic opacity-40">{t('execution.no_text')}</span>}
+                    </div>
+                )}
+
+                <button
+                    onClick={() => setShowDetail(!showDetail)}
+                    className="mt-5 flex items-center gap-2 ml-auto text-[11px] font-black uppercase tracking-tighter text-blue-600 hover:text-blue-500 transition-colors py-1.5 px-4 bg-blue-500/5 hover:bg-blue-500/10 rounded-full border border-blue-500/10"
+                >
+                    {showDetail ? t('execution.show_less') : t('execution.view_detail')}
+                </button>
+            </div>
+        </div>
+    );
+});
+
 const ExecutionCenter = ({ isDark }) => {
     const { t } = useTranslation();
     const [selectedId, setSelectedId] = useState(null);
@@ -40,6 +149,27 @@ const ExecutionCenter = ({ isDark }) => {
 
     const logScrollRef = useRef(null);
     const [autoScroll, setAutoScroll] = useState(true);
+    const [selectedNodeId, setSelectedNodeId] = useState(null);
+
+    const handleNodeSelect = useCallback((node) => {
+        if (!node) {
+            setSelectedNodeId(null);
+            return;
+        }
+
+        setSelectedNodeId(node.id);
+        const agentName = node.data?.agent || node.data?.name;
+        if (!agentName || !logScrollRef.current) return;
+
+        // Search for all log entries for this agent
+        const entries = logScrollRef.current.querySelectorAll(`[data-agent="${agentName}"]`);
+        if (entries.length > 0) {
+            // Scroll to the last entry of this agent to see the most recent context
+            const target = entries[entries.length - 1];
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setAutoScroll(false); // Stop auto-scrolling if user clicked something
+        }
+    }, []);
 
     const handleMatchIntent = async () => {
         if (!userIntent.trim()) return;
@@ -103,13 +233,13 @@ const ExecutionCenter = ({ isDark }) => {
         }
     }, [events, autoScroll]);
 
-    const handleScroll = (e) => {
+    const handleScroll = useCallback((e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 30;
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 50; // Increased threshold slightly for better feel
         if (autoScroll !== isAtBottom) {
             setAutoScroll(isAtBottom);
         }
-    };
+    }, [autoScroll]);
 
     useEffect(() => {
         if (psopStatus) {
@@ -213,112 +343,16 @@ const ExecutionCenter = ({ isDark }) => {
         input: isDark
             ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
             : 'bg-zinc-100 border-zinc-200 text-zinc-900 placeholder-zinc-400',
+        content: isDark
+            ? 'bg-black/20'
+            : 'bg-zinc-50/50',
     }), [isDark]);
 
-    const parseLogData = (data, type) => {
-        const raw = type === 'agent_request' ? data.request : data.response;
-        try {
-            let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-            // Unwrap the outermost 'request' or 'response' key if it exists
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                if (type === 'agent_request' && parsed.request) {
-                    parsed = parsed.request;
-                } else if (type === 'agent_response' && parsed.response) {
-                    parsed = parsed.response;
-                }
-            }
-
-            return parsed; // Return the object instead of string for better processing
-        } catch (e) {
-            return raw;
-        }
-    };
-
-    const LogEntry = ({ event, isDark }) => {
-        const [showDetail, setShowDetail] = useState(false);
-        const parsed = useMemo(() => parseLogData(event.data, event.type), [event]);
-
-        const textContent = useMemo(() => {
-            if (!parsed) return '';
-            if (typeof parsed === 'string') return parsed;
-
-            const findText = (obj) => {
-                if (!obj || typeof obj !== 'object') return typeof obj === 'string' ? [obj] : [];
-                if (Array.isArray(obj)) return obj.flatMap(findText);
-
-                let results = [];
-                // Collect specific content keys
-                if (obj.text && typeof obj.text === 'string') results.push(obj.text);
-                if (obj.message && typeof obj.message === 'string') results.push(obj.message);
-
-                // Recurse into common containers if no text was found at this level
-                if (results.length === 0) {
-                    if (obj.parts) results = results.concat(findText(obj.parts));
-                    if (obj.artifacts) results = results.concat(findText(obj.artifacts));
-                }
-
-                // If still nothing, do a shallow scan for nested structures that might have text
-                if (results.length === 0) {
-                    Object.keys(obj).forEach(key => {
-                        if (typeof obj[key] === 'object' && obj[key] !== null) {
-                            results = results.concat(findText(obj[key]));
-                        }
-                    });
-                }
-
-                return results;
-            };
-
-            const allText = Array.from(new Set(findText(parsed))); // Deduplicate just in case
-            return allText.join('\n\n');
-        }, [parsed]);
-
-        return (
-            <div className="relative pl-10 border-l-2 border-zinc-100 dark:border-zinc-800/50 py-4 animate-in-basic">
-                <div className={`absolute -left-[9px] top-6 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
-                    ${event.type === 'agent_request' ? 'bg-blue-600' : 'bg-purple-600'}`}
-                />
-
-                <div className="flex items-center gap-4 mb-3">
-                    <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all
-                        ${event.type === 'agent_request'
-                            ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400'
-                            : 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800/50 dark:text-purple-400'}`}
-                    >
-                        <Bot size={15} className="opacity-80" />
-                        <span className="text-[12.5px] font-black uppercase tracking-widest font-mono">{event.data.agent}</span>
-                    </div>
-
-                    <span className="ml-auto text-[11px] font-mono opacity-30">{new Date(event.timestamp * 1000).toLocaleTimeString()}</span>
-                </div>
-
-                <div className={`group relative opacity-95 break-words font-sans text-[14.5px] leading-relaxed bg-white dark:bg-black/30 p-6 rounded-2xl border border-zinc-100 dark:border-zinc-800/50 shadow-lg transition-all duration-300 ring-1 ring-black/5 dark:ring-white/5
-                    ${showDetail ? 'ring-blue-500/30' : ''}`}>
-                    {showDetail ? (
-                        <pre className="font-mono text-[12.5px] overflow-x-auto whitespace-pre-wrap max-h-[600px] custom-scrollbar">
-                            {JSON.stringify(parsed, null, 2)}
-                        </pre>
-                    ) : (
-                        <div className="text-zinc-800 dark:text-zinc-200">
-                            {textContent || <span className="italic opacity-40">{t('execution.no_text')}</span>}
-                        </div>
-                    )}
-
-                    <button
-                        onClick={() => setShowDetail(!showDetail)}
-                        className="mt-5 flex items-center gap-2 ml-auto text-[11px] font-black uppercase tracking-tighter text-blue-600 hover:text-blue-500 transition-colors py-1.5 px-4 bg-blue-500/5 hover:bg-blue-500/10 rounded-full border border-blue-500/10"
-                    >
-                        {showDetail ? t('execution.show_less') : t('execution.view_detail')}
-                    </button>
-                </div>
-            </div>
-        );
-    };
 
     return (
-        <div className="h-full p-12 flex flex-col gap-8 w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
-            <div className={`shrink-0 rounded-[3.5rem] border flex items-center justify-between px-10 py-6 ${theme.panel}`}>
+        <div className="h-full p-10 flex flex-col gap-6 w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
+            <div className={`shrink-0 rounded-[2.5rem] border flex items-center justify-between px-8 py-5 ${theme.panel}`}>
 
                 <div className="flex-1 relative group mr-12 min-w-0">
                     <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
@@ -328,36 +362,36 @@ const ExecutionCenter = ({ isDark }) => {
                         onChange={(e) => setUserIntent(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleMatchIntent()}
                         placeholder={t('execution.intent_placeholder')}
-                        className={`w-full h-16 pl-16 pr-8 rounded-[1.5rem] border-2 text-lg font-bold outline-none transition-all duration-300 focus:shadow-[0_0_0_8px_rgba(59,130,246,0.1)] focus:border-blue-500 ${theme.input} shadow-inner`}
+                        className={`w-full h-14 pl-14 pr-6 rounded-[1.25rem] border-2 text-base font-bold outline-none transition-all duration-300 focus:shadow-[0_0_0_6px_rgba(59,130,246,0.1)] focus:border-blue-500 ${theme.input} shadow-inner`}
                     />
                 </div>
 
-                <div className="shrink-0 flex items-center gap-8">
-                    <div className="flex items-center gap-4 pr-8 border-r border-zinc-100 dark:border-zinc-800">
+                <div className="shrink-0 flex items-center gap-6">
+                    <div className="flex items-center gap-3 pr-6 border-r border-zinc-100 dark:border-zinc-800">
                         <button
                             onClick={handleMatchIntent}
                             disabled={isMatching || isGenerating || !userIntent.trim()}
-                            className="flex items-center gap-3 px-8 h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.5rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
+                            className="flex items-center gap-3 px-6 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.25rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
                         >
-                            <Search size={18} strokeWidth={3} />
+                            <Search size={16} strokeWidth={3} />
                             {isMatching ? t('execution.matching') : t('execution.match')}
                         </button>
 
                         {isRunning ? (
                             <button
                                 onClick={stopExecution}
-                                className="flex items-center gap-3 px-8 h-16 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.5rem] text-sm font-black transition-all shadow-xl active:scale-95 shadow-rose-600/20"
+                                className="flex items-center gap-3 px-6 h-14 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] text-sm font-black transition-all shadow-xl active:scale-95 shadow-rose-600/20"
                             >
-                                <StopCircle size={18} />
+                                <StopCircle size={16} />
                                 {t('execution.terminate')}
                             </button>
                         ) : (
                             <button
                                 onClick={startExecution}
                                 disabled={!selectedId}
-                                className="group flex items-center gap-3 px-8 h-16 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:grayscale text-white rounded-[1.5rem] text-sm font-black transition-all shadow-xl active:scale-95 relative overflow-hidden"
+                                className="group flex items-center gap-3 px-6 h-14 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:grayscale text-white rounded-[1.25rem] text-sm font-black transition-all shadow-xl active:scale-95 relative overflow-hidden"
                             >
-                                <Zap size={18} className="fill-white" />
+                                <Zap size={16} className="fill-white" />
                                 {t('execution.execute_btn')}
                             </button>
                         )}
@@ -375,11 +409,11 @@ const ExecutionCenter = ({ isDark }) => {
                 </div>
             </div>
 
-            <div className="flex-1 flex gap-8 min-h-0">
-                <div className={`flex-1 flex flex-col rounded-[3.5rem] border overflow-hidden relative ${theme.panel}`}>
-                    <div className={`h-28 px-10 border-b flex justify-between items-center ${theme.header}`}>
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-xl font-black dark:text-white ">
+            <div className="flex-1 flex gap-6 min-h-0">
+                <div className={`flex-1 flex flex-col rounded-[2.5rem] border overflow-hidden relative ${theme.panel}`}>
+                    <div className={`h-16 px-8 border-b flex justify-between items-center ${theme.header}`}>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-lg font-black dark:text-white ">
                                 {(isMatching || isGenerating) ? t('execution.processing_input') : (nodes.length > 0 ? (workflowSource === 'generated' ? t('execution.ai_planned') : t('execution.workflow_label')) : t('execution.interface_label'))}
                             </h2>
                             {workflowSource && (
@@ -390,7 +424,7 @@ const ExecutionCenter = ({ isDark }) => {
                         </div>
                     </div>
 
-                    <div className="flex-1 relative bg-white dark:bg-zinc-950">
+                    <div className={`flex-1 relative ${theme.content}`}>
                         {isGenerating && (
                             <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-md">
                                 <Zap size={48} className="text-blue-600 animate-bounce mb-6" />
@@ -406,12 +440,13 @@ const ExecutionCenter = ({ isDark }) => {
                                 edges={edges}
                                 isLoading={(isRunning && nodes.length === 0) || isMatching}
                                 loadingMessage={isMatching ? 'Matching...' : t('execution.init')}
+                                onSelectChange={handleNodeSelect}
                             />
                         ) : (
                             !isGenerating && (
-                                <div className="h-full flex flex-col items-center justify-center opacity-10">
-                                    <Bot size={50} />
-                                    <p className="text-xl font-black">{t('execution.standby')}</p>
+                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
+                                    <Bot size={64} strokeWidth={1.5} />
+                                    <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.standby')}</p>
                                 </div>
                             )
                         )}
@@ -428,13 +463,13 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
 
-                <div className={`w-[500px] rounded-[3.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0`}>
-                    <div className={`h-28 px-10 border-b flex items-center justify-between shrink-0 ${theme.header}`}>
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-500/10 rounded-xl">
-                                <Terminal size={20} className="text-blue-500" />
+                <div className={`w-[450px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0`}>
+                    <div className={`h-16 px-8 border-b flex items-center justify-between shrink-0 ${theme.header}`}>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-blue-500/10 rounded-xl">
+                                <Terminal size={18} className="text-blue-500" />
                             </div>
-                            <h3 className="text-xl font-black dark:text-white">{t('execution.interaction')}</h3>
+                            <h3 className="text-lg font-black dark:text-white">{t('execution.interaction')}</h3>
                         </div>
                         {!autoScroll && (
                             <button onClick={() => setAutoScroll(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase">
@@ -443,16 +478,28 @@ const ExecutionCenter = ({ isDark }) => {
                         )}
                     </div>
 
-                    <div ref={logScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar scroll-smooth">
+                    <div ref={logScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar scroll-smooth ${theme.content}`}>
                         {events.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center opacity-20 text-sm4">
-                                <History size={48} />
-                                <p className="font-black">{t('execution.idle')}</p>
+                            <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
+                                <History size={64} strokeWidth={1.5} />
+                                <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.idle')}</p>
                             </div>
                         ) : (
-                            events.map((event, index) => (
-                                <LogEntry key={index} event={event} isDark={isDark} />
-                            ))
+                            events.map((event, index) => {
+                                const agentName = event.data.agent;
+                                // We also try to match if the selected node's agent matches this event's agent
+                                const isSelected = selectedNodeId && (nodes.find(n => n.id === selectedNodeId)?.data?.name === agentName || nodes.find(n => n.id === selectedNodeId)?.data?.agent === agentName);
+                                
+                                return (
+                                    <LogEntry 
+                                        key={`${event.timestamp}-${event.data.agent}-${index}`} 
+                                        event={event} 
+                                        isDark={isDark} 
+                                        t={t} 
+                                        isSelected={isSelected}
+                                    />
+                                );
+                            })
                         )}
                     </div>
                 </div>

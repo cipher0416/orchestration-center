@@ -46,7 +46,7 @@ const AgentNode = ({ data, selected }) => {
     const handleBaseStyle = `
         !w-[10px] !h-[10px] !bg-blue-500 border-2 border-white dark:border-zinc-800
         transition-all duration-300 ease-out cursor-crosshair
-        hover:!w-[16px] hover:!h-[16px] hover:shadow-lg
+        hover:!w-[18px] hover:!h-[18px] hover:shadow-lg
         z-[110]
         
         /* 连线起点反馈 */
@@ -54,7 +54,7 @@ const AgentNode = ({ data, selected }) => {
         
         /* 隐形热区 */
         after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 
-        after:w-[40px] after:h-[40px] after:bg-transparent
+        after:w-[80px] after:h-[80px] after:bg-transparent
     `;
 
     // 目标点样式：平时隐藏且不拦截点击，连线时变为全屏拦截
@@ -131,7 +131,7 @@ const AgentNode = ({ data, selected }) => {
              </div>
  
              {/* Target Handle (Hidden drop zone covering the entire node, entering from Left) */}
-             <Handle type="target" position={Position.Left} id="t-left" style={{ top: '50%', left: 0 }} className={`${targetHandleBaseClasses} after:w-[300px] after:h-[400px] after:left-[150px] after:top-1/2 after:-translate-y-1/2`} />
+             <Handle type="target" position={Position.Left} id="t-left" style={{ top: '50%', left: 0 }} className={`${targetHandleBaseClasses} after:w-[500px] after:h-[800px] after:left-[250px] after:top-0 after:-translate-x-1/2 after:-translate-y-1/2`} />
  
              {/* Source Handle (Right center trigger point) */}
              <Handle type="source" position={Position.Right} id="s-right" style={{ top: '50%' }} className={handleBaseStyle} />

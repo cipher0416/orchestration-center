@@ -119,7 +119,7 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-    height: 4px;
+    height: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -127,16 +127,19 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.3);
+    background-color: rgba(155, 155, 155, 0.3);
     border-radius: 20px;
+    border: 2px solid transparent;
+    background-clip: content-box;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.5);
+    border: 0px;
+    background-color: rgba(155, 155, 155, 0.6);
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(63, 63, 70, 0.5);
+    background-color: rgba(110, 110, 110, 0.4);
 }
 
 .workflow-editor-container {

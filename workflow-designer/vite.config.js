@@ -10,7 +10,7 @@ export default defineConfig({
         port: 3003,
     },
     plugins: [react(), visualizer({
-        open: true, //打包后自动打开分析页面
+        open: true,
         filename: 'stats.html',
         gzipSize: true,
         brotliSize: true,
@@ -27,7 +27,7 @@ export default defineConfig({
             output: {
                 manualChunks: (id) => {
                     if (id.includes('node_modules')) {
-                        return 'vendor'; //将所有三方库打包到一个vendor.js中，方便浏览器缓存
+                        return 'vendor';
                     }
                 }
             }

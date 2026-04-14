@@ -1,18 +1,18 @@
-import React, {useState, useEffect} from 'react';
-import {useTranslation} from 'react-i18next';
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     Search, Activity, Terminal, Wrench, ChevronRight,
     Zap, ShieldCheck, Cpu, Box, Bot, Database, Network, Globe, Code2, LayoutDashboard
 } from 'lucide-react';
-import {getAgentCards} from "@/service/api.js";
+import { getAgentCards } from "@/service/api.js";
 import CodeInspector from "./code_inspector/index.jsx";
 import AgentCard from "./agentcard_visualization/index.tsx";
 
 const THEMES = ['emerald', 'blue', 'indigo', 'rose', 'cyan', 'amber', 'violet'];
 const ICONS = [
-    <Network size={22}/>, <Zap size={22}/>, <ShieldCheck size={22}/>,
-    <Cpu size={22}/>, <Box size={22}/>, <Bot size={22}/>,
-    <Database size={22}/>, <Globe size={22}/>
+    <Network size={22} />, <Zap size={22} />, <ShieldCheck size={22} />,
+    <Cpu size={22} />, <Box size={22} />, <Bot size={22} />,
+    <Database size={22} />, <Globe size={22} />
 ];
 
 const getAssetsBySeed = (seed) => {
@@ -26,7 +26,7 @@ const getAssetsBySeed = (seed) => {
     };
 };
 
-const AgentRegistry = ({isDark,t}) => {
+const AgentRegistry = ({ isDark, t }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [agents, setAgents] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
@@ -103,8 +103,8 @@ const AgentRegistry = ({isDark,t}) => {
                             </h1>
                             <span
                                 className="text-zinc-400 text-[10px] font-black px-2 py-1 rounded-full uppercase border border-zinc-100 dark:border-zinc-800">
-                            {agents.length} UNITS
-                        </span>
+                                {agents.length} UNITS
+                            </span>
                         </div>
                         <div className="relative">
                             <input
@@ -113,7 +113,7 @@ const AgentRegistry = ({isDark,t}) => {
                                 className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 rounded-xl text-base font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all dark:text-white"
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
-                            <Search className="absolute left-3.5 top-3.5 text-zinc-400" size={16}/>
+                            <Search className="absolute left-3.5 top-3.5 text-zinc-400" size={16} />
                         </div>
                     </div>
 
@@ -122,17 +122,17 @@ const AgentRegistry = ({isDark,t}) => {
                             const isSelected = selectedId === a.id;
                             return (
                                 <div key={a.id} onClick={() => setSelectedId(a.id)}
-                                     className={`group p-5 rounded-2xl border transition-all duration-300 cursor-pointer relative overflow-hidden
+                                    className={`group p-5 rounded-2xl border transition-all duration-300 cursor-pointer relative overflow-hidden
                                     ${isSelected ? 'bg-zinc-100 dark:bg-zinc-800 border-transparent shadow-inner' : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 opacity-60 hover:opacity-100'}`}>
                                     {isSelected && <div
-                                        className={`absolute left-0 top-0 bottom-0 w-1.5 animate-pulse ${a.theme === 'emerald' ? 'bg-emerald-500' : a.theme === 'blue' ? 'bg-blue-600' : 'bg-orange-500'}`}/>}
+                                        className={`absolute left-0 top-0 bottom-0 w-1.5 animate-pulse ${a.theme === 'emerald' ? 'bg-emerald-500' : a.theme === 'blue' ? 'bg-blue-600' : 'bg-orange-500'}`} />}
                                     <div className="flex items-center justify-between mb-2 pl-2">
                                         <div
                                             className={`flex items-center gap-3 ${isSelected ? 'text-zinc-900 dark:text-white' : 'text-zinc-400'}`}>
                                             {a.icon}
-                                            <h3 className="font-black text-base uppercase leading-none">{a.id}</h3>
+                                            <h3 className="font-black text-base  leading-none">{a.id}</h3>
                                         </div>
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"/>
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
                                     </div>
                                     <div
                                         className={`pl-8 text-[10px] font-black uppercase ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400'}`}>
@@ -158,24 +158,23 @@ const AgentRegistry = ({isDark,t}) => {
                         <div
                             className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/30 dark:bg-zinc-900 shrink-0">
                             <div className="flex items-center gap-5">
-                                <div className={`p-4 rounded-2xl text-white shadow-lg ${
-                                    agent.theme === 'emerald' ? 'bg-emerald-500 shadow-emerald-500/20' :
-                                        agent.theme === 'blue' ? 'bg-blue-600 shadow-blue-600/20' : 'bg-orange-600 shadow-orange-600/20'
-                                }`}>
-                                    {React.cloneElement(agent.icon, {size: 28})}
+                                <div className={`p-4 rounded-2xl text-white shadow-lg ${agent.theme === 'emerald' ? 'bg-emerald-500 shadow-emerald-500/20' :
+                                    agent.theme === 'blue' ? 'bg-blue-600 shadow-blue-600/20' : 'bg-orange-600 shadow-orange-600/20'
+                                    }`}>
+                                    {React.cloneElement(agent.icon, { size: 28 })}
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-3">
-                                        <h2 className="text-2xl font-black uppercase dark:text-white leading-none">{agent.id}</h2>
+                                        <h2 className="text-2xl font-black  dark:text-white leading-none">{agent.id}</h2>
                                         <div className="flex gap-2">
-											<span
+                                            <span
                                                 className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-[10px] font-black text-blue-600">V{agent.version}</span>
                                             <button
                                                 onClick={() => setViewMode(viewMode === 'structured' ? 'raw' : 'structured')}
                                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-[10px] font-black text-zinc-600 dark:text-zinc-300 transition-colors uppercase"
                                             >
-                                                {viewMode === 'structured' ? <Code2 size={12}/> :
-                                                    <LayoutDashboard size={12}/>}
+                                                {viewMode === 'structured' ? <Code2 size={12} /> :
+                                                    <LayoutDashboard size={12} />}
                                                 {viewMode === 'structured' ? 'RAW' : 'GUI'}
                                             </button>
                                         </div>
@@ -184,7 +183,7 @@ const AgentRegistry = ({isDark,t}) => {
                                         <span className="text-[10px] font-black text-zinc-400 uppercase">Org:</span>
                                         <span
                                             className="text-[10px] font-black text-zinc-900 dark:text-zinc-200 uppercase">{agent.provider?.organization}</span>
-                                        <div className="w-1 h-1 rounded-full bg-zinc-300"/>
+                                        <div className="w-1 h-1 rounded-full bg-zinc-300" />
                                         <span
                                             className="text-[10px] font-black text-zinc-400 uppercase">Protocol:</span>
                                         <span
@@ -198,22 +197,22 @@ const AgentRegistry = ({isDark,t}) => {
         flex items-center gap-2 px-3 py-1.5 rounded-md transition-all uppercase text-[12px] font-bold shadow-sm
         active:scale-95 active:shadow-inner
         ${isDark
-                                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}
+                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}
     `}
                             >
-                                {viewMode === 'structured' ? <Code2 size={14}/> : <LayoutDashboard size={14}/>}
+                                {viewMode === 'structured' ? <Code2 size={14} /> : <LayoutDashboard size={14} />}
                                 <span>{viewMode === 'structured' ? 'Switch to RAW' : 'Switch to GUI'}</span>
                             </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto no-scrollbar bg-white dark:bg-zinc-900">
                             {viewMode === 'structured' ? (
-                                <AgentCard agent={agent._raw} isDark={isDark}/>
+                                <AgentCard agent={agent._raw} isDark={isDark} />
                             ) : (
                                 <CodeInspector
                                     data={agent._raw}
-                                    fileName={`${agent.id.toLowerCase()}.json`}
+                                    fileName={`${agent.id} AgentCard`}
                                     isDark={isDark}
                                 />
                             )}
