@@ -244,7 +244,7 @@ class WorkflowRetrieval:
             if psop:
                 psop_list.append({
                     "name": psop.name,
-                    "description": psop.description or "",
+                    "description": psop.user_intent or "",
                     "id": psop.id
                 })
         
