@@ -4,11 +4,11 @@
     "tabs": {
       "agents": "Agent库",
       "orchestration": "编排中心",
-      "execution": "执行Demo"
+      "execution": "工作流执行"
     }
   },
   "execution": {
-    "title": "执行Demo",
+    "title": "工作流执行",
     "execute": "开始执行",
     "history": "执行记录",
     "status": "状态",
