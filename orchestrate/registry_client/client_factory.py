@@ -17,7 +17,8 @@ import os
 
 from dotenv import load_dotenv
 
-from agent_registry_client.client import AgentRegistryClient
+from common.util.config_util import get_conf
+from orchestrate.registry_client.client import AgentRegistryClient
 
 
 class AgentRegistryClientFactory:
@@ -26,7 +27,7 @@ class AgentRegistryClientFactory:
     def __init__(self, config: dict = None):
         load_dotenv()
         self.config = config or {}
-        self.default_base_url = os.environ.get("AGENT_REGISTRY_URL", "http://127.0.0.1:5000")
+        self.default_base_url = get_conf().get("agent_registry_url", "http://127.0.0.1:5000")
 
     def create_client(self, base_url: str = None, timeout: int = 30) -> AgentRegistryClient:
         """Create a client instance, with parameters that can override the factory's default configuration"""

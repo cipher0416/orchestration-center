@@ -31,7 +31,6 @@ from pydantic import BaseModel
 from starlette import status
 from starlette.responses import Response
 
-from agent_registry_client.client_factory import AgentRegistryClientFactory
 from common.config import MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE, CONN_MAX, CONN_TIMEOUT, \
     FLOW_CTL_PARALLEL_RETRIEVE_PSOP, FLOW_CTL_PARALLEL_GENERATE_PSOP, FLOW_CTL_PARALLEL_AGENT_CARDS, \
     FLOW_CTL_PARALLEL_DELETE_PSOP, FLOW_CTL_PARALLEL_SAVE_PSOP, FLOW_CTL_PARALLEL_ONE_PSOP, FLOW_CTL_PARALLEL_ALL_PSOPS, \
@@ -46,6 +45,7 @@ from orchestrate.core.retrieval import WorkflowRetrieval
 from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
 from orchestrate.solution_package.parse_flow import SolutionPackageParser
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
+from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 
 # 创建FastAPI应用
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0")
