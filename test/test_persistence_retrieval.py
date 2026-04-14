@@ -16,7 +16,7 @@
 
 """
 Persistence和Retrieval模块测试脚本
-测试framework/orchestration/persistence.py和retrieval.py的功能
+测试framework/core/persistence.py和retrieval.py的功能
 """
 
 import sys
@@ -29,10 +29,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP, Task, TaskStatus, Step, StepType, JumpCondition
-from framework.orchestration.persistence import WorkflowStorage, WorkflowStorageError
-from framework.orchestration.retrieval import WorkflowRetrieval, WorkflowSearchResult
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP, Task, TaskStatus, Step, StepType, JumpCondition
+from orchestrate.core.persistence import WorkflowStorage, WorkflowStorageError
+from orchestrate.core.retrieval import WorkflowRetrieval, WorkflowSearchResult
 
 
 def create_test_preflow(name: str = "Test PreFlow", description: str = "Test description") -> PreFlow:

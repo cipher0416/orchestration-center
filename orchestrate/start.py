@@ -28,7 +28,7 @@ from common.util.cipher_converter import CipherConverter
 from common.util.cipher_util import DEFAULT_ENCODING
 from common.util.conf_util import conf_singleton_obj, set_ssl_folder_permissions, load_cert_password
 from common.util.config_util import get_conf
-from framework.server.frontend_support_server import app
+from orchestrate.server.frontend_support_server import app
 
 
 def customized_create_ssl_context(certfile: str | os.PathLike[str],

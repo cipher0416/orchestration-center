@@ -19,7 +19,7 @@ from typing import Union, Tuple
 
 from loguru import logger
 
-from framework.llm.config.llm_config import LLMConfig
+from common.llm.config.llm_config import LLMConfig
 
 
 class BaseLLM(ABC):

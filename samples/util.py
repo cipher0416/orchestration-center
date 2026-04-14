@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from framework.orchestration.model.psop import PSOP
+from orchestrate.core.model.psop import PSOP
 
 
 MOCK_ES_WORKFLOW = """

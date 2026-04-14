@@ -21,7 +21,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from framework.solution_package.manager import SolutionPackageManager
+from orchestrate.solution_package.manager import SolutionPackageManager
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def sample_chapters():
 class TestSolutionPackageManagerInit:
     """测试初始化方法"""
 
-    @patch('framework.solution_package.manager.Path')
+    @patch('orchestrate.solution_package.manager.Path')
     def test_init_with_default_path(self, mock_path_class):
         """测试使用默认存储路径"""
         mock_current_file = MagicMock(spec=Path)

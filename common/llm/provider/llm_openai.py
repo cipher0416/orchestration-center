@@ -19,9 +19,9 @@ import httpx
 from openai import OpenAI
 from openai.types.chat import ChatCompletionUserMessageParam
 
-from framework.llm.config.llm_config import LLMType, LLMConfig
-from framework.llm.provider.base_llm import BaseLLM
-from framework.llm.provider.llm_provider_registry import registry_provider
+from common.llm.config.llm_config import LLMType, LLMConfig
+from common.llm.provider.base_llm import BaseLLM
+from common.llm.provider.llm_provider_registry import registry_provider
 
 
 @registry_provider(LLMType.OPENAI_STYLE_LLM)
@@ -43,4 +43,7 @@ class OpenAIStyleLLM(BaseLLM):
             model=self.llm_config.config_item.model,
             messages=[user_message]
         )
-        return "", completion.choices[0].message.content
+        message = completion.choices[0].message
+        reasoning = getattr(message, 'reasoning_content', '') or ''
+        answer = message.content or ''
+        return reasoning, answer

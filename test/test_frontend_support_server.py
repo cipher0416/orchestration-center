@@ -24,7 +24,7 @@ import os
 
 os.environ['TESTING'] = 'True'
 
-from framework.server.frontend_support_server import app
+from orchestrate.server.frontend_support_server import app
 
 
 @pytest.fixture
@@ -38,28 +38,28 @@ def client():
 @pytest.fixture
 def mock_storage():
     """模拟WorkflowStorage"""
-    with patch('framework.server.frontend_support_server.storage') as mock:
+    with patch('orchestrate.server.frontend_support_server.storage') as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_retrieval():
     """模拟WorkflowRetrieval"""
-    with patch('framework.server.frontend_support_server.retrieval') as mock:
+    with patch('orchestrate.server.frontend_support_server.retrieval') as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_agent_lib():
     """模拟AgentCardLib"""
-    with patch('framework.server.frontend_support_server.agent_lib') as mock:
+    with patch('orchestrate.server.frontend_support_server.agent_lib') as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_parser():
     """模拟SolutionPackageParser"""
-    with patch('framework.server.frontend_support_server.SolutionPackageParser') as MockParser:
+    with patch('orchestrate.server.frontend_support_server.SolutionPackageParser') as MockParser:
         mock_instance = MockParser.return_value
         yield mock_instance
 
@@ -92,7 +92,7 @@ class TestParsePdfEndpoint:
         """测试成功解析PDF"""
         mock_parser.parse_pdf_chapter.return_value = "# Test Markdown"
 
-        with patch('framework.server.frontend_support_server.PreFlow') as MockPreFlow:
+        with patch('orchestrate.server.frontend_support_server.PreFlow') as MockPreFlow:
             mock_preflow = MagicMock()
             mock_preflow.model_dump_json.return_value = '{"name": "test"}'
             MockPreFlow.return_value = mock_preflow
@@ -140,9 +140,9 @@ class TestPlanEndpoint:
 
     def test_plan_success(self, client, mock_storage):
         """测试成功规划"""
-        with patch('framework.server.frontend_support_server.PsopGenerator') as MockGen, \
-                patch('framework.server.frontend_support_server.PreFlow') as MockPreFlow, \
-                patch('framework.server.frontend_support_server.AgentCard') as MockCard:
+        with patch('orchestrate.server.frontend_support_server.PsopGenerator') as MockGen, \
+                patch('orchestrate.server.frontend_support_server.PreFlow') as MockPreFlow, \
+                patch('orchestrate.server.frontend_support_server.AgentCard') as MockCard:
             mock_gen = MockGen.return_value
             mock_workflow = MagicMock()
             mock_workflow.model_dump_json.return_value = '{"id": "123"}'
@@ -199,7 +199,7 @@ class TestPsopsEndpoints:
 
     def test_save_psop_success(self, client, mock_storage):
         """测试保存PSOP"""
-        with patch('framework.server.frontend_support_server.PSOP') as MockPSOP:
+        with patch('orchestrate.server.frontend_support_server.PSOP') as MockPSOP:
             mock_psop = MagicMock()
             mock_psop.model_dump.return_value = {"id": "123"}
             MockPSOP.model_validate.return_value = mock_psop
@@ -270,7 +270,7 @@ class TestIntentEndpoints:
         mock_card.model_dump.return_value = {"name": "agent1"}
         mock_agent_lib.get_all_agent_cards.return_value = [mock_card]
 
-        with patch('framework.server.frontend_support_server.IntentPsopGenerator') as MockGen:
+        with patch('orchestrate.server.frontend_support_server.IntentPsopGenerator') as MockGen:
             mock_gen = MockGen.return_value
             mock_psop = MagicMock()
             mock_psop.model_dump.return_value = {"id": "123", "name": "generated"}
@@ -357,7 +357,7 @@ class TestStartProcessStreamEndpoint:
         mock_agent_lib.get_all_agent_cards.return_value = [mock_card]
 
         # 模拟引擎执行
-        with patch('framework.server.frontend_support_server.DynamicWorkflowEngine') as MockEngine:
+        with patch('orchestrate.server.frontend_support_server.DynamicWorkflowEngine') as MockEngine:
             mock_engine = MockEngine.return_value
             mock_engine.run = MagicMock()
             mock_engine.run.return_value = []

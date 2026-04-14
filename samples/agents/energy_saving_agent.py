@@ -21,7 +21,7 @@ from a2a.types import (
     Task, TaskStatus, TaskState, Artifact, TextPart, Part,
 )
 
-from framework.llm import get_llm_instance
+from common.llm import get_llm_instance
 
 
 class EnergySavingAgentExecutor(AgentExecutor):

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 import concurrent.futures
 
-from framework.llm import get_llm_instance
+from common.llm import get_llm_instance
 
 
 class PDFParsingError(Exception):

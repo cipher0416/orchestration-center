@@ -15,7 +15,7 @@
 
 from enum import Enum
 
-from framework.llm.config.config_reader import read_config_as_json
+from common.llm.config.config_reader import read_config_as_json
 
 
 class LLMType(Enum):

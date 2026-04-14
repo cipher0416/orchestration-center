@@ -3,6 +3,6 @@
     "description": "this is openai rest api, deepseek-chat",
     "model": "deepseek-chat",
     "api": "https://api.deepseek.com",
-    "api_key": ""
+    "api_key": "sk-f80c71a4058c4ea9a6df03e69804ecec"
   }
 }

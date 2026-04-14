@@ -13,8 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from framework.llm.config.llm_config import LLMType, LLMConfig
-from framework.llm.provider.base_llm import BaseLLM
+from common.llm.config.llm_config import LLMType, LLMConfig
+from common.llm.provider.base_llm import BaseLLM
 
 
 class LLMProviderRegistry:

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,10 +35,10 @@ if [ -f "$BACKEND_PID_FILE" ]; then
 else
     # 方法2：通过进程名停止
     echo -e "${YELLOW}Looking for backend process by name...${NC}"
-    BACKEND_PIDS=$(pgrep -f "python -m samples.run" 2>/dev/null)
+    BACKEND_PIDS=$(pgrep -f "python -m samples.start_agents_server" 2>/dev/null)
 
     if [ -z "$BACKEND_PIDS" ]; then
-        BACKEND_PIDS=$(pgrep -f "samples.run" 2>/dev/null)
+        BACKEND_PIDS=$(pgrep -f "samples.start_agents_server" 2>/dev/null)
     fi
 
     if [ -n "$BACKEND_PIDS" ]; then
@@ -53,7 +54,7 @@ fi
 sleep 2
 
 # 强制停止残留的后端进程
-BACKEND_PIDS=$(pgrep -f "python -m samples.run" 2>/dev/null)
+BACKEND_PIDS=$(pgrep -f "python -m samples.start_agents_server" 2>/dev/null)
 if [ -n "$BACKEND_PIDS" ]; then
     echo -e "${YELLOW}Force stopping remaining backend processes...${NC}"
     for PID in $BACKEND_PIDS; do

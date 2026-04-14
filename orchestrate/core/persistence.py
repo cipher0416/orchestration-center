@@ -17,8 +17,8 @@ from loguru import logger
 from pathlib import Path
 from typing import Optional, List
 
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP
 
 class WorkflowStorageError(Exception):
     """Exception raised for workflow storage errors."""
@@ -36,7 +36,7 @@ class WorkflowStorage:
         """
         if storage_dir is None:
             current_file = Path(__file__).resolve()
-            project_root = current_file.parent.parent
+            project_root = current_file.parent.parent.parent
             self.psop_dir = project_root / "data" / "workflow_storage" / "psop"
             self.preflow_dir = project_root / "data" / "workflow_storage" / "preflow"
         else:

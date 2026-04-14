@@ -106,7 +106,7 @@ echo -e "${BLUE}========================================${NC}"
 # Start the Python script
 echo "Starting Python script: $PYTHON_SCRIPT"
 cd "$TARGET_DIR" || exit 1
-python -m samples.run &
+python -m samples.start_agents_server &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$BACKEND_PID_FILE"
 echo -e "${GREEN}Backend started with PID: $BACKEND_PID${NC}"
