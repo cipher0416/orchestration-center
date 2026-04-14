@@ -37,15 +37,15 @@ from common.config import MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE, CONN_MAX, CONN_
     FLOW_CTL_PARALLEL_DELETE_PSOP, FLOW_CTL_PARALLEL_SAVE_PSOP, FLOW_CTL_PARALLEL_ONE_PSOP, FLOW_CTL_PARALLEL_ALL_PSOPS, \
     FLOW_CTL_PARALLEL_PLAN, FLOW_CTL_PARALLEL_PARSE_PDF
 from common.util.config_util import get_conf
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP
-from framework.orchestration.psop_generator import PsopGenerator
-from framework.orchestration.intent_psop_generator import IntentPsopGenerator
-from framework.orchestration.persistence import WorkflowStorage
-from framework.orchestration.retrieval import WorkflowRetrieval
-from framework.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
-from framework.solution_package.parse_flow import SolutionPackageParser
-from framework.runtime.exec_engine import DynamicWorkflowEngine
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP
+from orchestrate.core.psop_generator import PsopGenerator
+from orchestrate.core.intent_psop_generator import IntentPsopGenerator
+from orchestrate.core.persistence import WorkflowStorage
+from orchestrate.core.retrieval import WorkflowRetrieval
+from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
+from orchestrate.solution_package.parse_flow import SolutionPackageParser
+from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 
 # 创建FastAPI应用
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0")

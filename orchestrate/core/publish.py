@@ -19,9 +19,9 @@ from typing import Optional, List
 
 from loguru import logger
 
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP
-from framework.orchestration.persistence import WorkflowStorage
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP
+from orchestrate.core.persistence import WorkflowStorage
 
 
 class PublishStatus(str, Enum):

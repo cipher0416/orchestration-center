@@ -26,7 +26,7 @@ from typing import List
 from urllib.parse import urlparse
 
 from agent_registry_client.client_factory import AgentRegistryClientFactory
-from framework import AgentCardLoader
+from orchestrate import AgentCardLoader
 from samples.agents.energy_saving_agent import EnergySavingAgentExecutor
 from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExecutor
 from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor

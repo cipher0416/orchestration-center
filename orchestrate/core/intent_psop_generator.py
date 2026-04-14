@@ -36,9 +36,9 @@ from typing import List, Optional
 from a2a.types import AgentCard
 from loguru import logger
 
-from framework.orchestration.model.psop import PSOP
-from framework.orchestration.prompts import get_intent_to_psop_prompt
-from framework.orchestration.psop_generator import PsopGenerator, WorkflowGeneratorError
+from orchestrate.core.model.psop import PSOP
+from orchestrate.core.prompts import get_intent_to_psop_prompt
+from orchestrate.core.psop_generator import PsopGenerator, WorkflowGeneratorError
 
 
 class IntentWorkflowGeneratorError(Exception):

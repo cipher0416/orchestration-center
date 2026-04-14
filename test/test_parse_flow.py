@@ -17,7 +17,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from framework.solution_package.parse_flow import (
+from orchestrate.solution_package.parse_flow import (
     SolutionPackageParser,
     PDFParsingError,
     ChapterNotFoundError
@@ -27,7 +27,7 @@ from framework.solution_package.parse_flow import (
 @pytest.fixture
 def parser():
     """创建解析器实例"""
-    with patch('framework.solution_package.parse_flow.get_llm_instance'):
+    with patch('orchestrate.solution_package.parse_flow.get_llm_instance'):
         return SolutionPackageParser()
 
 

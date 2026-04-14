@@ -18,10 +18,10 @@ import time
 
 from loguru import logger
 
-from framework import AgentCardLoader
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.psop_generator import PsopGenerator
-from framework.runtime.exec_engine import DynamicWorkflowEngine
+from orchestrate import AgentCardLoader
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.psop_generator import PsopGenerator
+from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from samples.util import MOCK_ES_WORKFLOW
 
 def get_pre_workflow():

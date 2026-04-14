@@ -29,7 +29,7 @@ class SolutionPackageManager:
         Initialize SolutionPackageManager.
         
         Args:
-            storage_dir: Storage directory path, defaults to data/solution_packages sibling to framework directory
+            storage_dir: Storage directory path, defaults to data/solution_packages sibling to orchestrate directory
         """
         if storage_dir is None:
             # 获取当前文件的绝对路径，然后找到项目根目录（framework的父级）

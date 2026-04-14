@@ -39,9 +39,9 @@ from a2a.types import AgentCard
 from pydantic import BaseModel
 
 from common.llm import get_llm_instance
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP
-from framework.orchestration.prompts import get_generate_psop_prompt, get_choose_skill_prompt, \
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP
+from orchestrate.core.prompts import get_generate_psop_prompt, get_choose_skill_prompt, \
     get_preprocess_input_prompt
 
 

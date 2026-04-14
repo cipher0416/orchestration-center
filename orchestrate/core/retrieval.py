@@ -19,10 +19,10 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from common.llm import get_llm_instance
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP
-from framework.orchestration.persistence import WorkflowStorage
-from framework.orchestration.prompts import get_retrieve_psop_prompt
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP
+from orchestrate.core.persistence import WorkflowStorage
+from orchestrate.core.prompts import get_retrieve_psop_prompt
 
 
 class WorkflowSearchResult:

@@ -17,8 +17,8 @@ from loguru import logger
 from pathlib import Path
 from typing import Optional, List
 
-from framework.orchestration.model.preflow import PreFlow
-from framework.orchestration.model.psop import PSOP
+from orchestrate.core.model.preflow import PreFlow
+from orchestrate.core.model.psop import PSOP
 
 class WorkflowStorageError(Exception):
     """Exception raised for workflow storage errors."""

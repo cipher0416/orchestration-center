@@ -70,7 +70,7 @@ fi
 
 # Start the Python script
 echo "Starting Python script: $PYTHON_SCRIPT"
-python -m framework.start
+python -m orchestrate.start
 
 EXIT_CODE=$?
 echo "$EXIT_CODE"
