@@ -134,7 +134,7 @@ revocationlist.crl:可选，吊销列表，仅支持pem编码格式，仅支持.
     ```
    方式二：
    ```bash
-      python -m framework.start
+      python -m samples.start_agents_server
     ```
 2. **停止后端服务**
 
