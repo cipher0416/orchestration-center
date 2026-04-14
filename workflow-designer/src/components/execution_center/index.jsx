@@ -12,13 +12,11 @@ import {
     Hash,
     ChevronRight,
     MessageSquare,
-    Zap,
     History,
     Plus,
-    Bot,
-    PlayCircle
+    Bot
 } from 'lucide-react';
-import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflows, generateWorkflowFromIntent } from '@/service/api.js';
+import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflows } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 
@@ -145,7 +143,8 @@ const ExecutionCenter = ({ isDark }) => {
     const [userIntent, setUserIntent] = useState('');
     const [workflowSource, setWorkflowSource] = useState(null); // 'retrieved' | 'generated'
     const [isMatching, setIsMatching] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [matchedWorkflows, setMatchedWorkflows] = useState([]);
+    const [runningId, setRunningId] = useState(null);
 
     const logScrollRef = useRef(null);
     const [autoScroll, setAutoScroll] = useState(true);
@@ -178,6 +177,7 @@ const ExecutionCenter = ({ isDark }) => {
         setNodes([]);
         setEdges([]);
         setSelectedId(null);
+        setMatchedWorkflows([]);
         setWorkflowSource(null);
         setError(null);
 
@@ -185,40 +185,16 @@ const ExecutionCenter = ({ isDark }) => {
             const results = await matchWorkflows(userIntent);
 
             if (results && results.length > 0) {
-                const match = results[0];
-                setSelectedId(match.workflow_id);
+                setMatchedWorkflows(results);
+                setSelectedId(results[0].workflow_id);
                 setWorkflowSource('retrieved');
-                setIsMatching(false);
             } else {
-                setIsMatching(false);
-                setIsGenerating(true);
-
-                try {
-                    const generated = await generateWorkflowFromIntent(userIntent);
-                    if (generated) {
-                        const wfId = generated.workflow_id || generated.id;
-                        if (wfId) {
-                            setSelectedId(wfId);
-                            setWorkflowSource('generated');
-                        } else {
-                            const { nodes: n, edges: e } = transformWorkflowToReactFlow(generated);
-                            setNodes(n);
-                            setEdges(e);
-                            setWorkflowSource('generated');
-                        }
-                    } else {
-                        throw new Error("Generation failed.");
-                    }
-                } catch (genErr) {
-                    console.error("Auto generation failed:", genErr);
-                    setError("No matching workflow found and auto-generation failed.");
-                } finally {
-                    setIsGenerating(false);
-                }
+                setError("未检索到匹配的工作流");
             }
         } catch (err) {
             console.error("Failed to match workflows:", err);
             setError("Match request failed.");
+        } finally {
             setIsMatching(false);
         }
     };
@@ -269,19 +245,22 @@ const ExecutionCenter = ({ isDark }) => {
             setEventSource(null);
         }
         setIsRunning(false);
+        setRunningId(null);
     }, [eventSource]);
 
     // 开始执行
-    const startExecution = useCallback(() => {
-        if (!selectedId) return;
+    const startExecution = useCallback((overrideId) => {
+        const idToRun = overrideId || selectedId;
+        if (!idToRun) return;
 
         setError(null);
         setEvents([]);
         setPsopStatus(null);
         setIsRunning(true);
+        setRunningId(idToRun);
         setAutoScroll(true);
 
-        const url = getStartProcessStreamUrl(selectedId);
+        const url = getStartProcessStreamUrl(idToRun);
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
@@ -305,11 +284,13 @@ const ExecutionCenter = ({ isDark }) => {
                     case 'complete':
                     case 'close':
                         setIsRunning(false);
+                        setRunningId(null);
                         es.close();
                         break;
                     case 'error':
                         setError(data.data.error);
                         setIsRunning(false);
+                        setRunningId(null);
                         es.close();
                         break;
                 }
@@ -321,6 +302,7 @@ const ExecutionCenter = ({ isDark }) => {
         es.onerror = (err) => {
             setError("SSE Connection Error");
             setIsRunning(false);
+            setRunningId(null);
             es.close();
         };
 
@@ -370,31 +352,12 @@ const ExecutionCenter = ({ isDark }) => {
                     <div className="flex items-center gap-3 pr-6 border-r border-zinc-100 dark:border-zinc-800">
                         <button
                             onClick={handleMatchIntent}
-                            disabled={isMatching || isGenerating || !userIntent.trim()}
+                            disabled={isMatching || !userIntent.trim()}
                             className="flex items-center gap-3 px-6 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.25rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
                         >
                             <Search size={16} strokeWidth={3} />
                             {isMatching ? t('execution.matching') : t('execution.match')}
                         </button>
-
-                        {isRunning ? (
-                            <button
-                                onClick={stopExecution}
-                                className="flex items-center gap-3 px-6 h-14 bg-rose-600 hover:bg-rose-500 text-white rounded-[1.25rem] text-sm font-black transition-all shadow-xl active:scale-95 shadow-rose-600/20"
-                            >
-                                <StopCircle size={16} />
-                                {t('execution.terminate')}
-                            </button>
-                        ) : (
-                            <button
-                                onClick={startExecution}
-                                disabled={!selectedId}
-                                className="group flex items-center gap-3 px-6 h-14 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:grayscale text-white rounded-[1.25rem] text-sm font-black transition-all shadow-xl active:scale-95 relative overflow-hidden"
-                            >
-                                <Zap size={16} className="fill-white" />
-                                {t('execution.execute_btn')}
-                            </button>
-                        )}
                     </div>
 
                     <div className="flex flex-col items-end">
@@ -410,11 +373,65 @@ const ExecutionCenter = ({ isDark }) => {
             </div>
 
             <div className="flex-1 flex gap-6 min-h-0">
+                {matchedWorkflows.length > 0 && (
+                    <div className={`w-[320px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 animate-in slide-in-from-left duration-500`}>
+                        <div className={`h-16 px-8 border-b flex items-center gap-3 shrink-0 ${theme.header}`}>
+                            <History size={18} className="text-blue-500" />
+                            <h3 className="text-lg font-black dark:text-white">{t('execution.workflow_list')}</h3>
+                        </div>
+                        <div className={`flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar ${theme.content}`}>
+                            {matchedWorkflows.map(wf => (
+                                <div 
+                                    key={wf.workflow_id}
+                                    onClick={() => setSelectedId(wf.workflow_id)}
+                                    className={`group relative p-5 rounded-[2rem] border-2 transition-all cursor-pointer box-border
+                                        ${selectedId === wf.workflow_id 
+                                            ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_8px_30px_rgb(59,130,246,0.1)]' 
+                                            : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
+                                    `}
+                                >
+                                    <div className="flex flex-col gap-2 pr-12">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${selectedId === wf.workflow_id ? 'bg-blue-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
+                                            <span className="text-sm font-black dark:text-white truncate uppercase tracking-tight">{wf.name}</span>
+                                        </div>
+                                        <span className="text-[11px] font-medium opacity-60 dark:text-zinc-400 line-clamp-2 leading-normal">
+                                            {wf.description || "No description provided for this workflow."}
+                                        </span>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (runningId === wf.workflow_id) {
+                                                stopExecution();
+                                            } else {
+                                                setSelectedId(wf.workflow_id);
+                                                startExecution(wf.workflow_id);
+                                            }
+                                        }}
+                                        className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl transition-all duration-300 shadow-xl
+                                            ${runningId === wf.workflow_id 
+                                                ? 'opacity-100 scale-100 bg-rose-500 shadow-rose-500/20' 
+                                                : (selectedId === wf.workflow_id ? 'opacity-100 scale-100 bg-emerald-500 shadow-emerald-500/20' : 'opacity-0 scale-75 bg-blue-600 group-hover:opacity-100 group-hover:scale-100 shadow-blue-500/20')}
+                                            hover:scale-110 active:scale-95 text-white z-10`}
+                                    >
+                                        {runningId === wf.workflow_id ? (
+                                            <StopCircle size={14} fill="white" strokeWidth={3} />
+                                        ) : (
+                                            <Play size={14} fill="white" strokeWidth={3} />
+                                        )}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className={`flex-1 flex flex-col rounded-[2.5rem] border overflow-hidden relative ${theme.panel}`}>
                     <div className={`h-16 px-8 border-b flex justify-between items-center ${theme.header}`}>
                         <div className="flex items-center gap-3">
                             <h2 className="text-lg font-black dark:text-white ">
-                                {(isMatching || isGenerating) ? t('execution.processing_input') : (nodes.length > 0 ? (workflowSource === 'generated' ? t('execution.ai_planned') : t('execution.workflow_label')) : t('execution.interface_label'))}
+                                {isMatching ? t('execution.processing_input') : (nodes.length > 0 ? (workflowSource === 'generated' ? t('execution.ai_planned') : t('execution.workflow_label')) : t('execution.interface_label'))}
                             </h2>
                             {workflowSource && (
                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black  ${workflowSource === 'generated' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600'}`}>
@@ -425,12 +442,7 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
 
                     <div className={`flex-1 relative ${theme.content}`}>
-                        {isGenerating && (
-                            <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-md">
-                                <Zap size={48} className="text-blue-600 animate-bounce mb-6" />
-                                <h3 className="text-lg font-black uppercase tracking-widest text-blue-600">{t('execution.generating_wf')}</h3>
-                            </div>
-                        )}
+
 
                         {selectedId || nodes.length > 0 ? (
                             <UnifiedWorkflow
@@ -443,12 +455,10 @@ const ExecutionCenter = ({ isDark }) => {
                                 onSelectChange={handleNodeSelect}
                             />
                         ) : (
-                            !isGenerating && (
-                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
-                                    <Bot size={64} strokeWidth={1.5} />
-                                    <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.standby')}</p>
-                                </div>
-                            )
+                            <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
+                                <Bot size={64} strokeWidth={1.5} />
+                                <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.standby')}</p>
+                            </div>
                         )}
 
                         {error && (

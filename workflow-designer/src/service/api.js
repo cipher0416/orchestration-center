@@ -150,13 +150,15 @@ export async function matchWorkflows(intent) {
         if (response.data.status === "success" || response.status === 200) {
             const data = response.data.data;
             if (!data) return [];
+            
+            const list = Array.isArray(data) ? data : [data];
 
-            return [{
-                workflow_id: data.id,
-                name: data.name,
-                description: data.description,
-                tags: data.tags || []
-            }];
+            return list.map(item => ({
+                workflow_id: item.id || item.workflow_id,
+                name: item.name || item.workflow_name,
+                description: item.description,
+                tags: item.tags || []
+            }));
         } else {
             throw new Error(response.data?.error || "检索失败");
         }

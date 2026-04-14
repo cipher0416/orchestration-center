@@ -44,7 +44,8 @@
     "idle": "无记录",
     "show_less": "收起详情",
     "view_detail": "查看详情",
-    "no_text": "未检测到文本内容，请查看数据详情。"
+    "no_text": "未检测到文本内容，请查看数据详情。",
+    "workflow_list": "匹配工作流"
   },
   "orchestration": {
     "title": "编排中心",

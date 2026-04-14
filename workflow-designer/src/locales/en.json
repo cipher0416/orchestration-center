@@ -44,7 +44,8 @@
     "idle": "No activity",
     "show_less": "Collapse",
     "view_detail": "Raw Detail",
-    "no_text": "No text content detected, please check details."
+    "no_text": "No text content detected, please check details.",
+    "workflow_list": "Matched Workflows"
   },
   "orchestration": {
     "title": "Orchestration",
