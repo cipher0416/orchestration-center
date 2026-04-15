@@ -20,6 +20,7 @@ from a2a.server.events import EventQueue
 from a2a.types import (
     Task, TaskStatus, TaskState, Artifact, TextPart, Part,
 )
+from loguru import logger
 
 from common.llm import get_llm_instance
 
@@ -55,6 +56,7 @@ class RanAgentExecutor(AgentExecutor):
         直接输出中文响应，不用输出其他内容。
         """
         _, res = self.llm.ask_llm(prompt)
+        logger.info(f"task of : {user_message}, result is: {res}")
         return res
 
     async def cancel(
