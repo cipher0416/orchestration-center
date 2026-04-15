@@ -1,10 +1,10 @@
-import React, {useCallback, useEffect, useMemo} from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import KvIndex from "@/components/orchestration_center/workflow/kv_editor/index.jsx";
-import {useTranslation} from "react-i18next";
+import { useTranslation } from "react-i18next";
 import DeleteConfirm from "@/components/common/pop_confirm/index.jsx";
 import { getAgentCards } from "@/service/api.js";
 
-const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon,setNodes, setEdges,isDark,onDelete, onClose}) => {
+const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes, setEdges, isDark, onDelete, onClose }) => {
     const { t } = useTranslation();
     const [allAgents, setAllAgents] = React.useState([]);
 
@@ -151,14 +151,14 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon,setNodes, 
                 skill: selectedName,
                 description: selectedSkill.description || task.description
             };
-            
+
             if (newSubtasks.length === 1) {
                 updateData('skill', selectedName);
                 updateData('inputs', parsedInputs);
                 updateData('outputs', parsedOutputs);
                 updateData('description', selectedSkill.description || task.description);
             }
-            
+
             updateData('subtasks', newSubtasks);
         }
     };
@@ -177,8 +177,8 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon,setNodes, 
         if (typeof val === 'object' && val !== null) {
             return (
                 <pre className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded text-xs overflow-auto max-h-40">
-                {JSON.stringify(val, null, 2)}
-            </pre>
+                    {JSON.stringify(val, null, 2)}
+                </pre>
             );
         }
         return <span className="font-medium">{String(val)}</span>;
@@ -231,12 +231,11 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon,setNodes, 
                                                 <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">{task.agent}</span>
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex items-center gap-1.5">
-                                                        <div className={`w-1.5 h-1.5 rounded-full ${
-                                                            (task.status === 'success' || task.status === 'completed') ? 'bg-emerald-500' :
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${(task.status === 'success' || task.status === 'completed') ? 'bg-emerald-500' :
                                                                 (task.status === 'running' || task.status === 'current') ? 'bg-blue-500' :
                                                                     (task.status === 'failed' || task.status === 'error') ? 'bg-rose-500' :
                                                                         'bg-zinc-400'
-                                                        }`} />
+                                                            }`} />
                                                         <span className="text-[10px] opacity-60 uppercase font-medium">{task.status}</span>
                                                     </div>
                                                     <button
@@ -309,7 +308,7 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon,setNodes, 
                             label={t('workflow.panel.condition')}
                             value={data.condition}
                             onChange={(v) => updateData('condition', v)}
-                            placeholder="${variable} == 'value'"
+                            placeholder="自然语言描述条件"
                             isDark={isDark}
                             fontMono
                         />
@@ -341,11 +340,10 @@ const ReadOnlyField = ({ label, value, isDark }) => (
 );
 
 const Field = ({ label, value, onChange, placeholder, isTextArea, fontMono, isDark }) => {
-    const baseClass = `w-full px-3 py-2 rounded-lg text-sm transition-all outline-none border shadow-sm placeholder:text-zinc-600 ${
-        isDark
+    const baseClass = `w-full px-3 py-2 rounded-lg text-sm transition-all outline-none border shadow-sm placeholder:text-zinc-600 ${isDark
             ? 'bg-zinc-900 border-zinc-800 focus:border-zinc-500 text-zinc-100'
             : 'bg-zinc-50 border-zinc-200 focus:border-zinc-400 text-zinc-800'
-    } ${fontMono ? 'font-mono text-[14px]' : ''}`;
+        } ${fontMono ? 'font-mono text-[14px]' : ''}`;
 
     return (
         <div className="space-y-1.5">
