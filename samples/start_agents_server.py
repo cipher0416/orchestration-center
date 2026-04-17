@@ -20,7 +20,6 @@ from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
-from dotenv import load_dotenv
 from loguru import logger
 from typing import List
 from urllib.parse import urlparse
@@ -70,7 +69,6 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
 
 
 async def main() -> None:
-    load_dotenv()
     agent_lib = AgentCardLoader()
     agent_cards = agent_lib.get_all_agent_cards()
     factory = AgentRegistryClientFactory().create_from_env()

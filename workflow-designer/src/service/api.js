@@ -2,7 +2,7 @@ import axios from "axios";
 
 const STORAGE_KEY = 'server_config';
 export const defaultIp = '127.0.0.1';
-export const defaultPort = '60001';
+export const defaultPort = '60000';
 
 export const getBaseUrl = () => {
     try {
