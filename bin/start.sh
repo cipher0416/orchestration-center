@@ -20,6 +20,22 @@ else
   exit 1
 fi
 
+# Prefer to use the packaged virtual environment Python; fallback to system python if not present
+VENV_PYTHON="$ROOT_DIR/venv/bin/python"
+if [ -f "$VENV_PYTHON" ]; then
+    PYTHON_CMD="$VENV_PYTHON"
+    echo -e "${GREEN}✓ Using built-in virtual environment Python: $PYTHON_CMD${NC}"
+else
+    PYTHON_CMD="python"
+    echo -e "${YELLOW}⚠ Built-in virtual environment not found, using system Python: $(which $PYTHON_CMD)${NC}"
+    # Optional: check if system Python version meets requirements (>=3.10)
+    if ! $PYTHON_CMD -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" 2>/dev/null; then
+        echo -e "${RED}Error: System Python version is below 3.10. Please upgrade or use a full deployment package that includes a virtual environment.${NC}"
+        exit 1
+    fi
+fi
+# =====================================
+
 # get user information
 CURRENT_USER=$(whoami)
 CURRENT_UID=$(id -u)
@@ -70,7 +86,8 @@ fi
 
 # Start the Python script
 echo "Starting Python script: $PYTHON_SCRIPT"
-python -m orchestrate.start
+
+nohup "$PYTHON_CMD" -m orchestrate.start > /dev/null 2>&1 &
 
 EXIT_CODE=$?
-echo "$EXIT_CODE"
+echo "Starting orchestrate successfully, the exit code is: $EXIT_CODE"
