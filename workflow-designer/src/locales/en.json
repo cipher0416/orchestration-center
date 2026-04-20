@@ -156,7 +156,6 @@
     "preferredTransport": "Preferred Transport",
     "defaultInputModes": "Input Modes",
     "defaultOutputModes": "Output Modes",
-    "supported_interfaces": "Supported Interfaces",
     "documentationUrl": "Documentation"
   },
   "common": {

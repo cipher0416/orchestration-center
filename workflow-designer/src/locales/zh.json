@@ -170,7 +170,6 @@
     "preferredTransport": "首选传输方式",
     "defaultInputModes": "输入模式",
     "defaultOutputModes": "输出模式",
-    "supported_interfaces": "支持接口",
     "documentationUrl": "查看文档"
   },
   "common": {
