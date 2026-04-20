@@ -96,38 +96,11 @@ class DynamicWorkflowEngine:
             response_text = None
             last_response = None
 
-            # async for response in client.send_message(SendMessageRequest(message=request)):
-            #     # response is a tuple of (task, metadata)
-            #     task_obj, metadata = response
-            #     last_response = response
-            #     # Try to get text from artifacts
-            #     try:
-            #         # 使用类型忽略来避免静态类型检查错误
-            #         if hasattr(task_obj, 'artifacts') and task_obj.artifacts:  # type: ignore
-            #             response_text = get_message_text(task_obj.artifacts[-1])  # type: ignore
-            #         else:
-            #             response_text = str(task_obj)
-            #     except Exception as artifact_error:
-            #         logger.warning(f"Failed to get artifact text: {artifact_error}")
-            #         response_text = str(task_obj)
-            #     finally:
-            #         # 推送响应信息
-            #         try:
-            #             response_data = task_obj.model_dump_json() if hasattr(task_obj, 'model_dump_json') else str(
-            #                 task_obj)
-            #         except:
-            #             response_data = str(task_obj)
-            #
-            #         self._push_event("agent_response", {
-            #             "agent": agent_name,
-            #             "response": response_data
-            #         })
             from a2a.types import Task, Message
 
             async for response in client.send_message(SendMessageRequest(message=request)):
-                # response 现在是 StreamResponse 对象
-                # 根据官方文档，StreamResponse 通常包含 result 字段
-                task_result = response.task  # 可能是 Task 或 Message 对象
+                # response 现在是 StreamResponse 对象, 同时包含Task 和 Message 对象
+                task_result = response.task
                 message_result = response.message
 
                 last_response = response
