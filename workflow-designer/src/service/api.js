@@ -2,7 +2,7 @@ import axios from "axios";
 
 const STORAGE_KEY = 'server_config';
 export const defaultIp = '127.0.0.1';
-export const defaultPort = '60001';
+export const defaultPort = '60000';
 
 export const getBaseUrl = () => {
     try {
@@ -17,7 +17,7 @@ export const getBaseUrl = () => {
     }
 }
 
-const api = axios.create({timeout: 10000});
+const api = axios.create({ timeout: 10000 });
 
 api.interceptors.response.use(
     (response) => response.data,
@@ -41,7 +41,7 @@ export async function delWorkflowById(id) {
 }
 
 export async function createWorkflow(data) {
-    return api.post(`${getBaseUrl()}/psops`, {psop: data});
+    return api.post(`${getBaseUrl()}/psops`, { psop: data });
 }
 
 
@@ -94,7 +94,7 @@ export async function handlePlan(preflow, agentCards) {
     }
 }
 
-export async function generateWorkflowFromIntent(intent, name = "AI Generated Workflow") {
+export async function generateWorkflowFromIntent(intent, name = "Generated Workflow") {
     try {
         const response = await axios.post(`${getBaseUrl()}/generate-from-intent`, {
             user_intent: intent,
@@ -150,7 +150,7 @@ export async function matchWorkflows(intent) {
         if (response.data.status === "success" || response.status === 200) {
             const data = response.data.data;
             if (!data) return [];
-            
+
             const list = Array.isArray(data) ? data : [data];
 
             return list.map(item => ({
