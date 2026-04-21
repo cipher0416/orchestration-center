@@ -26,6 +26,7 @@ from a2a.types import AgentCard
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from google.protobuf.json_format import Parse
 from loguru import logger
 from pydantic import BaseModel
 from starlette import status
@@ -393,13 +394,10 @@ async def get_all_agent_cards(_: Any = Depends(RateLimiter(config, "get_all_agen
         agent_registry_factory = AgentRegistryClientFactory()
         agent_cards = agent_registry_factory.create_from_env().list_exact()
 
-        # 将AgentCard转换为字典格式
-        agent_cards_data = [card.model_dump() for card in agent_cards]
-
         return AgentCardResponse(
             status="success",
-            count=len(agent_cards_data),
-            data=agent_cards_data
+            count=len(agent_cards),
+            data=agent_cards
         )
     except anyio.WouldBlock as e:
         logger.error(f"Server is busy: {str(e)}")
@@ -438,7 +436,7 @@ async def generate_psop_from_intent(request: IntentRequest,
         generator = IntentPsopGenerator()
         psop = generator.generate_psop_from_intent(
             user_intent=request.user_intent,
-            agent_cards=agent_cards,
+            agent_cards=[Parse(json.dumps(agent), AgentCard()) for agent in agent_cards],
             workflow_name=request.workflow_name
         )
 
@@ -522,7 +520,8 @@ async def start_process_stream(psop_id: str):
         raise HTTPException(status_code=404, detail=f"未找到ID为 {psop_id} 的PSOP")
 
     agent_registry_factory = AgentRegistryClientFactory()
-    agent_cards = agent_registry_factory.create_from_env().list_exact()
+    all_agent_cards = agent_registry_factory.create_from_env().list_exact()
+    agent_cards = [Parse(json.dumps(agent), AgentCard())  for agent in all_agent_cards]
     if not agent_cards:
         raise HTTPException(status_code=404, detail="未找到可用的AgentCard")
 

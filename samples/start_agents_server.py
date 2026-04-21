@@ -16,10 +16,11 @@
 import asyncio
 
 import uvicorn
-from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.routes import create_rest_routes, create_agent_card_routes
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
+from fastapi import FastAPI
 from loguru import logger
 from typing import List
 from urllib.parse import urlparse
@@ -51,21 +52,37 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
     request_handler = DefaultRequestHandler(
         agent_executor=agent_impl,
         task_store=InMemoryTaskStore(),
+        agent_card=agent_card
     )
-    server = A2AStarletteApplication(
-        agent_card=agent_card,
-        http_handler=request_handler
+    rest_routes = create_rest_routes(
+        request_handler=request_handler
     )
 
-    config = uvicorn.Config(
-        server.build(),
-        host=host,
-        port=port,
-        log_level='info'
+    agent_card_routes = create_agent_card_routes(
+        agent_card=agent_card
     )
-    server_instance = uvicorn.Server(config)
-    await server_instance.serve()
-    logger.info(f"Server for {agent_name} stopped")
+
+    app = FastAPI()
+    app.routes.extend(agent_card_routes)
+    app.routes.extend(rest_routes)
+
+    config = uvicorn.Config(app, host=host, port=port)
+    uvicorn_server = uvicorn.Server(config)
+    await uvicorn_server.serve()
+    # server = A2AStarletteApplication(
+    #     agent_card=agent_card,
+    #     http_handler=request_handler
+    # )
+    #
+    # config = uvicorn.Config(
+    #     server.build(),
+    #     host=host,
+    #     port=port,
+    #     log_level='info'
+    # )
+    # server_instance = uvicorn.Server(config)
+    # await server_instance.serve()
+    # logger.info(f"Server for {agent_name} stopped")
 
 
 async def main() -> None:
@@ -81,13 +98,13 @@ async def main() -> None:
         except Exception as e:
             logger.error(f"register agent card failed: {e}")
         agent_name = agent_card.name
-        parsed = urlparse(agent_card.url)
+        parsed = urlparse(agent_card.supported_interfaces[0].url)
         task = asyncio.create_task(
             start_server(agent_card, port=parsed.port, host=parsed.hostname),
             name=f"server_{agent_name}"
         )
         tasks.append(task)
-        logger.info(f"Starting server for '{agent_name}' on {agent_card.url}")
+        logger.info(f"Starting server for '{agent_name}' on {agent_card.supported_interfaces[0].url}")
     try:
         await asyncio.gather(*tasks)
     except KeyboardInterrupt:
