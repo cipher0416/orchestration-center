@@ -25,13 +25,23 @@ from loguru import logger
 from typing import List
 from urllib.parse import urlparse
 
+from common.custom.psop_processor import custom_save_psop
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate import AgentCardLoader
+from orchestrate.workflow_storage_instance import get_workflow_storage
 from samples.agents.energy_saving_agent import EnergySavingAgentExecutor
 from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExecutor
 from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
 from samples.agents.assurance_agent import AssuranceAgentExecutor
 from samples.agents.ran_agent import RanAgentExecutor
+
+
+def pre_insert_psop():
+    storage = get_workflow_storage()
+    for wf_id in storage.list_psops():
+        psop = storage.load_psop(wf_id)
+        custom_save_psop(psop)
+
 
 async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1") -> None:
     agent2class = {
@@ -69,23 +79,10 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
     config = uvicorn.Config(app, host=host, port=port)
     uvicorn_server = uvicorn.Server(config)
     await uvicorn_server.serve()
-    # server = A2AStarletteApplication(
-    #     agent_card=agent_card,
-    #     http_handler=request_handler
-    # )
-    #
-    # config = uvicorn.Config(
-    #     server.build(),
-    #     host=host,
-    #     port=port,
-    #     log_level='info'
-    # )
-    # server_instance = uvicorn.Server(config)
-    # await server_instance.serve()
-    # logger.info(f"Server for {agent_name} stopped")
 
 
 async def main() -> None:
+    pre_insert_psop()
     agent_lib = AgentCardLoader()
     agent_cards = agent_lib.get_all_agent_cards()
     factory = AgentRegistryClientFactory().create_from_env()

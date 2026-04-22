@@ -15,38 +15,16 @@
 
 import json
 import re
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from datetime import timezone
+from typing import Optional, List
 
+from common.custom import HandlerRegistry, InterfaceType
 from common.llm import get_llm_instance
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.persistence import WorkflowStorage
 from orchestrate.core.prompts import get_retrieve_psop_prompt
-
-
-class WorkflowSearchResult:
-    def __init__(self, workflow_id: str, workflow_type: str, name: str,
-                 description: Optional[str], tags: Optional[List[str]],
-                 created_at: datetime, score: float = 1.0):
-        self.workflow_id = workflow_id
-        self.workflow_type = workflow_type
-        self.name = name
-        self.description = description
-        self.tags = tags or []
-        self.created_at = created_at
-        self.score = score
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "workflow_id": self.workflow_id,
-            "workflow_type": self.workflow_type,
-            "name": self.name,
-            "description": self.description,
-            "tags": self.tags,
-            "created_at": self.created_at.isoformat(),
-            "score": self.score
-        }
+from orchestrate.core.workflow_search_result import WorkflowSearchResult
 
 
 class WorkflowRetrieval:
@@ -54,7 +32,8 @@ class WorkflowRetrieval:
         self.storage = storage
 
     def get_psop_by_id(self, workflow_id: str) -> Optional[PSOP]:
-        return self.storage.load_psop(workflow_id)
+        query_handle = HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID)
+        return query_handle.handle(workflow_id)
 
     def get_preflow_by_id(self, workflow_id: str) -> Optional[PreFlow]:
         return self.storage.load_preflow(workflow_id)
@@ -168,17 +147,8 @@ class WorkflowRetrieval:
     def list_recent_workflows(self, limit: int = 10, workflow_type: str = "all") -> List[WorkflowSearchResult]:
         results = []
         if workflow_type in ("all", "psop"):
-            for wf_id in self.storage.list_psops():
-                psop = self.storage.load_psop(wf_id)
-                if psop:
-                    results.append(WorkflowSearchResult(
-                        workflow_id=psop.id,
-                        workflow_type="psop",
-                        name=psop.name,
-                        description=psop.description,
-                        tags=psop.tags,
-                        created_at=psop.created_at
-                    ))
+            query_handle = HandlerRegistry.get_handler(InterfaceType.GET_ALL_PSOP)
+            results.extend(query_handle.handle())
         if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)

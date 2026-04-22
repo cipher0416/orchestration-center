@@ -36,17 +36,19 @@ from common.config import MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE, CONN_MAX, CONN_
     FLOW_CTL_PARALLEL_RETRIEVE_PSOP, FLOW_CTL_PARALLEL_GENERATE_PSOP, FLOW_CTL_PARALLEL_AGENT_CARDS, \
     FLOW_CTL_PARALLEL_DELETE_PSOP, FLOW_CTL_PARALLEL_SAVE_PSOP, FLOW_CTL_PARALLEL_ONE_PSOP, FLOW_CTL_PARALLEL_ALL_PSOPS, \
     FLOW_CTL_PARALLEL_PLAN, FLOW_CTL_PARALLEL_PARSE_PDF
+from common.custom.default_handle import HandlerRegistry
+from common.custom.interface_type import InterfaceType
 from common.util.config_util import get_conf
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
-from orchestrate.core.persistence import WorkflowStorage
 from orchestrate.core.retrieval import WorkflowRetrieval
 from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
 from orchestrate.solution_package.parse_flow import SolutionPackageParser
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
+from orchestrate.workflow_storage_instance import get_workflow_storage
 
 # 创建FastAPI应用
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0")
@@ -97,8 +99,9 @@ async def security_middleware(request: Request, call_next):
 
 
 # 初始化存储和检索组件
-storage = WorkflowStorage()
-retrieval = WorkflowRetrieval(storage)
+save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
+delete_handle = HandlerRegistry.get_handler(InterfaceType.DELETE_PSOP)
+retrieval = WorkflowRetrieval(get_workflow_storage())
 
 
 # 定义请求/响应模型
@@ -227,9 +230,9 @@ async def plan(request: PlanRequest, _: Any = Depends(RateLimiter(config, "plan"
         generator = PsopGenerator()
         workflow = generator.generate_psop_workflow(
             PreFlow.model_validate(request.preflow),
-            [AgentCard.model_validate(card) for card in request.agent_cards]
+            [Parse(json.dumps(card), AgentCard()) for card in request.agent_cards]
         )
-        storage.save_psop(workflow)
+        save_handle.handle(workflow)
 
         return PlanResponse(
             status="success",
@@ -320,7 +323,7 @@ async def save_psop(request: SavePSOPRequest, _: Any = Depends(RateLimiter(confi
         save_psop_semaphore.acquire_nowait()
         acquired = True
         psop = PSOP.model_validate(request.psop)
-        saved_id = storage.save_psop(psop)
+        saved_id = save_handle.handle(psop)
 
         return JSONResponse(
             status_code=201,
@@ -358,7 +361,7 @@ async def delete_psop(workflow_id: str, _: Any = Depends(RateLimiter(config, "de
             raise HTTPException(status_code=404, detail=f"未找到ID为 {workflow_id} 的PSOP")
 
         # 删除PSOP
-        deleted = storage.delete_psop(workflow_id)
+        deleted = delete_handle.handle(workflow_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="删除PSOP失败: 文件可能不存在")
 
@@ -442,7 +445,7 @@ async def generate_psop_from_intent(request: IntentRequest,
 
         # 可选：自动保存生成的PSOP
         try:
-            storage.save_psop(psop)
+            save_handle.handle(psop)
         except Exception as save_error:
             logger.warning(f"PSOP save failed (does not affect response): {save_error}")
 

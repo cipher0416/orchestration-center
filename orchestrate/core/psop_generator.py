@@ -167,7 +167,7 @@ class PsopGenerator:
                 {
                     'name': ac.name,
                     'description': ac.description,
-                    'skills': [s.model_dump(include={"name", "description"}) for s in ac.skills]
+                    'skills': [{'name': s.name, 'description': s.description} for s in ac.skills]
                 }
                 for ac in agents_card
             ]

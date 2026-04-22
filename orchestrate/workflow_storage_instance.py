@@ -13,17 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-pydantic>=2.12.5
-a2a-sdk>=1.0.0a1
-a2a-sdk[http-server]
-a2a-sdk[grpc]
-openai>=2.26.0
-fastapi>=0.135.1
-uvicorn>=0.42
-loguru>=0.7.3
-PyYAML>=6.0.3
-pymupdf>=1.26.0
-limits>=5.8.0
-python-multipart>=0.0.24
-sse_starlette>=3.3.4
-psycopg2>=2.9.10
+from functools import lru_cache
+
+from orchestrate.core.persistence import WorkflowStorage
+
+
+@lru_cache(maxsize=1)
+def get_workflow_storage() -> WorkflowStorage:
+    return WorkflowStorage()

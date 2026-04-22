@@ -13,17 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-pydantic>=2.12.5
-a2a-sdk>=1.0.0a1
-a2a-sdk[http-server]
-a2a-sdk[grpc]
-openai>=2.26.0
-fastapi>=0.135.1
-uvicorn>=0.42
-loguru>=0.7.3
-PyYAML>=6.0.3
-pymupdf>=1.26.0
-limits>=5.8.0
-python-multipart>=0.0.24
-sse_starlette>=3.3.4
-psycopg2>=2.9.10
+from common.custom.custom_handle import CustomSavePsopHandler, CustomDeletePsopHandler,CustomGetAllPsopsPsopHandler,CustomGetPsopPsopHandler
+from common.custom.default_handle import HandlerRegistry
+from common.custom.interface_type import InterfaceType
+
+HandlerRegistry.register(InterfaceType.SAVE_PSOP, CustomSavePsopHandler)
+HandlerRegistry.register(InterfaceType.DELETE_PSOP, CustomDeletePsopHandler)
+HandlerRegistry.register(InterfaceType.GET_ALL_PSOP, CustomGetAllPsopsPsopHandler)
+HandlerRegistry.register(InterfaceType.GET_PSOP_BY_ID, CustomGetPsopPsopHandler)
