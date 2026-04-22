@@ -3,7 +3,7 @@ import axios from "axios";
 const STORAGE_KEY = 'server_config';
 export const defaultIp = '127.0.0.1';
 export const defaultPort = '60000';
-export const defaultGateway = '/api/orchestrate';
+export const defaultGateway = '/orchestration';
 
 export const getBaseUrl = () => {
     try {
