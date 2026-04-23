@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Type
 
 from common.custom.interface_type import InterfaceType
+from common.util.config_util import get_conf
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
 from orchestrate.workflow_storage_instance import get_workflow_storage
 
@@ -87,18 +88,20 @@ class HandlerRegistry:
         :param interface_type: 接口类型标识
         :return: BaseHandler 实例（用户自定义或默认）
         """
-        # 若存在用户注册的类，则实例化并返回
-        if interface_type.value in cls._registry:
+        persistence_mode = get_conf().get("persistence_mode", "file")
+        if persistence_mode.lower() != "file" and interface_type.value in cls._registry:
+            # 若存在用户注册的类，则实例化并返回
             return cls._registry[interface_type.value]()
+        else:
+            # 否则返回对应的默认实现
+            default_map = {
+                "save_psop": SavePsopHandler,
+                "get_all_psop": GetAllPsopsHandler,
+                "get_psop_by_id": GetPsopHandler,
+                "delete_psop": DeletePsopHandler,
+            }
+            handler_class = default_map.get(interface_type.value)
+            if handler_class is None:
+                raise ValueError(f"Unknown interface type: {interface_type}")
+            return handler_class()
 
-        # 否则返回对应的默认实现
-        default_map = {
-            "save_psop": SavePsopHandler,
-            "get_all_psop": GetAllPsopsHandler,
-            "get_psop_by_id": GetPsopHandler,
-            "delete_psop": DeletePsopHandler,
-        }
-        handler_class = default_map.get(interface_type.value)
-        if handler_class is None:
-            raise ValueError(f"Unknown interface type: {interface_type}")
-        return handler_class()
