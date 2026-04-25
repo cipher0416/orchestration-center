@@ -84,3 +84,110 @@ revocationlist.crl:可选，吊销列表，仅支持pem编码格式，仅支持.
 
 本项目仅读取使用这些证书，不提供证书管理能力，例如证书过期告警、备份恢复等。
 
+ ## 启动和停止服务 
+ 
+ 
+ 1. **启动后端服务** 
+ 
+ 
+    **进入项目目录下的`bin`文件夹** 
+     ```bash 
+       cd /yourPath/orchestration-center/bin 
+     ```  
+    **创建并激活虚拟环境** 
+ 
+ 
+    先创建一个项目所需的虚拟环境，比如使用`conda` 创建一个名为`orchestration-center`的虚拟环境(如果尚未创建)： 
+    ```bash 
+       conda create -n orchestration-center  
+     ``` 
+    激活虚拟环境 
+     ```bash 
+       conda activate orchestration-center  
+     ``` 
+    安装项目所需的python依赖(如果未安装)： 
+     ```bash 
+       pip install -r ../requirements.txt 
+     ``` 
+    方式一： 
+ 
+ 
+    执行启动脚本以运行项目： 
+     ```bash 
+       ./start.sh 
+     ``` 
+    方式二： 
+    ```bash 
+       python -m orchestrate.start 
+     ``` 
+ 2. **停止后端服务** 
+ 
+ 
+    **进入项目目录下的`bin`文件夹** 
+     ```bash 
+       cd /yourPath/orchestration-center/bin 
+     ```  
+    执行脚本文件： 
+     ```bash 
+       ./stop.sh 
+     ``` 
+ 
+ 
+ ### 启动和停止Samples 
+ 
+ 
+ 1. **启动Samples** 
+ 
+ 
+    方式一: 
+ 
+ 
+    **进入项目目录下的`bin`文件夹** 
+     ```bash 
+       cd /yourPath/orchestration-center/bin 
+     ```  
+    执行脚本文件： 
+     ```bash 
+       ./start_samples.sh 
+     ``` 
+    方式二： 
+    ```bash 
+       python -m samples.start_agents_server 
+     ``` 
+ 2. **停止Samples** 
+ 
+ 
+    **进入项目目录下的`bin`文件夹** 
+     ```bash 
+       cd /yourPath/orchestration-center/bin 
+     ```  
+    执行脚本文件： 
+     ```bash 
+       ./stop_samples.sh 
+     ``` 
+ 
+ 
+ ### 访问应用 
+ 
+ 
+ 1. 打开浏览器访问 http://localhost:3003 
+ 2. 使用工作流设计器创建和编辑流程图 
+ 3. 通过 API 接口管理 PSOP 工作流 
+ 
+ 
+ ## API 文档 
+ 
+ 
+ 详细的 API 文档请参考 `orchestrate/server/PSOP_API_DOCUMENTATION.md`，包含以下主要接口： 
+ 
+ 
+ - `GET /psops` - 获取 PSOP 列表 
+ - `GET /psops/{workflow_id}` - 获取 PSOP 详情 
+ - `POST /psops` - 保存 PSOP 
+ - `DELETE /psops/<workflow_id>` - 删除PSOP 
+ - `POST /parse-pdf` - 解析 PDF 文件 
+ - `POST /plan` - 获取工作流规划 
+ - `GET /agent-cards` - 获取全量AgentCard列表 
+ - `POST /generate-from-intent` - 根据自然语言意图生成PSOP 
+ - `POST /retrieve-by-intent` - 根据自然语言意图检索PSOP 
+ - `GET /rest/start_process_stream?psop_id=<id>` - 启动PSOP执行并推送实时进展
