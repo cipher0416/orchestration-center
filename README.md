@@ -107,7 +107,7 @@ revocationlist.crl:可选，吊销列表，仅支持pem编码格式，仅支持.
 pip install -r .\requirements.txt
 ```
 #### 3. 启动项目
-等待依赖下载完成后，再终端窗口执行如下命令即可启动编排中心后端服务：
+等待依赖下载完成后，在终端窗口执行如下命令即可启动编排中心后端服务：
 ```bash
 python -m orchestrate.start
 ```
