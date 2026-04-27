@@ -16,6 +16,10 @@
 ```bash
 python -m samples.start_agents_server
 ```
+如果是linux环境，建议给执行命令前加上 `nohup`,防止linux终端窗口长时间无操作退出后导致的服务停止，命令如下：
+```bash
+nohup python -m samples.start_agents_server > samples.log 2>&1 &
+```
 ### 方式二：
 进入项目目录下的`bin`文件夹
 ```bash

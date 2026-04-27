@@ -28,6 +28,7 @@ from common.util.cipher_converter import CipherConverter
 from common.util.cipher_util import DEFAULT_ENCODING
 from common.util.conf_util import conf_singleton_obj, set_ssl_folder_permissions, load_cert_password
 from common.util.config_util import get_conf
+from database.utils.table_creation import create_tables
 from orchestrate.server.frontend_support_server import app
 
 def customized_create_ssl_context(certfile: str | os.PathLike[str],
@@ -152,6 +153,8 @@ def main():
     server_config = get_conf()
     is_https = server_config.get("enable_https", True)
     is_enable_https = str(is_https).lower() == 'true'
+    if server_config.get('persistence_mode', 'file') != 'file':
+        create_tables()
     if not is_enable_https:
         uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 60000)))
     else:
