@@ -25,17 +25,17 @@ from common.llm.provider.llm_provider_registry import registry_provider
 
 @registry_provider(LLMType.AOC_CHAT_LLM)
 class AOCChatLLM(AOCBaseLLM):
-    """AOC 对话模型（如 Qwen3_32B）"""
+    """AOC chat model (e.g., Qwen3_32B)"""
 
     def __init__(self, llm_config: LLMConfig):
         super().__init__(llm_config)
-        # 可从 extra 读取自定义模板，否则用默认格式
+        # Read custom template from extra, otherwise use default format
         extra = llm_config.config_item.extra
         self.request_template = extra.get('request_template')
 
     def _build_request_body(self, prompt: str) -> Dict[str, Any]:
         if self.request_template and isinstance(self.request_template, str):
-            # 支持模板字符串
+            # Support template strings
             template_str = self.request_template.replace(
                 '{prompt}', json.dumps(prompt)[1:-1]
             )
@@ -53,7 +53,7 @@ class AOCChatLLM(AOCBaseLLM):
             return body
 
     def _parse_response(self, data: Dict[str, Any]) -> Tuple[str, str]:
-        # 标准 OpenAI 格式解析
+        # Standard OpenAI format parsing
         try:
             choice = data.get('choices', [{}])[0]
             message = choice.get('message', {})

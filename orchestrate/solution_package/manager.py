@@ -32,9 +32,9 @@ class SolutionPackageManager:
             storage_dir: Storage directory path, defaults to data/solution_packages sibling to orchestrate directory
         """
         if storage_dir is None:
-            # 获取当前文件的绝对路径，然后找到项目根目录（framework的父级）
+            # Get absolute path of current file, then find project root (parent of framework)
             current_file = Path(__file__).resolve()
-            project_root = current_file.parent.parent  # framework目录
+            project_root = current_file.parent.parent  # framework directory
             self.storage_dir = project_root / "data" / "solution_packages"
         else:
             self.storage_dir = Path(storage_dir)
@@ -79,7 +79,7 @@ class SolutionPackageManager:
                 "chapter_titles": list(chapters_dict.keys())
             }
             
-            # 写入JSON文件
+            # Write JSON file
             with open(storage_path, 'w', encoding='utf-8') as f:
                 json.dump(storage_data, f, ensure_ascii=False, indent=2)
             

@@ -40,21 +40,21 @@ def create_database_if_not_exists():
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = conn.cursor()
 
-        # 检查数据库是否存在
+        # Check if the database exists
         database_name = conn_info.get('database', "orchestration-center")
         cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{database_name}'")
         exists = cursor.fetchone()
 
         if not exists:
-            # 创建数据库
+            # Create the database
             cursor.execute(f'CREATE DATABASE {database_name}')
-            print(f"数据库 {database_name} 创建成功")
+            print(f"Database {database_name} created successfully")
 
         cursor.close()
         conn.close()
         return True
     except Exception as e:
-        logger.error(f"创建数据库失败: {e}")
+        logger.error(f"Failed to create database: {e}")
         return False
 
 def create_connection():
@@ -64,4 +64,4 @@ def create_connection():
         conn = psycopg2.connect(**conn_info)
         return conn
     except Exception as e:
-        logger.error(f"无法连接到数据库{e}")
+        logger.error(f"Unable to connect to database: {e}")

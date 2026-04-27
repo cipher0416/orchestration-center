@@ -23,15 +23,15 @@ from orchestrate.workflow_storage_instance import get_workflow_storage
 
 
 class BaseHandler(ABC):
-    """统一的抽象基类，所有接口实现必须继承此类并实现 handle 方法"""
+    """Unified abstract base class; all interface implementations must inherit from this class and implement the handle method."""
 
     @abstractmethod
     def handle(self, *args, **kwargs):
-        """具体业务逻辑由子类实现"""
+        """Concrete business logic is implemented by subclasses."""
         pass
 
 
-# ==================== 默认实现 ====================
+# ==================== Default implementations ====================
 class SavePsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         return get_workflow_storage().save_psop(*args)
@@ -66,16 +66,16 @@ class DeletePsopHandler(BaseHandler):
         return get_workflow_storage().delete_psop(*args)
 
 
-# ==================== 注册表 ====================
+# ==================== Registry ====================
 class HandlerRegistry:
     _registry: Dict[str, Type[BaseHandler]] = {}
 
     @classmethod
     def register(cls, interface_type: InterfaceType, handler_class: Type[BaseHandler]) -> None:
         """
-        注册用户自定义实现类
-        :param interface_type: 接口类型标识，例如 "decrypt", "audit", "authenticate", "insert", "query"
-        :param handler_class: 继承自 BaseHandler 的自定义类
+        Register a user-customized implementation class.
+        :param interface_type: Interface type identifier, e.g., "decrypt", "audit", "authenticate", "insert", "query"
+        :param handler_class: Custom class inheriting from BaseHandler
         """
         if not issubclass(handler_class, BaseHandler):
             raise TypeError("handler_class must be a subclass of BaseHandler")
@@ -84,16 +84,16 @@ class HandlerRegistry:
     @classmethod
     def get_handler(cls, interface_type: InterfaceType) -> BaseHandler:
         """
-        根据接口类型获取处理器实例
-        :param interface_type: 接口类型标识
-        :return: BaseHandler 实例（用户自定义或默认）
+        Get a handler instance based on the interface type.
+        :param interface_type: Interface type identifier
+        :return: BaseHandler instance (user-customized or default)
         """
         persistence_mode = get_conf().get("persistence_mode", "file")
         if persistence_mode.lower() != "file" and interface_type.value in cls._registry:
-            # 若存在用户注册的类，则实例化并返回
+            # If a user-registered class exists, instantiate and return it
             return cls._registry[interface_type.value]()
         else:
-            # 否则返回对应的默认实现
+            # Otherwise, return the corresponding default implementation
             default_map = {
                 "save_psop": SavePsopHandler,
                 "get_all_psop": GetAllPsopsHandler,

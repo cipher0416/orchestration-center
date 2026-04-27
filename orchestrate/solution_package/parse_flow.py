@@ -171,13 +171,13 @@ class SolutionPackageParser:
         try:
             if not chapter_text or not chapter_text.strip():
                 logger.warning(f"Chapter '{chapter_title}' has empty text, skipping LLM conversion")
-                return chapter_title, f"# {chapter_title}\n\n*本章节无文本内容*"
+                return chapter_title, f"# {chapter_title}\n\n*This chapter has no text content*"
             
             markdown_content = self.convert_to_markdown(chapter_text)
             return chapter_title, markdown_content
         except Exception as e:
             logger.error(f"Failed to convert chapter '{chapter_title}': {e}")
-            return chapter_title, f"# {chapter_title}\n\n*转换失败: {str(e)}*"
+            return chapter_title, f"# {chapter_title}\n\n*Conversion failed: {str(e)}*"
 
     def convert_all_chapters_to_markdown(self, chapters_dict: Dict[str, str], max_workers: int = 4) -> Dict[str, str]:
         """Convert all chapters to markdown in parallel while preserving order."""
@@ -201,7 +201,7 @@ class SolutionPackageParser:
                 except Exception as e:
                     chapter_title = chapter_titles[index]
                     logger.error(f"Error processing chapter '{chapter_title}': {e}")
-                    results[index] = (chapter_title, f"# {chapter_title}\n\n*转换失败: {str(e)}*")
+                    results[index] = (chapter_title, f"# {chapter_title}\n\n*Conversion failed: {str(e)}*")
         
         for result in results:
             if result:

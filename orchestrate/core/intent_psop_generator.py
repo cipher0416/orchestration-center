@@ -145,7 +145,7 @@ class IntentPsopGenerator(PsopGenerator):
                 intent_summary = user_intent[:50].strip()
                 if len(user_intent) > 50:
                     intent_summary += "..."
-                psop_data.name = f"工作流: {intent_summary}"
+                psop_data.name = f"Workflow: {intent_summary}"
             
             # Store original user intent
             psop_data.user_intent = user_intent

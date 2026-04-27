@@ -21,10 +21,10 @@ def create_tables():
     create_table_sql = """
                        CREATE TABLE IF NOT EXISTS psop
                        (
-                           id           VARCHAR(1024) PRIMARY KEY, -- 主键ID
-                           name         VARCHAR(1024) NOT NULL,    -- 名称，不允许为空
-                           description  VARCHAR(1024),                     -- 描述
-                           psop_content    TEXT             -- TEXT类型适合长文本
+                            id           VARCHAR(1024) PRIMARY KEY, -- Primary key ID
+                            name         VARCHAR(1024) NOT NULL,    -- Name, cannot be null
+                            description  VARCHAR(1024),                     -- Description
+                            psop_content    TEXT             -- TEXT type suitable for long text
                        )
                        """
     conn = create_connection()

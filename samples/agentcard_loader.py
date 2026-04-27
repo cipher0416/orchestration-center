@@ -41,12 +41,12 @@ class AgentCardLoader:
             config_file: Configuration file path
         """
         if not config_file.exists():
-            raise FileNotFoundError(f"配置文件不存在: {config_file}")
+            raise FileNotFoundError(f"Configuration file not found: {config_file}")
 
         with open(config_file, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         if not config:
-            raise ValueError(f"配置文件为空或格式不正确: {config_file}")
+            raise ValueError(f"Configuration file is empty or has invalid format: {config_file}")
         # Load from agents field in configuration file
         self._load_from_config_data(config, str(config_file))
 
@@ -59,11 +59,11 @@ class AgentCardLoader:
             config_path: Configuration file path (for error messages)
         """
         if "agents" not in config:
-            raise ValueError(f"配置文件格式不正确，缺少'agents'字段: {config_path}")
+            raise ValueError(f"Invalid configuration format, missing 'agents' field: {config_path}")
 
         agents_data = config["agents"]
         if not isinstance(agents_data, list):
-            raise ValueError(f"配置文件中的'agents'字段必须是列表: {config_path}")
+            raise ValueError(f"The 'agents' field in configuration must be a list: {config_path}")
 
         self._agent_cards = []
         for agent_dict in agents_data:
@@ -71,7 +71,7 @@ class AgentCardLoader:
                 agent_card = Parse(json.dumps(agent_dict), AgentCard())
                 self._agent_cards.append(agent_card)
             except Exception as e:
-                raise ValueError(f"解析AgentCard失败: {agent_dict.get('name', 'unknown')} - {e}")
+                raise ValueError(f"Failed to parse AgentCard: {agent_dict.get('name', 'unknown')} - {e}")
 
     def get_all_agent_cards(self) -> List[AgentCard]:
         """
