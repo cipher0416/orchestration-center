@@ -86,7 +86,7 @@ class DynamicWorkflowEngine:
             # Push request information
             try:
                 request_data = request.model_dump_json() if hasattr(request, 'model_dump_json') else str(request)
-            except:
+            except Exception:
                 request_data = str(request)
 
             self._push_event("agent_request", {
@@ -203,9 +203,12 @@ class DynamicWorkflowEngine:
 
                 # Push complete PSOP status
                 try:
-                    psop_data = self.workflow.model_dump_json() if hasattr(self.workflow,
-                                                                           'model_dump_json') else self.workflow.model_dump()
-                except:
+                    psop_data = (
+                        self.workflow.model_dump_json()
+                        if hasattr(self.workflow, 'model_dump_json')
+                        else self.workflow.model_dump()
+                    )
+                except Exception:
                     psop_data = str(self.workflow)
 
                 self._push_event("psop_update", {
@@ -228,9 +231,12 @@ class DynamicWorkflowEngine:
 
                 # Push PSOP status on failure
                 try:
-                    psop_data = self.workflow.model_dump_json() if hasattr(self.workflow,
-                                                                           'model_dump_json') else self.workflow.model_dump()
-                except:
+                    psop_data = (
+                        self.workflow.model_dump_json()
+                        if hasattr(self.workflow, 'model_dump_json')
+                        else self.workflow.model_dump()
+                    )
+                except Exception:
                     psop_data = str(self.workflow)
 
                 self._push_event("psop_update", {
@@ -256,6 +262,11 @@ class DynamicWorkflowEngine:
                 text_res = text_res[:500] if len(text_res) > 500 else text_res
                 results_context.append(f"[{skill}]:执行成功 - 输出摘要：{text_res}")
         results_text = "\n".join(results_context)
+        next_conditions = json.dumps(
+            [{"step": c.step, "condition": c.condition} for c in (current_step.next or [])],
+            ensure_ascii=False,
+            indent=2,
+        )
         prompt_template = f"""
 # Role
 你是一个工作流逻辑控制器。你的任务是根据【任务执行结果】和【预设条件】，决定工作流的下一步走向。
@@ -268,7 +279,7 @@ class DynamicWorkflowEngine:
 {results_text}
 
 # Next Conditions (Required for Transition)
-{json.dumps([{"step": c.step, "condition": c.condition} for c in (current_step.next or [])], ensure_ascii=False, indent=2)}
+{next_conditions}
 
 # Decision Logic
 1. 分析上述【Execution Results】。

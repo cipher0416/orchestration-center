@@ -23,7 +23,7 @@ from orchestrate.workflow_storage_instance import get_workflow_storage
 
 
 class BaseHandler(ABC):
-    """Unified abstract base class; all interface implementations must inherit from this class and implement the handle method."""
+    """Abstract base class requiring subclasses to implement the handle method."""
 
     @abstractmethod
     def handle(self, *args, **kwargs):

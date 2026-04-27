@@ -13,7 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from common.custom.custom_handle import CustomSavePsopHandler, CustomDeletePsopHandler,CustomGetAllPsopsPsopHandler,CustomGetPsopPsopHandler
+from common.custom.custom_handle import (
+    CustomSavePsopHandler,
+    CustomDeletePsopHandler,
+    CustomGetAllPsopsPsopHandler,
+    CustomGetPsopPsopHandler,
+)
 from common.custom.default_handle import HandlerRegistry
 from common.custom.interface_type import InterfaceType
 

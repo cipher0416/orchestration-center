@@ -40,7 +40,7 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
                                   ciphers: str | None) -> ssl.SSLContext:
     """
     Create a custom SSL context for secure connections.
-    
+
     Args:
         certfile: Path to the certificate file
         keyfile: Path to the private key file (optional)
@@ -49,10 +49,10 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
         cert_reqs: Certificate verification requirements
         ca_certs: Path to CA certificates file (optional)
         ciphers: Cipher suites to use (optional)
-        
+
     Returns:
         SSLContext: Configured SSL context
-        
+
     Raises:
         Exception: If SSL context creation fails
     """
@@ -76,7 +76,7 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
 def get_user_info_from_env():
     """
     Retrieve user information from environment variables.
-    
+
     Returns:
         dict: Dictionary containing username, uid, and gid
     """
@@ -113,7 +113,7 @@ class CustomUvicornServer:
     def __init__(self, server_config, conf_obj):
         """
         Initialize the custom Uvicorn server.
-        
+
         Args:
             server_config: Server configuration dictionary
             conf_obj: Configuration object containing SSL settings

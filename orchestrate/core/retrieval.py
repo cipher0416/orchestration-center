@@ -162,20 +162,25 @@ class WorkflowRetrieval:
                         created_at=preflow.created_at
                     ))
         # Use timestamp for sorting to avoid offset-naive and offset-aware datetime comparison errors
-        results.sort(key=lambda x: x.created_at.timestamp() if x.created_at.tzinfo else x.created_at.replace(tzinfo=timezone.utc).timestamp(), reverse=True)
+        def _sort_key(x):
+            if x.created_at.tzinfo:
+                return x.created_at.timestamp()
+            return x.created_at.replace(tzinfo=timezone.utc).timestamp()
+
+        results.sort(key=_sort_key, reverse=True)
         return results[:limit]
 
     def _parse_json_response(self, llm_response: str) -> str:
         """Parse JSON response from LLM output.
-        
+
         Extracts JSON from code blocks in LLM responses.
-        
+
         Args:
             llm_response: Raw LLM response string containing JSON code blocks
-            
+
         Returns:
             Parsed string value from JSON
-            
+
         Raises:
             ValueError: If no JSON code block found, empty content, or invalid JSON
         """
@@ -194,16 +199,16 @@ class WorkflowRetrieval:
 
     def retrieve_psop_by_intent(self, user_intent: str) -> Optional[PSOP]:
         """Retrieve the most suitable PSOP based on user's natural language intent.
-        
+
         Uses LLM to analyze user intent and select the most appropriate PSOP
         from all available PSOPs based on their names and descriptions.
-        
+
         Args:
             user_intent: Natural language description of user's intent
-            
+
         Returns:
             The most suitable PSOP object, or None if no suitable PSOP found
-            
+
         Raises:
             Exception: If LLM API call fails or parsing fails
         """
@@ -217,31 +222,31 @@ class WorkflowRetrieval:
                     "user_intent": psop.user_intent or "",
                     "id": psop.id
                 })
-        
+
         if not psop_list:
             return None
-            
+
         # Prepare PSOP list as JSON string
         psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
-        
+
         # Get LLM instance and invoke
         llm = get_llm_instance()
         prompt = get_retrieve_psop_prompt(user_intent, psop_list_str)
-        
+
         try:
             _, llm_res = llm.ask_llm(prompt)
             selected_psop_name = self._parse_json_response(llm_res)
-            
+
             # If LLM returns empty string, no suitable PSOP was found
             if not selected_psop_name:
                 return None
-                
+
             # Find the PSOP object matching the selected name
             for psop_info in psop_list:
                 if psop_info["name"] == selected_psop_name:
                     return self.storage.load_psop(psop_info["id"])
-                    
+
             return None
-            
+
         except Exception as e:
             raise Exception(f"Failed to retrieve PSOP by intent: {e}")

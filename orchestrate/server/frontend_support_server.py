@@ -34,10 +34,13 @@ from pydantic import BaseModel
 from starlette import status
 from starlette.responses import Response
 
-from common.config import MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE, CONN_MAX, CONN_TIMEOUT, \
-    FLOW_CTL_PARALLEL_RETRIEVE_PSOP, FLOW_CTL_PARALLEL_GENERATE_PSOP, FLOW_CTL_PARALLEL_AGENT_CARDS, \
-    FLOW_CTL_PARALLEL_DELETE_PSOP, FLOW_CTL_PARALLEL_SAVE_PSOP, FLOW_CTL_PARALLEL_ONE_PSOP, FLOW_CTL_PARALLEL_ALL_PSOPS, \
-    FLOW_CTL_PARALLEL_PLAN, FLOW_CTL_PARALLEL_PARSE_PDF
+from common.config import (
+    MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE, CONN_MAX, CONN_TIMEOUT,
+    FLOW_CTL_PARALLEL_RETRIEVE_PSOP, FLOW_CTL_PARALLEL_GENERATE_PSOP,
+    FLOW_CTL_PARALLEL_AGENT_CARDS, FLOW_CTL_PARALLEL_DELETE_PSOP,
+    FLOW_CTL_PARALLEL_SAVE_PSOP, FLOW_CTL_PARALLEL_ONE_PSOP,
+    FLOW_CTL_PARALLEL_ALL_PSOPS, FLOW_CTL_PARALLEL_PLAN, FLOW_CTL_PARALLEL_PARSE_PDF,
+)
 from common.custom.default_handle import HandlerRegistry
 from common.custom.interface_type import InterfaceType
 from common.log.audit_logger import audit_logger, OperationObject, OperationName, LogLevel, OperationResult
@@ -670,7 +673,7 @@ async def start_process_stream(psop_id: str):
                         # If regular object, try to convert to dict
                         try:
                             serializable_data[key] = value.__dict__
-                        except:
+                        except Exception:
                             serializable_data[key] = str(value)
                     elif isinstance(value, (tuple, list)):
                         # Handle lists and tuples
@@ -681,7 +684,7 @@ async def start_process_stream(psop_id: str):
                             elif hasattr(item, '__dict__'):
                                 try:
                                     serializable_data[key].append(item.__dict__)
-                                except:
+                                except Exception:
                                     serializable_data[key].append(str(item))
                             else:
                                 serializable_data[key].append(item)
@@ -734,7 +737,8 @@ async def start_process_stream(psop_id: str):
         workflow_thread.start()
 
         # Send initialization message
-        yield f"data: {json.dumps({'type': 'init', 'data': {'psop_id': psop_id, 'message': 'Initializing execution engine'}})}\n\n"
+        init_event = {'type': 'init', 'data': {'psop_id': psop_id, 'message': 'Initializing execution engine'}}
+        yield f"data: {json.dumps(init_event)}\n\n"
 
         # Keep sending events until workflow completes
         while workflow_thread.is_alive() or not event_queue.empty():
