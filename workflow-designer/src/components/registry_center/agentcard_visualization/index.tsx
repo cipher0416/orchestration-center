@@ -30,8 +30,8 @@ interface AgentSkill {
 }
 
 interface SupportedInterface {
-    protocol_binding: string;
-    protocol_version: string;
+    protocolBinding: string;
+    protocolVersion: string;
     url: string;
 }
 
@@ -52,7 +52,7 @@ interface AgentData {
     defaultInputModes: string[];
     defaultOutputModes: string[];
     skills: AgentSkill[];
-    supported_interfaces?: SupportedInterface[];
+    supportedInterface?: SupportedInterface[];
     documentationUrl?: string;
     [key: string]: any;
 }
@@ -149,7 +149,7 @@ const AgentDashboard: React.FC<AgentProfileProps> = ({ agent, isDark }) => {
 
                     {agent.supportedInterfaces && agent.supportedInterfaces.length > 0 && (
                         <InfoCard
-                            title={`${t('agent_profile.supported_interfaces')} (${agent.supported_interfaces.length})`}
+                            title={`${t('agent_profile.supported_interfaces')} (${agent.supportedInterfaces.length})`}
                             icon={Server}
                             theme={theme}
                         >
