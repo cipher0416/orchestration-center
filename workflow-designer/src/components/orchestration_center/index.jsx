@@ -87,7 +87,7 @@ const OrchestrationCenter = ({ isDark }) => {
     const [detailLoading, setDetailLoading] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState(LOADING_STAGES.IDLE);
 
-    // 删除确认相关状态
+    // Delete confirmation related status
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [wfToDelete, setWfToDelete] = useState(null);
     useEffect(() => {
@@ -113,33 +113,33 @@ const OrchestrationCenter = ({ isDark }) => {
 
         if (!file) return;
         if (file.type !== "application/pdf") {
-            event.target.value = ''; // 清空选择
+            event.target.value = ''; // Clear selection
             return;
         }
 
         const formData = new FormData();
-        // 注意：对应后台 request.files['file']
+        // Attention: Corresponding to backend request. files ['file ']
         formData.append('file', file);
 
         setLoading(true);
-        setLoadingStatus(LOADING_STAGES.PARSING); // 阶段 1
+        setLoadingStatus(LOADING_STAGES.PARSING); // Phase 1
         try {
             const contentData = await parsePdf(file);
-            console.log("解析出的内容:", contentData);
+            console.log("Parsed content:", contentData);
             const agentCards = await getAgentCards();
-            setLoadingStatus(LOADING_STAGES.PLANNING); // 阶段 2
+            setLoadingStatus(LOADING_STAGES.PLANNING); // Phase 2
             const finalPlan = await handlePlan(contentData, agentCards.data);
             console.log('finalPlan', finalPlan)
 
-            setLoadingStatus(LOADING_STAGES.FINALIZING); // 阶段 3
+            setLoadingStatus(LOADING_STAGES.FINALIZING); // Phase 3
             const { nodes: n, edges: e } = transformWorkflowToReactFlow(finalPlan);
             setNodes(n);
             setEdges(e);
             console.log('finalPlanWorkflow', nodes, edges)
             setActiveView('detail');
         } catch (error) {
-            const errorMsg = error.response?.data?.error || "服务器响应异常";
-            console.error("上传失败:", errorMsg);
+            const errorMsg = error.response?.data?.error || "Server response exception";
+            console.error("Upload failed:", errorMsg);
         } finally {
             setLoading(false);
             setLoadingStatus(LOADING_STAGES.IDLE);
@@ -163,7 +163,7 @@ const OrchestrationCenter = ({ isDark }) => {
                 setWorkflows(data);
             }
         } catch (e) {
-            console.error("获取PSOP列表失败:", e);
+            console.error("Failed to obtain PSOP list:", e);
         } finally {
             setLoading(false);
         }
@@ -193,7 +193,7 @@ const OrchestrationCenter = ({ isDark }) => {
                         rawText: detailData
                     });
 
-                    // 转换画布节点
+                    // Convert canvas nodes
                     const { nodes: n, edges: e } = transformWorkflowToReactFlow(detailData);
                     setNodes(n);
                     setEdges(e);
@@ -201,7 +201,7 @@ const OrchestrationCenter = ({ isDark }) => {
                     if (activeView !== 'editor') setActiveView('detail');
                 }
             } catch (e) {
-                console.error("获取PSOP详情失败:", e);
+                console.error("Failed to obtain PSOP details:", e);
             } finally {
                 setDetailLoading(false);
             }
@@ -216,7 +216,7 @@ const OrchestrationCenter = ({ isDark }) => {
             setLoadingStatus(LOADING_STAGES.DELETING);
             const res = await delWorkflowById(wfToDelete.id);
             if (res.status === 'success') {
-                // 如果删除的是当前选中的，重置视图
+                // If the deletion is the current selection, reset the view
                 if (selectedId === wfToDelete.id) {
                     setSelectedId(null);
                     setActiveView('welcome');
@@ -224,7 +224,7 @@ const OrchestrationCenter = ({ isDark }) => {
                 await fetchWorkflows();
             }
         } catch (e) {
-            console.error("删除PSOP失败:", e);
+            console.error("Failed to delete PSOP:", e);
         } finally {
             setLoading(false);
             setShowDeleteConfirm(false);

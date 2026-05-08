@@ -35,11 +35,11 @@ export default function CustomEdge({
     const labelRef = useRef(null);
     const requestRef = useRef();
 
-    // 实时计算位置的函数
+    // Real time calculation of position function
     const updatePosition = () => {
         if (labelRef.current && isHovered) {
             const rect = labelRef.current.getBoundingClientRect();
-            // 精确计算：Label 水平中心，上边缘上方 8px
+            // Accurate calculation: Label horizontal center, 8px above the upper edge
             setTooltipCoords({
                 top: rect.top - 8,
                 left: rect.left + rect.width / 2
@@ -107,7 +107,7 @@ export default function CustomEdge({
                         top: tooltipCoords.top,
                         left: tooltipCoords.left,
                         transform: 'translate(-50%, -100%)',
-                        zIndex: 999999, // 极高优先级
+                        zIndex: 999999, // High priority
                         pointerEvents: 'none',
                     }}
                 >
@@ -117,7 +117,7 @@ export default function CustomEdge({
                                 {label}
                             </div>
                         </div>
-                        {/* 箭头：直接位于水平中心正下方 */}
+                        {/* Arrow: located directly below the horizontal center */}
                         <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-zinc-900/95 dark:border-t-zinc-800/95" />
                     </div>
                 </div>,

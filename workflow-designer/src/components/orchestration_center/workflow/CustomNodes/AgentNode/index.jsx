@@ -51,15 +51,15 @@ const AgentNode = ({ data, selected }) => {
         hover:!w-[18px] hover:!h-[18px] hover:shadow-lg
         z-[110]
         
-        /* 连线起点反馈 */
+        /* Feedback from the starting point of the connection */
         [&.react-flow__handle-connecting]:ring-4 [&.react-flow__handle-connecting]:ring-blue-500/20
         
-        /* 隐形热区 */
+        /* Invisible hot zone */
         after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 
         after:w-[80px] after:h-[80px] after:bg-transparent
     `;
 
-    // 目标点样式：平时隐藏且不拦截点击，连线时变为全屏拦截
+    // Target point style: Normally hidden and not blocking clicks, it becomes full screen blocking when connected
     const targetHandleBaseClasses = `
         !w-0 !h-0 !bg-transparent !border-0 !absolute !transform-none
         z-[100]

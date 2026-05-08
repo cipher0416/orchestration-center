@@ -71,10 +71,10 @@ export async function parsePdf(file) {
         if (response.data.status === "success") {
             return JSON.parse(response.data.content);
         } else {
-            throw new Error(response.data?.message || "PDF解析失败");
+            throw new Error(response.data?.message || "PDF parsing failed");
         }
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "PDF解析接口请求失败";
+        const errorMsg = error.response?.data?.error || error.message || "PDF parsing interface request failed";
         throw new Error(errorMsg);
     }
 }
@@ -88,13 +88,13 @@ export async function handlePlan(preflow, agentCards) {
 
         if (response.data.status === "success") {
             const workflowData = JSON.parse(response.data.data);
-            console.log("规划生成成功:", workflowData);
+            console.log("Plan generated successfully:", workflowData);
             return workflowData;
         } else {
-            throw new Error(response.data?.message || "规划生成失败");
+            throw new Error(response.data?.message || "Planning generation failed");
         }
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "规划接口请求失败";
+        const errorMsg = error.response?.data?.error || error.message || "Planning interface request failed";
         throw new Error(errorMsg);
     }
 }
@@ -108,13 +108,13 @@ export async function generateWorkflowFromIntent(intent, name = "Generated Workf
 
         if (response.data.status === "success" || response.status === 200) {
             const workflowData = response.data.data || response.data;
-            console.log("自然语言生成成功:", workflowData);
+            console.log("Natural language generation successful:", workflowData);
             return workflowData;
         } else {
-            throw new Error(response.data?.message || "生成失败");
+            throw new Error(response.data?.message || "Generation failed");
         }
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "接口请求失败";
+        const errorMsg = error.response?.data?.error || error.message || "Interface request failed";
         throw new Error(errorMsg);
     }
 }
@@ -165,10 +165,10 @@ export async function matchWorkflows(intent) {
                 tags: item.tags || []
             }));
         } else {
-            throw new Error(response.data?.error || "检索失败");
+            throw new Error(response.data?.error || "Retrieval failed");
         }
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "接口请求失败";
+        const errorMsg = error.response?.data?.error || error.message || "Interface request failed";
         throw new Error(errorMsg);
     }
 }

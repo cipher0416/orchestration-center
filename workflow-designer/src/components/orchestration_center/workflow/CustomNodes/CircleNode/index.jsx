@@ -12,10 +12,10 @@ export const StartNode = ({ selected }) => {
         hover:!w-[14px] hover:!h-[14px] hover:shadow-lg
         z-[110]
         
-        /* 连线起点反馈 */
+        /* Feedback from the starting point of the connection */
         [&.react-flow__handle-connecting]:ring-4 [&.react-flow__handle-connecting]:ring-emerald-500/20
         
-        /* 隐形热区 */
+        /* Invisible hot zone */
         after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 
         after:w-[60px] after:h-[60px] after:bg-transparent
     `;

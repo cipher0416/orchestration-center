@@ -1,7 +1,7 @@
 import dagre from 'dagre';
 
 /**
- * 后端标准状态枚举
+ * Backend standard state enumeration
  */
 export const BACKEND_STATUS = {
     PENDING: 'pending',
@@ -20,7 +20,7 @@ export const normalizeStatus = (status) => {
 
 
 /**
- * 2. Dagre 自动排版逻辑
+ * 2. Dagre Automatic typesetting logic
  */
 export const getLayoutedElements = (nodes, edges, direction = 'LR') => {
     const dagreGraph = new dagre.graphlib.Graph();
@@ -44,7 +44,7 @@ export const getLayoutedElements = (nodes, edges, direction = 'LR') => {
         
         let finalY = nodeWithPosition.y;
         if (direction === 'LR' && index > 0) {
-            // 计算确定性随机位移 (120 - 180px)
+            // Calculate deterministic random displacement (120 - 180px)
             let hash = 0;
             const seed = String(node.id) + index;
             for (let i = 0; i < seed.length; i++) {
@@ -53,17 +53,17 @@ export const getLayoutedElements = (nodes, edges, direction = 'LR') => {
             const magnitude = (Math.abs(hash) % 60) + 120;
             const sign = (Math.abs(hash) >> 4) % 2 === 0 ? 1 : -1;
             
-            // 基于上一个节点的最终 Y 坐标进行偏移
+            // Offset based on the final Y coordinate of the previous node
             finalY = lastY + (sign * magnitude);
             
-            // 安全限制：防止偏离画布中心太远 (假设中心在 300 左右)
-            // 如果计算出的位置太离谱，则向心拉回
+            // Security restrictions: prevent deviation from the center of the canvas too far (assuming the center is around 300)
+            // If the calculated position is too far fetched, pull it back towards the center
             const centerDistance = finalY - nodeWithPosition.y;
             if (Math.abs(centerDistance) > 400) {
                 finalY = nodeWithPosition.y + (centerDistance > 0 ? 200 : -200);
             }
         } else if (index === 0) {
-            // 第一个节点也给一个初始随机位移，避免总是在中心
+            // The first node is also given an initial random displacement to avoid always being at the center
             finalY = nodeWithPosition.y + 40;
         }
 
@@ -82,7 +82,7 @@ export const getLayoutedElements = (nodes, edges, direction = 'LR') => {
 };
 
 /**
- * 3. 动态计算最佳 Handle 连线点
+ * 3. Dynamically calculate the optimal Handle connection point
  */
 export const getBestHandles = (sourceNode, targetNode) => {
     const sPos = sourceNode.position;
@@ -91,19 +91,19 @@ export const getBestHandles = (sourceNode, targetNode) => {
     const sCenter = { x: sPos.x + (sourceNode.width || 200) / 2, y: sPos.y + (sourceNode.height || 100) / 2 };
     const tCenter = { x: tPos.x + (targetNode.width || 200) / 2, y: tPos.y + (targetNode.height || 100) / 2 };
 
-    // 统一改为：右侧出，左侧进
+    // Unified change to: right-hand exit, left-hand entry
     return { sourceHandle: 's-right', targetHandle: 't-left' };
 };
 
 /**
- * 4. 导入转换：PSOP JSON -> React Flow Nodes/Edges
+ * 4. Import Conversion：PSOP JSON -> React Flow Nodes/Edges
  */
 export const transformWorkflowToReactFlow = (rawInput) => {
-    // 兼容 API 返回的 { data: { steps: [] } } 结构
+    // Compatible with the {data: {steps: []}} structure returned by the API
     const data = rawInput?.data ? rawInput.data : rawInput;
 
     if (!data || (!data.steps && !Array.isArray(data))) {
-        console.warn("无效的工作流数据格式");
+        console.warn("Invalid workflow data format");
         return { nodes: [], edges: [] };
     }
 
@@ -126,10 +126,10 @@ export const transformWorkflowToReactFlow = (rawInput) => {
         step._normalizedNext = nextSteps;
     });
 
-    // 生成节点
+    // Generate nodes
     steps.forEach((step) => {
         const nodeId = step.name;
-        // 确保 subtasks 存在
+        // Ensure that subtasks exist
         const subtasks = step.subtasks || [
             {
                 agent: step.agent || 'System',
@@ -208,7 +208,7 @@ export const transformWorkflowToReactFlow = (rawInput) => {
 };
 
 /**
- * 5. 导出转换：React Flow Nodes/Edges -> PSOP JSON
+ * 5. Export Conversion：React Flow Nodes/Edges -> PSOP JSON
  */
 export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
     const psopData = {

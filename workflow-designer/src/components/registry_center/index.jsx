@@ -58,7 +58,7 @@ const AgentRegistry = ({ isDark, t }) => {
 
                     return {
                         ...syncedRaw,
-                        id: key, // 用 name 作为 id
+                        id: key, // Use name as ID
                         displayName: key.toUpperCase(),
                         ...ui,
                         _raw: { ...syncedRaw, skills: modifiedSkills },

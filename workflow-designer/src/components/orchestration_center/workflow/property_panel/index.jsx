@@ -80,7 +80,7 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 });
 
                 updateData('inputs', parsedInputs);
-                console.log("初始化：已自动解析并同步 inputDefine");
+                console.log("Initialization: automatically parsed and synchronized inputDefine");
             }
         }
     }, [activeElement?.data?.skill, activeElement?.data?.skillsList, updateData]);
@@ -99,7 +99,7 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 });
 
                 updateData('outputs', parsedInputs);
-                console.log("初始化：已自动解析并同步 outputDefine");
+                console.log("Initialization: Automatically parsed and synchronized output Define");
             }
         }
     }, [activeElement?.data?.skill, activeElement?.data?.skillsList, updateData]);

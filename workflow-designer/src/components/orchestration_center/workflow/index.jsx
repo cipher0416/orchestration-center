@@ -58,11 +58,11 @@ const initialEditNodes = [
 const FlowInner = ({
     mode,
     isDark,
-    // View 模式 Props
+    // View Mode Props
     viewNodes = [],
     viewEdges = [],
     onSelectChange,
-    // Edit 模式 Props
+    // Edit Mode Props
     importedNodes,
     importedEdges,
     workflowId,
@@ -368,7 +368,7 @@ const FlowInner = ({
             const templateData = JSON.parse(rawData);
             const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
 
-            // 查找释放位置下的节点，尝试合并
+            // Search for nodes under the release location and attempt to merge them
             const allNodes = rfInstance.getNodes();
             const targetNode = allNodes.find(node => {
                 if (node.type !== 'agentNode') return false;
@@ -384,7 +384,7 @@ const FlowInner = ({
             });
 
             if (targetNode) {
-                // 合并到现有 Step
+                // Merge into existing steps
                 setEditNodes((nds) => nds.map(n => {
                     if (n.id === targetNode.id) {
                         const currentSubtasks = n.data.subtasks || [];
@@ -410,7 +410,7 @@ const FlowInner = ({
                     return n;
                 }));
             } else {
-                // 创建新 Step
+                // Create a new step
                 const nextIndex = editNodes.filter(n => n.id.startsWith('checkStep')).length + 1;
                 const newId = `checkStep${nextIndex}`;
                 const newSubtask = {

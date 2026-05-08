@@ -75,7 +75,7 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
                 setToast({ show: true, msg: t('workflow.export.failed'), type: 'error' }); // 失败 Toast
             });
         } catch (e) {
-            console.error('上传失败', e);
+            console.error('Upload failed', e);
         }
     };
 
