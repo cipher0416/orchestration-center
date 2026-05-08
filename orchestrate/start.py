@@ -202,6 +202,6 @@ if __name__ == '__main__':
     logger.info("  SSE Execution Interface:")
     logger.info("  GET  /rest/start_process_stream?psop_id=<id> - Start PSOP execution and push real-time progress")
     logger.info("")
-    logger.info("  For detailed documentation, refer to: psop_api_documentation.md")
+    logger.info("  For detailed documentation, refer to: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
     main()
