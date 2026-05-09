@@ -410,8 +410,12 @@ const FlowInner = ({
                 }));
             } else {
                 // Create a new step
-                const nextIndex = editNodes.filter(n => n.id.startsWith('checkStep')).length + 1;
-                const newId = `checkStep${nextIndex}`;
+                const usedStepIds = new Set(editNodes.map(n => n.id));
+                let nextIndex = 1;
+                while (usedStepIds.has(`step${nextIndex}`)) {
+                    nextIndex += 1;
+                }
+                const newId = `step${nextIndex}`;
                 const newSubtask = {
                     agent: templateData.agent,
                     skill: templateData.skill,
