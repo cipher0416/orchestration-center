@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import CustomEdge from './CustomEdge';
-import { Layers } from 'lucide-react';
+import { Layers, X } from 'lucide-react';
 import { useTranslation } from "react-i18next";
 
 import AgentNode from './CustomNodes/AgentNode/index.jsx';
@@ -37,6 +37,119 @@ const edgeTypes = {
     smart: SmartStepEdge,
     floating: FloatingEdge,
     custom: CustomEdge,
+};
+
+const DetailRow = ({ label, children, isDark }) => (
+    <div className={`py-3 border-b ${isDark ? 'border-zinc-800/60' : 'border-slate-100'}`}>
+        <div className={`text-[11px] font-bold uppercase tracking-wide mb-1 ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
+            {label}
+        </div>
+        <div className={`text-sm font-medium leading-relaxed break-words ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>
+            {children || '-'}
+        </div>
+    </div>
+);
+
+const DetailBlock = ({ title, value, emptyText, isDark }) => {
+    if (!value) return null;
+    return (
+        <div className="space-y-2">
+            <div className={`text-[11px] font-bold uppercase tracking-wide ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
+                {title}
+            </div>
+            <pre className={`max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg p-3 text-xs leading-relaxed ${isDark ? 'bg-zinc-900 text-zinc-300 border border-zinc-800' : 'bg-slate-50 text-slate-700 border border-slate-100'}`}>
+                {typeof value === 'object' ? JSON.stringify(value, null, 2) : (value || emptyText)}
+            </pre>
+        </div>
+    );
+};
+
+const WorkflowViewDetails = ({ selected, isDark, onClose }) => {
+    const { t } = useTranslation();
+    const node = selected?.node;
+    if (!node) return null;
+
+    const data = node.data || {};
+    const subtasks = data.subtasks || [];
+    const selectedIndex = selected.subtaskIndex;
+    const selectedTask = Number.isInteger(selectedIndex) ? subtasks[selectedIndex] : null;
+    const title = selectedTask?.skill || data.label || node.id;
+    const panelTitle = selectedTask ? t('workflow.panel.executeSkill') : t('workflow.panel.nodeConfig');
+    const selectedSkillMeta = selectedTask?.skillsList?.find(s => s.name === selectedTask.skill)
+        || data.skillsList?.find(s => s.name === selectedTask?.skill);
+
+    return (
+        <div className={`flex flex-col h-full w-full transition-colors ${isDark ? 'bg-zinc-950 text-zinc-300' : 'bg-white text-slate-800'}`}>
+            <div className={`flex items-center justify-between gap-3 p-4 border-b ${isDark ? 'bg-zinc-900/60 border-zinc-800' : 'bg-slate-50/80 border-slate-200/70'}`}>
+                <div className="min-w-0">
+                    <div className={`text-[11px] font-bold uppercase tracking-wide ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
+                        {panelTitle}
+                    </div>
+                    <h3 className="text-sm font-bold truncate">{title}</h3>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className={`shrink-0 p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                    title={t('common.close', 'Close')}
+                >
+                    <X size={16} />
+                </button>
+            </div>
+
+            <div className="p-4 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
+                <section>
+                    <DetailRow label={t('workflow.panel.stepName')} isDark={isDark}>{data.label || data.name || node.id}</DetailRow>
+                    <DetailRow label={t('workflow.panel.status', 'Status')} isDark={isDark}>{data.status || '-'}</DetailRow>
+                    {!selectedTask && data.description && (
+                        <DetailRow label={t('workflow.panel.taskDesc')} isDark={isDark}>{data.description}</DetailRow>
+                    )}
+                </section>
+
+                {selectedTask ? (
+                    <section className="space-y-4">
+                        <DetailRow label={t('workflow.panel.agentName')} isDark={isDark}>{selectedTask.agent}</DetailRow>
+                        <DetailRow label={t('workflow.panel.executeSkill')} isDark={isDark}>{selectedTask.skill}</DetailRow>
+                        <DetailRow label={t('workflow.panel.status', 'Status')} isDark={isDark}>{selectedTask.status || '-'}</DetailRow>
+                        <DetailRow label={t('workflow.panel.taskDesc')} isDark={isDark}>
+                            {selectedTask.description || selectedSkillMeta?.description}
+                        </DetailRow>
+                        <DetailBlock title={t('workflow.panel.inputDefine')} value={selectedTask.inputs || selectedSkillMeta?.inputs} isDark={isDark} />
+                        <DetailBlock title={t('workflow.panel.outputDefine')} value={selectedTask.outputs || selectedSkillMeta?.outputs} isDark={isDark} />
+                    </section>
+                ) : (
+                    <section className="space-y-3">
+                        <div className={`text-[11px] font-bold uppercase tracking-wide ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
+                            {t('workflow.panel.subtasks')} ({subtasks.length})
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            {subtasks.map((task, idx) => (
+                                <button
+                                    key={`${task.skill || 'skill'}-${idx}`}
+                                    type="button"
+                                    onClick={() => selected.onSelectSubtask?.(idx)}
+                                    className={`text-left rounded-xl border p-3 transition-all ${isDark ? 'bg-zinc-900/60 border-zinc-800 hover:bg-zinc-900' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-bold uppercase text-blue-500 truncate">{task.agent || '-'}</span>
+                                        <span className={`text-[10px] uppercase ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>{task.status || '-'}</span>
+                                    </div>
+                                    <div className={`mt-1 text-sm font-semibold break-words ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>
+                                        {task.skill || t('node_label.no_skill')}
+                                    </div>
+                                    {task.description && (
+                                        <p className={`mt-1 text-xs leading-relaxed line-clamp-3 ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
+                                            {task.description}
+                                        </p>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                )}
+            </div>
+        </div>
+    );
 };
 
 const initialEditNodes = [
@@ -85,16 +198,28 @@ const FlowInner = ({
     }), [isDark]);
 
     const [viewSelectedNodeId, setViewSelectedNodeId] = useState(null);
+    const [viewSelectedElement, setViewSelectedElement] = useState(null);
+
+    const selectViewNode = useCallback((node, subtaskIndex = null) => {
+        setViewSelectedNodeId(node.id);
+        setViewSelectedElement({ node, subtaskIndex });
+        if (onSelectChange) onSelectChange(node);
+    }, [onSelectChange]);
 
     const processedNodes = useMemo(() => {
         if (mode !== 'view') return [];
         return viewNodes.map(node => ({
             ...node,
-            data: { ...node.data, isDark },
+            data: {
+                ...node.data,
+                isDark,
+                selectedSubtaskIndex: node.id === viewSelectedElement?.node?.id ? viewSelectedElement.subtaskIndex : null,
+                onSubtaskClick: (subtaskIndex) => selectViewNode(node, subtaskIndex),
+            },
             selected: node.id === viewSelectedNodeId,
             zIndex: 100,
         }));
-    }, [viewNodes, viewSelectedNodeId, isDark, mode]);
+    }, [viewNodes, viewSelectedNodeId, viewSelectedElement, selectViewNode, isDark, mode]);
 
     const processedEdges = useMemo(() => {
         if (mode !== 'view') return [];
@@ -216,8 +341,22 @@ const FlowInner = ({
             }
         } else if (mode === 'view' && viewNodes.length === 0) {
             lastCenteredNodeId.current = null;
+            setViewSelectedElement(null);
         }
     }, [viewNodes, setCenter, getNode, fitView, mode]);
+
+    useEffect(() => {
+        if (mode !== 'view' || !viewSelectedElement) return;
+        const latestNode = viewNodes.find(node => node.id === viewSelectedElement.node.id);
+        if (!latestNode) {
+            setViewSelectedElement(null);
+            setViewSelectedNodeId(null);
+            return;
+        }
+        if (latestNode !== viewSelectedElement.node) {
+            setViewSelectedElement({ ...viewSelectedElement, node: latestNode });
+        }
+    }, [mode, viewNodes, viewSelectedElement]);
 
 
 
@@ -466,13 +605,13 @@ const FlowInner = ({
                 onNodeClick={(e, n) => {
                     if (mode === 'view') {
                         e.stopPropagation();
-                        setViewSelectedNodeId(n.id);
-                        if (onSelectChange) onSelectChange(n);
+                        selectViewNode(n);
                     }
                 }}
                 onPaneClick={() => {
                     if (mode === 'view') {
                         setViewSelectedNodeId(null);
+                        setViewSelectedElement(null);
                         if (onSelectChange) onSelectChange(null);
                     }
                 }}
@@ -500,6 +639,27 @@ const FlowInner = ({
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-5 pointer-events-none">
                     <div className="pointer-events-auto">
                         <ToolbarLite isDark={isDark} onFitView={() => fitView({ padding: 0.2, duration: 800 })} />
+                    </div>
+                </div>
+            )}
+
+            {mode === 'view' && (
+                <div className={`absolute justify-center right-4 top-4 bottom-4 w-80 z-40 pointer-events-none flex flex-col min-h-0 transition-all duration-300 transform ${viewSelectedElement ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'}`}>
+                    <div className={`pointer-events-auto flex flex-col backdrop-blur-md border rounded-2xl overflow-hidden ${themeClasses.panel}`}>
+                        {viewSelectedElement && (
+                            <WorkflowViewDetails
+                                isDark={isDark}
+                                selected={{
+                                    ...viewSelectedElement,
+                                    onSelectSubtask: (subtaskIndex) => selectViewNode(viewSelectedElement.node, subtaskIndex),
+                                }}
+                                onClose={() => {
+                                    setViewSelectedElement(null);
+                                    setViewSelectedNodeId(null);
+                                    if (onSelectChange) onSelectChange(null);
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             )}

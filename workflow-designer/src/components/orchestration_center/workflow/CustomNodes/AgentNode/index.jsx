@@ -34,6 +34,7 @@ const AgentNode = ({ data, selected }) => {
     const status = data.status || 'pending'; // pending, running, success, failed
     const stepName = data.label || 'Step';
     const subtasks = data.subtasks || [];
+    const selectedSubtaskIndex = data.selectedSubtaskIndex;
 
     const theme = {
         bg: isDark ? 'bg-zinc-900/95' : 'bg-white',
@@ -108,22 +109,34 @@ const AgentNode = ({ data, selected }) => {
  
                  {/* Subtasks List */}
                  <div className="flex flex-col gap-1.5 mt-1">
-                     {subtasks.map((task, idx) => (
-                         <div key={idx} className={`
-                             group/task relative p-2 px-3 rounded-lg border flex flex-col gap-0.5 transition-all
-                             ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
-                         `}>
-                             <div className="flex justify-between items-center">
-                                 <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 break-words whitespace-normal">
-                                     {task.agent || 'Agent'}
+                     {subtasks.map((task, idx) => {
+                         const isSubtaskSelected = selectedSubtaskIndex === idx;
+                         return (
+                          <button
+                              key={idx}
+                              type="button"
+                              onClick={(event) => {
+                                  event.stopPropagation();
+                                  data.onSubtaskClick?.(idx, task);
+                              }}
+                              className={`
+                              group/task relative p-2 px-3 rounded-lg border flex flex-col gap-0.5 transition-all text-left
+                              ${isSubtaskSelected ? 'ring-2 ring-blue-500/50 border-blue-400/60' : ''}
+                              ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
+                          `}
+                          >
+                              <div className="flex justify-between items-center">
+                                  <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 break-words whitespace-normal">
+                                      {task.agent || 'Agent'}
                                  </span>
                                  <div className={`h-1.5 w-1.5 rounded-full ${getStatusColor(task.status)} opacity-60`} />
                              </div>
-                             <div className={`text-[11px] font-medium leading-[1.15] break-words whitespace-normal ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
-                                 {task.skill || t('node_label.no_skill')}
-                             </div>
-                         </div>
-                     ))}
+                              <div className={`text-[11px] font-medium leading-[1.15] break-words whitespace-normal ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
+                                  {task.skill || t('node_label.no_skill')}
+                              </div>
+                          </button>
+                         );
+                     })}
                      {subtasks.length === 0 && (
                          <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
                              {t('node_label.no_subtasks')}
