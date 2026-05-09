@@ -42,7 +42,10 @@ const MainContainer = () => {
     }, [activeTab]);
 
     useEffect(() => {
-        let language = localStorage.getItem('lang') || 'en';
+        const lang = localStorage.getItem('lang') || 'en';
+        if (lang !== i18n.language) {
+            i18n.changeLanguage(lang);
+        }
     }, []);
 
     return (

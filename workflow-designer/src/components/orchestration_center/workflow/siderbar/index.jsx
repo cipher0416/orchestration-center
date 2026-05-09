@@ -14,7 +14,6 @@ const Sidebar = ({ isDark }) => {
         const fetchAgents = async () => {
             try {
                 const res = await getAgentCards();
-                console.log('getAgentCards-sidebar', res)
                 setAgentGroups(res.data || []);
             } catch (error) {
                 console.error("Failed to fetch agents:", error);

@@ -69,9 +69,9 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
         if ciphers:
             ctx.set_ciphers(ciphers)
         return  ctx
-    except BaseException as e:
+    except Exception as e:
         logger.error(f"customized_create_ssl_context error: {e}")
-        raise e
+        raise
 
 def get_user_info_from_env():
     """

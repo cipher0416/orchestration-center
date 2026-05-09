@@ -11,7 +11,6 @@ import {
     addEdge
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { transformWorkflowToReactFlow, getBestHandles } from "./utils/index.jsx";
 import CustomEdge from './CustomEdge';
 import { Layers } from 'lucide-react';
 import { useTranslation } from "react-i18next";

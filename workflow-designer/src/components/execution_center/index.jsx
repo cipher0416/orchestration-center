@@ -3,20 +3,14 @@ import { useTranslation } from 'react-i18next';
 import {
     Play,
     StopCircle,
-    Activity,
     Terminal,
-    CheckCircle,
     AlertCircle,
-    Clock,
     Search,
-    Hash,
-    ChevronRight,
-    MessageSquare,
     History,
     Plus,
     Bot
 } from 'lucide-react';
-import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflows } from '@/service/api.js';
+import { getWorkflowById, getStartProcessStreamUrl, matchWorkflows } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 

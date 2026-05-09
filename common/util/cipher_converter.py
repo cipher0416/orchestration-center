@@ -47,9 +47,9 @@ class CipherConverter:
                 converted = cls._auto_convert(cipher)
                 if converted:
                     openssl_ciphers.append(converted)
-                    logger.info(f"Waring:auto convert {cipher} -> {converted}")
+                    logger.info(f"Warning: auto convert {cipher} -> {converted}")
                 else:
-                    logger.info(f"Waring: skip unrecognized cipher: {cipher}")
+                    logger.info(f"Warning: skip unrecognized cipher: {cipher}")
         return ':'.join(openssl_ciphers)
 
     @classmethod

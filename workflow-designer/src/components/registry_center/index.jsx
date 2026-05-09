@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    Search, Activity, Terminal, Wrench, ChevronRight,
-    Zap, ShieldCheck, Cpu, Box, Bot, Database, Network, Globe, Code2, LayoutDashboard
+    Search, Zap, ShieldCheck, Cpu, Box, Bot, Database, Network, Globe, Code2, LayoutDashboard
 } from 'lucide-react';
 import { getAgentCards } from "@/service/api.js";
 import CodeInspector from "./code_inspector/index.jsx";

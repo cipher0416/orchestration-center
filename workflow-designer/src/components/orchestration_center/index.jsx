@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import yaml, { dump } from 'js-yaml';
+import { dump } from 'js-yaml';
 import {
-    Search, Loader2, Layout, FileWarning, Hash,
-    Activity, Plus, Upload, X, MessageSquare,
-    ChevronRight, Save, Sparkles, Edit3, ChevronLeft, ArrowLeft, Code2, LayoutDashboard, Trash2
+    Search, Loader2, Layout, Hash,
+    Plus, Upload, MessageSquare,
+    ChevronRight, Sparkles, ChevronLeft, Code2, Trash2
 } from 'lucide-react';
 import { getAgentCards, getWorkflow, getWorkflowById, handlePlan, parsePdf, generateWorkflowFromIntent, delWorkflowById } from "@/service/api.js";
 import { transformWorkflowToReactFlow } from "./workflow/utils/index.jsx";
@@ -125,17 +125,14 @@ const OrchestrationCenter = ({ isDark }) => {
         setLoadingStatus(LOADING_STAGES.PARSING); // Phase 1
         try {
             const contentData = await parsePdf(file);
-            console.log("Parsed content:", contentData);
             const agentCards = await getAgentCards();
-            setLoadingStatus(LOADING_STAGES.PLANNING); // Phase 2
+            setLoadingStatus(LOADING_STAGES.PLANNING);
             const finalPlan = await handlePlan(contentData, agentCards.data);
-            console.log('finalPlan', finalPlan)
 
-            setLoadingStatus(LOADING_STAGES.FINALIZING); // Phase 3
+            setLoadingStatus(LOADING_STAGES.FINALIZING);
             const { nodes: n, edges: e } = transformWorkflowToReactFlow(finalPlan);
             setNodes(n);
             setEdges(e);
-            console.log('finalPlanWorkflow', nodes, edges)
             setActiveView('detail');
         } catch (error) {
             const errorMsg = error.response?.data?.error || "Server response exception";
@@ -151,7 +148,6 @@ const OrchestrationCenter = ({ isDark }) => {
         try {
             setLoading(true);
             const res = await getWorkflow();
-            console.log('getWorkflow', res)
             if (res.status === 'success') {
                 const data = (res.data || []).map(item => ({
                     id: item.workflow_id,
@@ -159,7 +155,6 @@ const OrchestrationCenter = ({ isDark }) => {
                     tags: item.tags || [],
                     description: item.description
                 }));
-                console.log('item', data);
                 setWorkflows(data);
             }
         } catch (e) {
@@ -185,7 +180,6 @@ const OrchestrationCenter = ({ isDark }) => {
                 const res = await getWorkflowById(selectedId);
                 if (res?.status === 'success') {
                     const detailData = res.data;
-                    console.log('detailData', detailData);
 
                     setCurrentWf({
                         id: detailData.id,
@@ -329,7 +323,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                                 setEdges(e);
                                                 setActiveView('editor');
                                             } catch (err) {
-                                                console.error("生成失败:", err);
+                                                console.error("Generate failed:", err);
                                             } finally {
                                                 setLoading(false);
                                                 setLoadingStatus(LOADING_STAGES.IDLE);

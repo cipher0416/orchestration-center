@@ -103,7 +103,6 @@ export const transformWorkflowToReactFlow = (rawInput) => {
     const data = rawInput?.data ? rawInput.data : rawInput;
 
     if (!data || (!data.steps && !Array.isArray(data))) {
-        console.warn("Invalid workflow data format");
         return { nodes: [], edges: [] };
     }
 

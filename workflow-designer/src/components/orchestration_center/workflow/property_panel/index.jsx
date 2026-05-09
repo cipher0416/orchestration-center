@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import KvIndex from "@/components/orchestration_center/workflow/kv_editor/index.jsx";
 import { useTranslation } from "react-i18next";
 import DeleteConfirm from "@/components/common/pop_confirm/index.jsx";
 import { getAgentCards } from "@/service/api.js";
@@ -80,7 +79,6 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 });
 
                 updateData('inputs', parsedInputs);
-                console.log("Initialization: automatically parsed and synchronized inputDefine");
             }
         }
     }, [activeElement?.data?.skill, activeElement?.data?.skillsList, updateData]);
@@ -99,7 +97,6 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 });
 
                 updateData('outputs', parsedInputs);
-                console.log("Initialization: Automatically parsed and synchronized output Define");
             }
         }
     }, [activeElement?.data?.skill, activeElement?.data?.skillsList, updateData]);
@@ -320,7 +317,6 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 <button
                     className={`w-full py-2.5 text-xs font-bold rounded-xl transition-all active:scale-95 shadow-lg ${theme.confirmBtn}`}
                     onClick={() => {
-                        console.log('Confirmed Config:', data);
                         if (onClose) onClose();
                     }}
                 >

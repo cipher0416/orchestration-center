@@ -1,4 +1,3 @@
-import yaml from 'js-yaml';
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createWorkflow } from "@/service/api.js";
