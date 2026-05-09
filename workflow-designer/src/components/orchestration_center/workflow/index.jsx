@@ -91,7 +91,7 @@ const WorkflowViewDetails = ({ selected, isDark, onClose }) => {
                     type="button"
                     onClick={onClose}
                     className={`shrink-0 p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
-                    title={t('common.close', 'Close')}
+                    title={t('common.close')}
                 >
                     <X size={16} />
                 </button>
@@ -100,7 +100,7 @@ const WorkflowViewDetails = ({ selected, isDark, onClose }) => {
             <div className="p-4 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
                 <section>
                     <DetailRow label={t('workflow.panel.stepName')} isDark={isDark}>{data.label || data.name || node.id}</DetailRow>
-                    <DetailRow label={t('workflow.panel.status', 'Status')} isDark={isDark}>{data.status || '-'}</DetailRow>
+                    <DetailRow label={t('workflow.panel.status')} isDark={isDark}>{data.status || '-'}</DetailRow>
                     {!selectedTask && data.description && (
                         <DetailRow label={t('workflow.panel.taskDesc')} isDark={isDark}>{data.description}</DetailRow>
                     )}
@@ -110,7 +110,7 @@ const WorkflowViewDetails = ({ selected, isDark, onClose }) => {
                     <section className="space-y-4">
                         <DetailRow label={t('workflow.panel.agentName')} isDark={isDark}>{selectedTask.agent}</DetailRow>
                         <DetailRow label={t('workflow.panel.executeSkill')} isDark={isDark}>{selectedTask.skill}</DetailRow>
-                        <DetailRow label={t('workflow.panel.status', 'Status')} isDark={isDark}>{selectedTask.status || '-'}</DetailRow>
+                        <DetailRow label={t('workflow.panel.status')} isDark={isDark}>{selectedTask.status || '-'}</DetailRow>
                         <DetailRow label={t('workflow.panel.taskDesc')} isDark={isDark}>
                             {selectedTask.description || selectedSkillMeta?.description}
                         </DetailRow>
