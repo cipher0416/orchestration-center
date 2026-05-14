@@ -49,11 +49,11 @@ class LiveStreamingAgentExecutor(AgentExecutor):
 
     def answer_query(self, user_message: str):
         prompt = f"""
-        你是直播业务智能体（Live Streaming Agent），负责解析赛事需求和监控监控指标（KQI）。
-        请根据收到的用户任务，模拟一个简短的成功响应。
-
-        任务内容: {user_message}
-        直接输出中文响应，不用输出其他内容。
+        You are a Live Streaming Agent responsible for parsing event requirements and monitoring Key Quality Indicators (KQI).
+        Please simulate a brief success response based on the received user task.
+        
+        Task content: {user_message}
+        Output the response directly in Chinese without any additional content.
         """
         _, res = self.llm.ask_llm(prompt)
         logger.info(f"task of : {user_message}, result is: {res}")

@@ -49,11 +49,11 @@ class RanAgentExecutor(AgentExecutor):
 
     def answer_query(self, user_message: str):
         prompt = f"""
-        你是无线网络智能体（RAN Agent），负责分析评估、方案规划以及最终的网络策略执行。
-        请根据收到的用户任务，模拟一个简短的成功响应。
-
-        任务内容: {user_message}
-        直接输出中文响应，不用输出其他内容。
+        You are a Radio Access Network Agent (RAN Agent) responsible for analysis and evaluation, solution planning, and final network policy execution.
+        Please simulate a brief success response based on the received user task.
+        
+        Task content: {user_message}
+        Output the response directly in Chinese without any additional content.
         """
         _, res = self.llm.ask_llm(prompt)
         logger.info(f"task of : {user_message}, result is: {res}")
