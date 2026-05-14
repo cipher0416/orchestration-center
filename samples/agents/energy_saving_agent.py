@@ -49,10 +49,10 @@ class EnergySavingAgentExecutor(AgentExecutor):
 
     def answer_query(self, user_message: str):
         prompt = f"""
-        你是电信领域的无线节能agent模拟器，请根据收到的用户任务，模拟一个简短的成功响应。
+        You are a wireless energy-saving agent simulator in the telecommunications field. Please simulate a brief success response based on the received user task.
 
-        任务如下: {user_message}
-        直接输出中文响应，不用输出其他内容。
+        Task: {user_message}
+        Output the response directly in Chinese without any additional content.
         """
         _, res = self.llm.ask_llm(prompt)
         logger.info(f"task of : {user_message}, result is: {res}")

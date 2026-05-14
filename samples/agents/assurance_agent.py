@@ -49,11 +49,11 @@ class AssuranceAgentExecutor(AgentExecutor):
 
     def answer_query(self, user_message: str):
         prompt = f"""
-        你是保障策略智能体（Assurance Agent），负责生成并下发保障策略及其恢复策略。
-        请根据收到的用户任务，模拟一个简短的成功响应。
+        You are an Assurance Agent responsible for generating and issuing assurance policies and their corresponding recovery policies.
+        Please simulate a brief success response based on the user task received.
 
-        任务内容: {user_message}
-        直接输出中文响应，不用输出其他内容。
+        Task content: {user_message}
+        Output the response directly in Chinese without any additional content.
         """
         _, res = self.llm.ask_llm(prompt)
         logger.info(res)
