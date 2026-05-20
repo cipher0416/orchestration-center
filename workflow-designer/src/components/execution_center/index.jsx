@@ -8,18 +8,180 @@ import {
     Search,
     History,
     Plus,
-    Bot
+    Bot,
+    PanelLeftOpen,
+    PanelLeftClose,
+    ChevronDown,
+    ChevronRight,
+    Hash
 } from 'lucide-react';
 import { getWorkflowById, getStartProcessStreamUrl, matchWorkflows } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 
+const parseProtobufText = (raw) => {
+    if (!raw || typeof raw !== 'string') return { text: raw, metadata: null };
+    const result = { text: '', metadata: {} };
+    const lines = raw.split('\n');
+    let inParts = false;
+    let partsText = [];
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const msgIdMatch = trimmed.match(/^message_id:\s*"(.+)"$/);
+        if (msgIdMatch) { result.metadata.message_id = msgIdMatch[1]; continue; }
+        const roleMatch = trimmed.match(/^role:\s*(.+)$/);
+        if (roleMatch) { result.metadata.role = roleMatch[1]; continue; }
+        if (trimmed === 'parts {') { inParts = true; continue; }
+        if (inParts && trimmed === '}') { inParts = false; continue; }
+        if (inParts) {
+            const textMatch = trimmed.match(/^text:\s*"(.+)"$/);
+            if (textMatch) partsText.push(textMatch[1]);
+        }
+    }
+    result.text = partsText.join('\n');
+    return result;
+};
+
+const MarkdownRenderer = React.memo(({ text }) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    const elements = [];
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i];
+        if (!line.trim()) { i++; elements.push(<div key={i} className="h-3" />); continue; }
+
+        const h3Match = line.match(/^###\s+(.+)/);
+        const h2Match = line.match(/^##\s+(.+)/);
+        const h1Match = line.match(/^#\s+(.+)/);
+        if (h3Match) {
+            elements.push(<h3 key={i} className="text-base font-bold text-zinc-800 dark:text-zinc-100 mt-5 mb-2">{h3Match[1]}</h3>);
+            i++; continue;
+        }
+        if (h2Match) {
+            elements.push(<h2 key={i} className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mt-6 mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">{h2Match[1]}</h2>);
+            i++; continue;
+        }
+        if (h1Match) {
+            elements.push(<h1 key={i} className="text-xl font-bold text-zinc-800 dark:text-zinc-100 mt-7 mb-3">{h1Match[1]}</h1>);
+            i++; continue;
+        }
+
+        const ulMatch = line.match(/^[-*]\s+(.+)/);
+        if (ulMatch) {
+            const items = [];
+            while (i < lines.length && lines[i].match(/^[-*]\s+(.+)/)) {
+                items.push(lines[i].replace(/^[-*]\s+/, ''));
+                i++;
+            }
+            elements.push(
+                <ul key={i} className="list-disc pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
+                    {items.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
+                </ul>
+            );
+            continue;
+        }
+
+        const olMatch = line.match(/^\d+[.)]\s+(.+)/);
+        if (olMatch) {
+            const items = [];
+            while (i < lines.length && lines[i].match(/^\d+[.)]\s+(.+)/)) {
+                items.push(lines[i].replace(/^\d+[.)]\s+/, ''));
+                i++;
+            }
+            elements.push(
+                <ol key={i} className="list-decimal pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
+                    {items.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
+                </ol>
+            );
+            continue;
+        }
+
+        const hrMatch = line.match(/^[-*_]{3,}$/);
+        if (hrMatch) { elements.push(<hr key={i} className="my-4 border-zinc-200 dark:border-zinc-700" />); i++; continue; }
+
+        const codeBlockMatch = line.match(/^```/);
+        if (codeBlockMatch) {
+            i++;
+            const codeLines = [];
+            while (i < lines.length && !lines[i].match(/^```/)) {
+                codeLines.push(lines[i]);
+                i++;
+            }
+            i++;
+            elements.push(
+                <pre key={i} className="my-3 p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-xs font-mono overflow-x-auto border border-zinc-200 dark:border-zinc-700">
+                    <code>{codeLines.join('\n')}</code>
+                </pre>
+            );
+            continue;
+        }
+
+        const blockquoteMatch = line.match(/^>\s+(.+)/);
+        if (blockquoteMatch) {
+            const qLines = [];
+            while (i < lines.length && lines[i].match(/^>\s+(.+)/)) {
+                qLines.push(lines[i].replace(/^>\s+/, ''));
+                i++;
+            }
+            elements.push(
+                <blockquote key={i} className="my-3 pl-4 border-l-4 border-blue-400 text-zinc-600 dark:text-zinc-400 italic">
+                    {qLines.map((ql, idx) => <p key={idx} className="my-1">{renderInlineMarkdown(ql)}</p>)}
+                </blockquote>
+            );
+            continue;
+        }
+
+        elements.push(<p key={i} className="my-1.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">{renderInlineMarkdown(line)}</p>);
+        i++;
+    }
+    return <div className="markdown-body">{elements}</div>;
+});
+
+const renderInlineMarkdown = (text) => {
+    if (!text) return '';
+    const parts = [];
+    let remaining = text;
+    let key = 0;
+    while (remaining.length > 0) {
+        const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+        const codeMatch = remaining.match(/`(.+?)`/);
+        let match = null;
+        let type = '';
+        if (boldMatch && (!codeMatch || boldMatch.index <= codeMatch.index)) {
+            match = boldMatch;
+            type = 'bold';
+        } else if (codeMatch) {
+            match = codeMatch;
+            type = 'code';
+        }
+        if (!match) {
+            parts.push(<span key={key++}>{remaining}</span>);
+            break;
+        }
+        if (match.index > 0) {
+            parts.push(<span key={key++}>{remaining.slice(0, match.index)}</span>);
+        }
+        if (type === 'bold') {
+            parts.push(<strong key={key++} className="font-bold text-zinc-900 dark:text-zinc-100">{match[1]}</strong>);
+        } else {
+            parts.push(<code key={key++} className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono text-rose-600 dark:text-rose-400">{match[1]}</code>);
+        }
+        remaining = remaining.slice(match.index + match[0].length);
+    }
+    return parts;
+};
+
 const parseLogData = (data, type) => {
     const raw = type === 'agent_request' ? data.request : data.response;
+    if (type === 'agent_request' && typeof raw === 'string') {
+        const parsed = parseProtobufText(raw);
+        return { parsed, type: 'protobuf' };
+    }
     try {
         let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-        // Unwrap the outermost 'request' or 'response' key if it exists
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             if (type === 'agent_request' && parsed.request) {
                 parsed = parsed.request;
@@ -28,36 +190,39 @@ const parseLogData = (data, type) => {
             }
         }
 
-        return parsed; // Return the object instead of string for better processing
+        return { parsed, type: 'json' };
     } catch (e) {
-        return raw;
+        return { parsed: raw, type: 'text' };
     }
 };
 
 const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
-    const [showDetail, setShowDetail] = useState(false);
-    const parsed = useMemo(() => parseLogData(event.data, event.type), [event]);
+    const [showRaw, setShowRaw] = useState(false);
+    const [showMeta, setShowMeta] = useState(false);
+    const { parsed, type: dataType } = useMemo(() => parseLogData(event.data, event.type), [event]);
 
-    const textContent = useMemo(() => {
+    const isProtobuf = dataType === 'protobuf';
+    const isJson = dataType === 'json';
+
+    const displayText = useMemo(() => {
         if (!parsed) return '';
+        if (isProtobuf && parsed.text) return parsed.text;
         if (typeof parsed === 'string') return parsed;
+        if (typeof parsed !== 'object') return String(parsed);
 
         const findText = (obj) => {
             if (!obj || typeof obj !== 'object') return typeof obj === 'string' ? [obj] : [];
             if (Array.isArray(obj)) return obj.flatMap(findText);
 
             let results = [];
-            // Collect specific content keys
             if (obj.text && typeof obj.text === 'string') results.push(obj.text);
             if (obj.message && typeof obj.message === 'string') results.push(obj.message);
 
-            // Recurse into common containers if no text was found at this level
             if (results.length === 0) {
                 if (obj.parts) results = results.concat(findText(obj.parts));
                 if (obj.artifacts) results = results.concat(findText(obj.artifacts));
             }
 
-            // If still nothing, do a shallow scan for nested structures that might have text
             if (results.length === 0) {
                 Object.keys(obj).forEach(key => {
                     if (typeof obj[key] === 'object' && obj[key] !== null) {
@@ -69,9 +234,15 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
             return results;
         };
 
-        const allText = Array.from(new Set(findText(parsed))); // Deduplicate just in case
+        const allText = Array.from(new Set(findText(parsed)));
         return allText.join('\n\n');
-    }, [parsed]);
+    }, [parsed, isProtobuf]);
+
+    const isRequest = event.type === 'agent_request';
+    const accentColor = isRequest ? 'blue' : 'purple';
+    const bgLight = isRequest ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400'
+        : 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800/50 dark:text-purple-400';
+    const dotColor = isRequest ? 'bg-blue-600' : 'bg-purple-600';
 
     return (
         <div 
@@ -82,41 +253,67 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
                     : 'border-zinc-100 dark:border-zinc-800/50'}`}
         >
             <div className={`absolute -left-[9px] top-6 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
-                ${event.type === 'agent_request' ? 'bg-blue-600' : 'bg-purple-600'}
+                ${dotColor}
                 ${isSelected ? 'ring-4 ring-blue-500/20 scale-125 transition-transform' : ''}`}
             />
 
             <div className="flex items-center gap-4 mb-3">
-                <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all
-                    ${event.type === 'agent_request'
-                        ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400'
-                        : 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800/50 dark:text-purple-400'}`}
-                >
+                <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all ${bgLight}`}>
                     <Bot size={15} className="opacity-80" />
                     <span className="text-[12.5px] font-black uppercase tracking-widest font-mono">{event.data.agent}</span>
                 </div>
-
                 <span className="ml-auto text-[11px] font-mono opacity-30">{new Date(event.timestamp * 1000).toLocaleTimeString()}</span>
             </div>
 
+            {isProtobuf && parsed.metadata && Object.keys(parsed.metadata).length > 0 && (
+                <div className="mb-3">
+                    <button
+                        onClick={() => setShowMeta(!showMeta)}
+                        className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-tight text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                    >
+                        {showMeta ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        <Hash size={10} />
+                        {t('execution.request_meta')}
+                    </button>
+                    {showMeta && (
+                        <div className="mt-2 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs font-mono space-y-1">
+                            {parsed.metadata.message_id && (
+                                <div className="flex gap-2"><span className="text-zinc-400">message_id:</span><span className="text-zinc-600 dark:text-zinc-300 truncate">{parsed.metadata.message_id}</span></div>
+                            )}
+                            {parsed.metadata.role && (
+                                <div className="flex gap-2"><span className="text-zinc-400">role:</span><span className="text-zinc-600 dark:text-zinc-300">{parsed.metadata.role}</span></div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className={`group relative opacity-95 break-words font-sans text-[14.5px] leading-relaxed bg-white dark:bg-black/30 p-6 rounded-2xl border transition-all duration-300 ring-1 ring-black/5 dark:ring-white/5
                 ${isSelected ? 'border-blue-500/40 shadow-blue-500/10' : 'border-zinc-100 dark:border-zinc-800/50'}
-                ${showDetail ? 'ring-blue-500/30' : ''}`}>
-                {showDetail ? (
-                    <pre className="font-mono text-[12.5px] overflow-x-auto whitespace-pre-wrap max-h-[600px] custom-scrollbar">
-                        {JSON.stringify(parsed, null, 2)}
+                ${showRaw ? 'ring-blue-500/30' : ''}`}>
+                {showRaw ? (
+                    <pre className="font-mono text-[12px] overflow-x-auto whitespace-pre-wrap max-h-[600px] custom-scrollbar text-zinc-800 dark:text-zinc-200">
+                        {isJson ? JSON.stringify(parsed, null, 2) : JSON.stringify(event.data, null, 2)}
                     </pre>
                 ) : (
                     <div className="text-zinc-800 dark:text-zinc-200">
-                        {textContent || <span className="italic opacity-40">{t('execution.no_text')}</span>}
+                        {displayText ? (
+                            event.type === 'agent_response' ? (
+                                <MarkdownRenderer text={displayText} />
+                            ) : (
+                                <pre className="font-sans text-[14px] whitespace-pre-wrap leading-relaxed">{displayText}</pre>
+                            )
+                        ) : (
+                            <span className="italic opacity-40">{t('execution.no_text')}</span>
+                        )}
                     </div>
                 )}
 
                 <button
-                    onClick={() => setShowDetail(!showDetail)}
+                    onClick={() => setShowRaw(!showRaw)}
                     className="mt-5 flex items-center gap-2 ml-auto text-[11px] font-black uppercase tracking-tighter text-blue-600 hover:text-blue-500 transition-colors py-1.5 px-4 bg-blue-500/5 hover:bg-blue-500/10 rounded-full border border-blue-500/10"
                 >
-                    {showDetail ? t('execution.show_less') : t('execution.view_detail')}
+                    {showRaw ? t('execution.show_less') : t('execution.view_detail')}
                 </button>
             </div>
         </div>
@@ -143,6 +340,7 @@ const ExecutionCenter = ({ isDark }) => {
     const logScrollRef = useRef(null);
     const [autoScroll, setAutoScroll] = useState(true);
     const [selectedNodeId, setSelectedNodeId] = useState(null);
+    const [isPanelExpanded, setIsPanelExpanded] = useState(false);
 
     const handleNodeSelect = useCallback((node) => {
         if (!node) {
@@ -467,7 +665,16 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
 
-                <div className={`w-[450px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0`}>
+                {isPanelExpanded && (
+                    <div 
+                        className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 transition-opacity duration-300"
+                        onClick={() => setIsPanelExpanded(false)}
+                    />
+                )}
+                <div className={`rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300
+                    ${isPanelExpanded 
+                        ? 'w-[65vw] fixed right-6 top-6 bottom-6 z-50 shadow-2xl' 
+                        : 'w-[450px]'}`}>
                     <div className={`h-16 px-8 border-b flex items-center justify-between shrink-0 ${theme.header}`}>
                         <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-blue-500/10 rounded-xl">
@@ -475,11 +682,20 @@ const ExecutionCenter = ({ isDark }) => {
                             </div>
                             <h3 className="text-lg font-black dark:text-white">{t('execution.interaction')}</h3>
                         </div>
-                        {!autoScroll && (
-                            <button onClick={() => setAutoScroll(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase">
-                                {t('execution.sync')}
+                        <div className="flex items-center gap-2">
+                            {!autoScroll && (
+                                <button onClick={() => setAutoScroll(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase">
+                                    {t('execution.sync')}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+                                className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                title={isPanelExpanded ? t('execution.collapse') : t('execution.expand')}
+                            >
+                                {isPanelExpanded ? <PanelLeftClose size={18} className="text-zinc-500" /> : <PanelLeftOpen size={18} className="text-zinc-500" />}
                             </button>
-                        )}
+                        </div>
                     </div>
 
                     <div ref={logScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar scroll-smooth ${theme.content}`}>
@@ -491,7 +707,6 @@ const ExecutionCenter = ({ isDark }) => {
                         ) : (
                             events.map((event, index) => {
                                 const agentName = event.data.agent;
-                                // We also try to match if the selected node's agent matches this event's agent
                                 const isSelected = selectedNodeId && (nodes.find(n => n.id === selectedNodeId)?.data?.name === agentName || nodes.find(n => n.id === selectedNodeId)?.data?.agent === agentName);
                                 
                                 return (

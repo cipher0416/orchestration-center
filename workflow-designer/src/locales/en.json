@@ -48,7 +48,10 @@
     "workflow_list": "Matched Workflows",
     "no_match": "No matching workflow found",
     "match_failed": "Match request failed.",
-    "no_description": "No description provided for this workflow."
+    "no_description": "No description provided for this workflow.",
+    "expand": "Expand Panel",
+    "collapse": "Collapse Panel",
+    "request_meta": "Request Metadata"
   },
   "orchestration": {
     "title": "Orchestration",

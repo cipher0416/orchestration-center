@@ -48,7 +48,10 @@
     "workflow_list": "匹配工作流",
     "no_match": "未检索到匹配的工作流",
     "match_failed": "匹配请求失败。",
-    "no_description": "该工作流暂无描述。"
+    "no_description": "该工作流暂无描述。",
+    "expand": "展开面板",
+    "collapse": "收起面板",
+    "request_meta": "请求元数据"
   },
   "orchestration": {
     "title": "编排中心",
