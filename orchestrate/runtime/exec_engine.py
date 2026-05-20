@@ -14,21 +14,27 @@
 #    under the License.
 
 import json
+from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 
 import httpx
 from a2a.client import ClientConfig, ClientFactory
-from a2a.helpers import get_message_text, new_text_message
+from a2a.helpers import new_text_message
 from a2a.types import SendMessageRequest
-from google.protobuf.json_format import MessageToJson
+from google.protobuf.json_format import MessageToJson, MessageToDict
 from loguru import logger
 
+from a2a_t.client import A2ATClient
 from common.llm import get_llm_instance
 from orchestrate.core.model.psop import PSOP, Step, Task, TaskStatus
-
+from samples.a2at_config import get_a2at_env_path
+from samples.negotiation_utils import (
+    extract_negotiation_context_from_task_metadata,
+    log_negotiation_context,
+)
 
 class DynamicWorkflowEngine:
-    def __init__(self, psop: PSOP, agent_cards):
+    def __init__(self, psop: PSOP, agent_cards, a2at_env_path: Path = None):
         self.workflow = psop
         self.current_step_idx = 0
         self.execution_history = []
@@ -36,6 +42,15 @@ class DynamicWorkflowEngine:
         self.agent_cards = agent_cards
         self.push_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
         self.step_outputs: Dict[str, Dict[str, Any]] = {}
+
+        env_path = a2at_env_path or get_a2at_env_path()
+        try:
+            self.a2at_client = A2ATClient(env_path=env_path)
+            logger.info(f"DynamicWorkflowEngine initialized with A2ATClient, env_path={env_path}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize A2ATClient: {e}, continuing without negotiation support")
+            self.a2at_client = None
+
 
     def set_push_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         self.push_callback = callback
@@ -67,6 +82,18 @@ class DynamicWorkflowEngine:
         if not agent_card:
             raise RuntimeError(f"Agent not found: {agent_name}")
 
+        task_text = task
+        if self.a2at_client:
+            try:
+                prompt_result = self.a2at_client.generate_task_prompt(task)
+                if prompt_result.success and prompt_result.prompt_text:
+                    task_text = prompt_result.prompt_text
+                    logger.info(f"[A2AT] Generated task prompt for agent '{agent_name}'")
+                else:
+                    logger.warning(f"[A2AT] Task prompt generation failed, using original task")
+            except Exception as e:
+                logger.warning(f"[A2AT] Failed to generate task prompt: {e}")
+
         try:
             timeout_config = httpx.Timeout(
                 connect=60,
@@ -83,7 +110,7 @@ class DynamicWorkflowEngine:
                 streaming=agent_card.capabilities.streaming if agent_card.capabilities else False,
             )
             client = ClientFactory(config).create(agent_card)
-            request = new_text_message(text=task)
+            request = new_text_message(text=task_text)
             # Push request information
             try:
                 request_data = request.model_dump_json() if hasattr(request, 'model_dump_json') else str(request)
@@ -108,17 +135,24 @@ class DynamicWorkflowEngine:
 
                 # Process response
                 if isinstance(task_result, Task):
-                    # Handle Task type response
                     response_text = ""
                     if hasattr(task_result, 'artifacts') and task_result.artifacts:
-                        # Extract text from artifacts
                         for artifact in task_result.artifacts:
                             if hasattr(artifact, 'parts') and artifact.parts:
                                 for part in artifact.parts:
                                     if hasattr(part, 'text') and part.text:
                                         response_text += part.text
 
-                    # Push response information
+                    if hasattr(task_result, 'metadata') and task_result.metadata:
+                        metadata = task_result.metadata
+                        if isinstance(metadata, dict):
+                            metadata_dict = metadata
+                        else:
+                            metadata_dict = MessageToDict(metadata, preserving_proto_field_name=True)
+                        negotiation_ctx = extract_negotiation_context_from_task_metadata(metadata_dict)
+                        if negotiation_ctx:
+                            log_negotiation_context(negotiation_ctx, f"[{agent_name}]")
+
                     response_data = MessageToJson(task_result, preserving_proto_field_name=True)
                     self._push_event("agent_response", {
                         "agent": agent_name,
@@ -166,7 +200,6 @@ class DynamicWorkflowEngine:
             self._record_stop_event("Task execution failed", step_result)
             self.current_step_idx = len(self.workflow.steps)
             return
-        self.step_outputs[current_step.name] = step_result
         await self._process_llm_decision(current_step, step_result)
 
     async def _process_llm_decision(self, current_step, step_result):

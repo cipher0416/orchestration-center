@@ -34,9 +34,13 @@ from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExe
 from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
 from samples.agents.assurance_agent import AssuranceAgentExecutor
 from samples.agents.ran_agent import RanAgentExecutor
+from samples.a2at_config import ensure_env_file_exists
 
 
 def pre_insert_psop():
+    ensure_env_file_exists()
+    logger.info("A2AT SDK environment file initialized")
+    
     storage = get_workflow_storage()
     for wf_id in storage.list_psops():
         psop = storage.load_psop(wf_id)

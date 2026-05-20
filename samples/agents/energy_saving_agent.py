@@ -13,54 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import asyncio
-import uuid
-from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events import EventQueue
-from a2a.types import (
-    Task, TaskStatus, TaskState, Artifact, Part,
-)
-from loguru import logger
-
-from common.llm import get_llm_instance
+from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 
-class EnergySavingAgentExecutor(AgentExecutor):
+ENERGY_SAVING_PROMPT = """
+You are a wireless energy-saving agent simulator in the telecommunications field. Please simulate a brief success response based on the received user task.
+
+Task: {task}
+Output the response directly in Chinese without any additional content.
+"""
+
+
+class EnergySavingAgentExecutor(NegotiationBaseAgentExecutor):
 
     def __init__(self) -> None:
-        self.llm = get_llm_instance()
-
-    async def execute(
-            self,
-            context: RequestContext,
-            event_queue: EventQueue,
-    ) -> None:
-        prompt = context.get_user_input()
-        response = await asyncio.to_thread(self.answer_query, prompt)
-        task = Task(
-            id=context.task_id,
-            context_id=context.context_id,
-            status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
-            artifacts=[
-                Artifact(artifact_id=str(uuid.uuid4()), parts=[Part(text=response)])
-            ]
-        )
-        await event_queue.enqueue_event(task)
-
-    def answer_query(self, user_message: str):
-        prompt = f"""
-        You are a wireless energy-saving agent simulator in the telecommunications field. Please simulate a brief success response based on the received user task.
-
-        Task: {user_message}
-        Output the response directly in Chinese without any additional content.
-        """
-        _, res = self.llm.ask_llm(prompt)
-        logger.info(f"task of : {user_message}, result is: {res}")
-        return res
-
-    async def cancel(
-            self,
-            context: RequestContext,
-            event_queue: EventQueue,
-    ) -> None:
-        pass
+        super().__init__(agent_prompt_template=ENERGY_SAVING_PROMPT)

@@ -56,6 +56,7 @@ from orchestrate.solution_package.parse_flow import SolutionPackageParser
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate.workflow_storage_instance import get_workflow_storage
+from samples.a2at_config import get_a2at_env_path
 
 # Create FastAPI application
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0",docs_url=None, redoc_url=None, openapi_url=None)
@@ -720,7 +721,8 @@ async def start_process_stream(psop_id: str):
 
         async def run_workflow_async():
             try:
-                engine = DynamicWorkflowEngine(psop, agent_cards)
+                a2at_env_path = get_a2at_env_path()
+                engine = DynamicWorkflowEngine(psop, agent_cards, a2at_env_path=a2at_env_path)
                 engine.set_push_callback(push_callback)
 
                 event_queue.put({

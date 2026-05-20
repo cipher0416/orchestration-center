@@ -23,6 +23,7 @@ from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from samples.util import MOCK_ES_WORKFLOW
+from samples.a2at_config import get_a2at_env_path
 
 def get_pre_workflow():
     pre_md = MOCK_ES_WORKFLOW
@@ -87,8 +88,9 @@ def _generate_workflow(preflow, agent_cards):
 
 async def _execute_workflow(workflow, agent_cards):
     logger.info("[STEP 4] Initializing DynamicWorkflowEngine...")
-    engine = DynamicWorkflowEngine(workflow, agent_cards)
-    logger.info(f"[STEP 4] Starting workflow execution...")
+    a2at_env_path = get_a2at_env_path()
+    engine = DynamicWorkflowEngine(workflow, agent_cards, a2at_env_path=a2at_env_path)
+    logger.info(f"[STEP 4] Starting workflow execution with A2AT support...")
     execution_start = time.time()
 
     try:
