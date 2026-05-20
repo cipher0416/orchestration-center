@@ -15,10 +15,11 @@
 
 from loguru import logger
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
+from orchestrate.core.model.execution_record import ExecutionRecord
 
 class WorkflowStorageError(Exception):
     """Exception raised for workflow storage errors."""
@@ -39,9 +40,11 @@ class WorkflowStorage:
             project_root = current_file.parent.parent.parent
             self.psop_dir = project_root / "data" / "workflow_storage" / "psop"
             self.preflow_dir = project_root / "data" / "workflow_storage" / "preflow"
+            self.execution_dir = project_root / "data" / "workflow_storage" / "execution_records"
         else:
             self.psop_dir = Path(storage_dir) / "workflow_storage" / "psop"
             self.preflow_dir = Path(storage_dir) / "workflow_storage" / "preflow"
+            self.execution_dir = Path(storage_dir) / "workflow_storage" / "execution_records"
         self._init_storage()
 
     def save_psop(self, psop: PSOP) -> str:
@@ -226,6 +229,93 @@ class WorkflowStorage:
         self.save_preflow(preflow)
         return True
 
+    def save_execution_record(self, record: ExecutionRecord) -> str:
+        """
+        Save execution record to storage.
+
+        Args:
+            record: ExecutionRecord object to save
+
+        Returns:
+            str: Execution record ID
+        """
+        try:
+            file_path = self.execution_dir / f"{record.execution_id}.json"
+            with open(file_path, "w", encoding='utf-8') as f:
+                f.write(record.model_dump_json(indent=2))
+            logger.info(f"Execution record saved: {record.execution_id} @ {file_path}")
+            return record.execution_id
+        except Exception as e:
+            logger.error(f"Failed to save execution record: {e}")
+            raise WorkflowStorageError(f"Failed to save execution record: {e}")
+
+    def load_execution_record(self, execution_id: str) -> Optional[ExecutionRecord]:
+        """
+        Load execution record from storage.
+
+        Args:
+            execution_id: Execution record ID
+
+        Returns:
+            Optional[ExecutionRecord]: ExecutionRecord object if found, None otherwise
+        """
+        try:
+            file_path = self.execution_dir / f"{execution_id}.json"
+            if not file_path.exists():
+                return None
+            with open(file_path, "r", encoding='utf-8') as f:
+                return ExecutionRecord.model_validate_json(f.read())
+        except Exception as e:
+            logger.error(f"Failed to load execution record {execution_id}: {e}")
+            return None
+
+    def list_execution_records(self) -> List[Dict[str, Any]]:
+        """
+        List all execution records (summary only, no full events).
+
+        Returns:
+            List[Dict]: List of execution record summaries sorted by started_at desc
+        """
+        records = []
+        for f in sorted(self.execution_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                with open(f, "r", encoding='utf-8') as fh:
+                    record = ExecutionRecord.model_validate_json(fh.read())
+                    records.append({
+                        "execution_id": record.execution_id,
+                        "psop_id": record.psop_id,
+                        "psop_name": record.psop_name,
+                        "started_at": record.started_at.isoformat() if record.started_at else None,
+                        "completed_at": record.completed_at.isoformat() if record.completed_at else None,
+                        "status": record.status,
+                        "step_count": len(record.execution_history),
+                        "error": record.error,
+                    })
+            except Exception as e:
+                logger.error(f"Failed to read execution record {f.stem}: {e}")
+        return records
+
+    def delete_execution_record(self, execution_id: str) -> bool:
+        """
+        Delete execution record from storage.
+
+        Args:
+            execution_id: Execution record ID
+
+        Returns:
+            bool: True if deleted, False if not found
+        """
+        try:
+            file_path = self.execution_dir / f"{execution_id}.json"
+            if file_path.exists():
+                file_path.unlink()
+                logger.info(f"Execution record deleted: {execution_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to delete execution record {execution_id}: {e}")
+            return False
+
     def _init_storage(self) -> None:
         """
         Initialize storage directories.
@@ -234,6 +324,8 @@ class WorkflowStorage:
         logger.info(f"PSOP storage initialized at : {self.psop_dir}")
         self.preflow_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Preflow storage initialized at : {self.preflow_dir}")
+        self.execution_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Execution record storage initialized at : {self.execution_dir}")
 
     def _get_file_path(self, workflow_id: str, workflow_type: str) -> Path:
         """

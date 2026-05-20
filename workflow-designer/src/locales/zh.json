@@ -51,7 +51,13 @@
     "no_description": "该工作流暂无描述。",
     "expand": "展开面板",
     "collapse": "收起面板",
-    "request_meta": "请求元数据"
+    "request_meta": "请求元数据",
+    "match_tab": "匹配工作流",
+    "history_tab": "执行记录",
+    "no_match_yet": "搜寻匹配...",
+    "no_history": "暂无执行记录",
+    "loading": "加载中...",
+    "load_history_failed": "加载历史记录失败"
   },
   "orchestration": {
     "title": "编排中心",

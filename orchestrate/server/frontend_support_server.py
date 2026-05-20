@@ -22,6 +22,7 @@ import threading
 import queue
 import time
 import uuid
+from datetime import datetime
 from typing import Optional, List, Any, Dict
 
 import anyio
@@ -48,6 +49,7 @@ from common.log.audit_logger import audit_logger, OperationObject, OperationName
 from common.util.config_util import get_conf
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
+from orchestrate.core.model.execution_record import ExecutionRecord
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
 from orchestrate.core.retrieval import WorkflowRetrieval
@@ -553,6 +555,8 @@ async def execute_workflow(
 
     async def event_generator():
         event_queue = queue.Queue()
+        collected_events = []
+        started_at = datetime.now()
 
         def push_callback(event_type: str, data: dict):
             try:
@@ -586,10 +590,15 @@ async def execute_workflow(
                     "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
                 }
                 event_queue.put(event_data)
+                if event_type in ("agent_request", "agent_response"):
+                    collected_events.append(event_data)
             except Exception as e:
                 logger.error(f"Failed to push event to queue: {e}")
 
         async def run_workflow_async():
+            record_status = "success"
+            record_error = None
+            execution_history = []
             try:
                 a2at_env_path = get_a2at_env_path()
                 engine = DynamicWorkflowEngine(psop, agent_cards, a2at_env_path=a2at_env_path)
@@ -605,10 +614,35 @@ async def execute_workflow(
                 })
             except Exception as e:
                 logger.error(f"Workflow execution failed: {e}")
+                record_status = "failed"
+                record_error = str(e)
                 event_queue.put({
                     "type": "error",
                     "data": {"psop_id": psop_id, "error": str(e)}
                 })
+            finally:
+                try:
+                    final_psop = None
+                    try:
+                        final_psop = psop.model_dump() if hasattr(psop, 'model_dump') else str(psop)
+                    except Exception:
+                        pass
+                    record = ExecutionRecord(
+                        psop_id=psop_id,
+                        psop_name=getattr(psop, 'name', ''),
+                        started_at=started_at,
+                        completed_at=datetime.now(),
+                        status=record_status,
+                        execution_history=execution_history,
+                        final_psop=final_psop,
+                        events=collected_events,
+                        error=record_error,
+                    )
+                    storage = get_workflow_storage()
+                    storage.save_execution_record(record)
+                    logger.info(f"Execution record saved: {record.execution_id}")
+                except Exception as e:
+                    logger.error(f"Failed to save execution record: {e}")
 
         def run_workflow():
             loop = asyncio.new_event_loop()
@@ -645,6 +679,31 @@ async def execute_workflow(
             'X-Accel-Buffering': 'no'
         }
     )
+
+
+@router.delete("/execution-records/{execution_id}")
+async def delete_execution_record(execution_id: str):
+    storage = get_workflow_storage()
+    deleted = storage.delete_execution_record(execution_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
+    return ok(data={"deleted": execution_id})
+
+
+@router.get("/execution-records")
+async def list_execution_records():
+    storage = get_workflow_storage()
+    records = storage.list_execution_records()
+    return ok(data=records)
+
+
+@router.get("/execution-records/{execution_id}")
+async def get_execution_record(execution_id: str):
+    storage = get_workflow_storage()
+    record = storage.load_execution_record(execution_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
+    return ok(data=record.model_dump())
 
 
 # ──── Register router ────

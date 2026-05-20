@@ -141,6 +141,20 @@ export function getStartProcessStreamUrl(psopId) {
     return `${ORCHESTRATE_BASE()}/execute?psop_id=${psopId}`;
 }
 
+// ──── Execution Records ────
+
+export async function getExecutionRecords() {
+    return api.get(`${ORCHESTRATE_BASE()}/execution-records`);
+}
+
+export async function getExecutionRecord(executionId) {
+    return api.get(`${ORCHESTRATE_BASE()}/execution-records/${executionId}`);
+}
+
+export async function deleteExecutionRecord(executionId) {
+    return api.delete(`${ORCHESTRATE_BASE()}/execution-records/${executionId}`);
+}
+
 // ──── Legacy helpers (used by other parts of the app) ────
 
 export async function switchLanguage(local) {

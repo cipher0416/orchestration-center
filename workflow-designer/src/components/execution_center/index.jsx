@@ -13,9 +13,14 @@ import {
     PanelLeftClose,
     ChevronDown,
     ChevronRight,
-    Hash
+    Hash,
+    Trash2,
+    Clock,
+    CheckCircle2,
+    XCircle,
+    RotateCcw
 } from 'lucide-react';
-import { getWorkflowById, getStartProcessStreamUrl, matchWorkflows } from '@/service/api.js';
+import { getWorkflowById, getStartProcessStreamUrl, matchWorkflows, getExecutionRecords, getExecutionRecord, deleteExecutionRecord } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 
@@ -341,6 +346,9 @@ const ExecutionCenter = ({ isDark }) => {
     const [autoScroll, setAutoScroll] = useState(true);
     const [selectedNodeId, setSelectedNodeId] = useState(null);
     const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+    const [activeTab, setActiveTab] = useState('match');
+    const [executionRecords, setExecutionRecords] = useState([]);
+    const [isLoadingRecords, setIsLoadingRecords] = useState(false);
 
     const handleNodeSelect = useCallback((node) => {
         if (!node) {
@@ -390,6 +398,49 @@ const ExecutionCenter = ({ isDark }) => {
             setIsMatching(false);
         }
     };
+
+    const loadHistoryRecords = useCallback(async () => {
+        setIsLoadingRecords(true);
+        try {
+            const res = await getExecutionRecords();
+            if (res.status === 'success') {
+                setExecutionRecords(res.data || []);
+            }
+        } catch (err) {
+            console.error("Failed to load execution records:", err);
+        } finally {
+            setIsLoadingRecords(false);
+        }
+    }, []);
+
+    const loadHistoryDetail = useCallback(async (executionId) => {
+        try {
+            const res = await getExecutionRecord(executionId);
+            if (res.status === 'success') {
+                const record = res.data;
+                if (record.final_psop) setPsopStatus(record.final_psop);
+                if (record.events && record.events.length > 0) setEvents(record.events);
+                setIsRunning(false);
+                setRunningId(null);
+                setSelectedId(record.psop_id);
+                setWorkflowSource('retrieved');
+                setError(null);
+            }
+        } catch (err) {
+            console.error("Failed to load execution record detail:", err);
+            setError(t('execution.load_history_failed'));
+        }
+    }, [t]);
+
+    const handleDeleteRecord = useCallback(async (executionId, e) => {
+        e.stopPropagation();
+        try {
+            await deleteExecutionRecord(executionId);
+            setExecutionRecords(prev => prev.filter(r => r.execution_id !== executionId));
+        } catch (err) {
+            console.error("Failed to delete execution record:", err);
+        }
+    }, []);
 
     useEffect(() => {
         if (autoScroll && logScrollRef.current) {
@@ -565,60 +616,150 @@ const ExecutionCenter = ({ isDark }) => {
             </div>
 
             <div className="flex-1 flex gap-6 min-h-0">
-                {matchedWorkflows.length > 0 && (
-                    <div className={`w-[320px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 animate-in slide-in-from-left duration-500`}>
-                        <div className={`h-16 px-8 border-b flex items-center gap-3 shrink-0 ${theme.header}`}>
-                            <History size={18} className="text-blue-500" />
-                            <h3 className="text-lg font-black dark:text-white">{t('execution.workflow_list')}</h3>
-                        </div>
-                        <div className={`flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar ${theme.content}`}>
-                            {matchedWorkflows.map(wf => (
-                                <div 
-                                    key={wf.workflow_id}
-                                    onClick={() => setSelectedId(wf.workflow_id)}
-                                    className={`group relative p-5 rounded-[2rem] border-2 transition-all cursor-pointer box-border
-                                        ${selectedId === wf.workflow_id 
-                                            ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_8px_30px_rgb(59,130,246,0.1)]' 
-                                            : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
-                                    `}
-                                >
-                                    <div className="flex flex-col gap-2 pr-12">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${selectedId === wf.workflow_id ? 'bg-blue-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
-                                            <span className="text-sm font-black dark:text-white truncate uppercase tracking-tight">{wf.name}</span>
-                                        </div>
-                                        <span className="text-[11px] font-medium opacity-60 dark:text-zinc-400 line-clamp-2 leading-normal">
-                                            {wf.description || t('execution.no_description')}
-                                        </span>
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (runningId === wf.workflow_id) {
-                                                stopExecution();
-                                            } else {
-                                                setSelectedId(wf.workflow_id);
-                                                startExecution(wf.workflow_id);
-                                            }
-                                        }}
-                                        className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl transition-all duration-300 shadow-xl
-                                            ${runningId === wf.workflow_id 
-                                                ? 'opacity-100 scale-100 bg-rose-500 shadow-rose-500/20' 
-                                                : (selectedId === wf.workflow_id ? 'opacity-100 scale-100 bg-emerald-500 shadow-emerald-500/20' : 'opacity-0 scale-75 bg-blue-600 group-hover:opacity-100 group-hover:scale-100 shadow-blue-500/20')}
-                                            hover:scale-110 active:scale-95 text-white z-10`}
-                                    >
-                                        {runningId === wf.workflow_id ? (
-                                            <StopCircle size={14} fill="white" strokeWidth={3} />
-                                        ) : (
-                                            <Play size={14} fill="white" strokeWidth={3} />
-                                        )}
-                                    </button>
-                                </div>
-                            ))}
+                <div className={`w-[320px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 animate-in slide-in-from-left duration-500`}>
+                    <div className={`border-b shrink-0 ${theme.header}`}>
+                        <div className="flex">
+                            <button
+                                onClick={() => setActiveTab('match')}
+                                className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
+                                    ${activeTab === 'match' 
+                                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
+                                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
+                            >
+                                <Search size={14} />
+                                {t('execution.match_tab')}
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab('history'); loadHistoryRecords(); }}
+                                className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
+                                    ${activeTab === 'history' 
+                                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
+                                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
+                            >
+                                <History size={14} />
+                                {t('execution.history_tab')}
+                            </button>
                         </div>
                     </div>
-                )}
+
+                    {activeTab === 'match' && (
+                        <div className={`flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar ${theme.content}`}>
+                            {matchedWorkflows.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400 gap-3">
+                                    <Search size={48} strokeWidth={1.5} />
+                                    <p className="text-sm font-bold uppercase tracking-wider">{t('execution.no_match_yet')}</p>
+                                </div>
+                            ) : (
+                                matchedWorkflows.map(wf => (
+                                    <div 
+                                        key={wf.workflow_id}
+                                        onClick={() => { setSelectedId(wf.workflow_id); setWorkflowSource('retrieved'); }}
+                                        className={`group relative p-5 rounded-[2rem] border-2 transition-all cursor-pointer box-border
+                                            ${selectedId === wf.workflow_id 
+                                                ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_8px_30px_rgb(59,130,246,0.1)]' 
+                                                : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
+                                        `}
+                                    >
+                                        <div className="flex flex-col gap-2 pr-12">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-1.5 h-1.5 rounded-full ${selectedId === wf.workflow_id ? 'bg-blue-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
+                                                <span className="text-sm font-black dark:text-white truncate uppercase tracking-tight">{wf.name}</span>
+                                            </div>
+                                            <span className="text-[11px] font-medium opacity-60 dark:text-zinc-400 line-clamp-2 leading-normal">
+                                                {wf.description || t('execution.no_description')}
+                                            </span>
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (runningId === wf.workflow_id) {
+                                                    stopExecution();
+                                                } else {
+                                                    setSelectedId(wf.workflow_id);
+                                                    startExecution(wf.workflow_id);
+                                                }
+                                            }}
+                                            className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl transition-all duration-300 shadow-xl
+                                                ${runningId === wf.workflow_id 
+                                                    ? 'opacity-100 scale-100 bg-rose-500 shadow-rose-500/20' 
+                                                    : (selectedId === wf.workflow_id ? 'opacity-100 scale-100 bg-emerald-500 shadow-emerald-500/20' : 'opacity-0 scale-75 bg-blue-600 group-hover:opacity-100 group-hover:scale-100 shadow-blue-500/20')}
+                                                hover:scale-110 active:scale-95 text-white z-10`}
+                                        >
+                                            {runningId === wf.workflow_id ? (
+                                                <StopCircle size={14} fill="white" strokeWidth={3} />
+                                            ) : (
+                                                <Play size={14} fill="white" strokeWidth={3} />
+                                            )}
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'history' && (
+                        <div className={`flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar ${theme.content}`}>
+                            {isLoadingRecords ? (
+                                <div className="h-full flex flex-col items-center justify-center opacity-[0.30] text-zinc-400 gap-3">
+                                    <RotateCcw size={24} className="animate-spin" />
+                                    <p className="text-xs font-bold uppercase">{t('execution.loading')}</p>
+                                </div>
+                            ) : executionRecords.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400 gap-3">
+                                    <Clock size={48} strokeWidth={1.5} />
+                                    <p className="text-sm font-bold uppercase tracking-wider">{t('execution.no_history')}</p>
+                                </div>
+                            ) : (
+                                executionRecords.map(record => (
+                                    <div
+                                        key={record.execution_id}
+                                        onClick={() => loadHistoryDetail(record.execution_id)}
+                                        className={`group relative p-4 rounded-2xl border transition-all cursor-pointer
+                                            ${selectedId === record.psop_id && !isRunning
+                                                ? 'bg-blue-500/10 border-blue-500/50' 
+                                                : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
+                                        `}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            {record.status === 'success' ? (
+                                                <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                                            ) : record.status === 'failed' ? (
+                                                <XCircle size={16} className="text-rose-500 mt-0.5 shrink-0" />
+                                            ) : (
+                                                <Clock size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-sm font-bold dark:text-white truncate">{record.psop_name || record.psop_id}</span>
+                                                    <button
+                                                        onClick={(e) => handleDeleteRecord(record.execution_id, e)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/20 text-zinc-400 hover:text-rose-500 transition-all"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-zinc-400">
+                                                    <span>{record.started_at ? new Date(record.started_at).toLocaleString() : '-'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1.5">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase
+                                                        ${record.status === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                                                          record.status === 'failed' ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' :
+                                                          'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}
+                                                    `}>
+                                                        {record.status}
+                                                    </span>
+                                                    <span className="text-[10px] text-zinc-400">{record.step_count} steps</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
                 <div className={`flex-1 flex flex-col rounded-[2.5rem] border overflow-hidden relative ${theme.panel}`}>
                     <div className={`h-16 px-8 border-b flex justify-between items-center ${theme.header}`}>
                         <div className="flex items-center gap-3">
