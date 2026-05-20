@@ -1,0 +1,101 @@
+{
+  "id": "6a204d60-f2ff-471b-9892-c5beae1c3a5c",
+  "name": "SPN专线故障诊断",
+  "description": "传输工作台Agent向两地市SPN故障处理Agent同时下发专线故障诊断指令，并汇总分析诊断结果生成报告",
+  "created_at": "2026-05-20T21:01:43.277596",
+  "steps": [
+    {
+      "name": "step1",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "4f5b4731-6d0a-4247-9151-a78b95a7759b",
+          "description": "向两个地市SPN故障处理Agent同时下发专线故障诊断指令",
+          "agent": "Transport Workbench Agent",
+          "skill": "下发专线诊断",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step2",
+          "condition": ""
+        },
+        {
+          "step": "step3",
+          "condition": ""
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step2",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "877de562-c763-44b3-8fd6-5a282d3cd797",
+          "description": "对地市1的SPN网络进行专线故障诊断，输出诊断结果",
+          "agent": "SPN Fault Handling Agent City1 OMC",
+          "skill": "专线故障诊断",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step4",
+          "condition": ""
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step3",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "b436331b-6b3f-4f1c-a2c2-9ee0b1d5b8cc",
+          "description": "对地市2的SPN网络进行专线故障诊断，输出诊断结果",
+          "agent": "SPN Fault Handling Agent City2 OMC",
+          "skill": "专线故障诊断",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step4",
+          "condition": ""
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step4",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "2be92817-630c-4bf7-a012-1047d2a99f2f",
+          "description": "汇总两地市SPN故障诊断结果，进行综合分析并生成诊断报告",
+          "agent": "Transport Workbench Agent",
+          "skill": "汇总分析",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "end",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": [
+        "*"
+      ]
+    }
+  ],
+  "related_preflow": null,
+  "user_intent": null,
+  "tags": []
+}
