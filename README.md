@@ -16,77 +16,224 @@ All Rights Reserved.
    under the License.
 -->
 
-
 # A2A-T 多智能体编排中心
 
-## 项目简介
+## Overview
 
-编排中心是一个用于编排多个 Agent（智能体）协作的 Web 平台。用户在可视化工作流设计器中编排 Agent 之间的调用关系和流程图，后端 Python 框架负责解析流程、执行编排逻辑并驱动 Agent 协同工作。
+### 项目定位
 
-## 快速开始
+编排中心是一个面向多智能体（Agent）协作的可视化编排平台，支持通过图形化工作流设计器定义Agent之间的调用关系与执行流程。后端基于Python框架解析流程并驱动Agent协同工作，帮助用户高效构建、管理和运行复杂的Agent协作流程。
+
+### 核心能力
+
+| 能力 | 说明                                                              |
+|------|-----------------------------------------------------------------|
+| **可视化编排** | 提供图形化工作流设计器，通过拖拽和连线即可完成Agent协作流程设计，无需编写代码                       |
+| **多模式生成** | 支持PDF导入、手动编排、自然语言生成三种工作流创建方式，适配不同用户习惯                           |
+| **A2A-T协商集成** | 集成a2a-t-sdk的fulfillment协商能力，支持Agent间协商交互，协商上下文通过Task.metadata携带 |
+| **智能检索** | 基于自然语言意图检索历史工作流，快速复用已有流程                                        |
+| **实时流式执行** | 通过SSE技术实时推送执行进度，便于前端展示和问题定位                                     |
+
+### 技术架构
+
+| 层级 | 技术 |
+|------|------|
+| 后端框架 | Python + FastAPI + uvicorn |
+| 前端框架 | Node.js + React |
+| SDK集成 | a2a-t-sdk（协商能力）、a2a-sdk（协议实现） |
+| 数据存储 | PostgreSQL / File |
+| 消息推送 | SSE (Server-Sent Events) |
+
+### 目录结构
+
+```
+orchestration-center/
+├── orchestrate/              # 核心编排模块
+│   ├── core/                 # 核心模型（PSOP、PreFlow）
+│   ├── runtime/              # 执行引擎（DynamicWorkflowEngine）
+│   ├── server/               # REST API服务
+│   ├── registry_client/      # 注册中心客户端
+│   └── solution_package/     # SolutionPackage解析
+├── samples/                  # 示例Agent
+│   ├── agents/               # Agent实现（集成A2A-T协商）
+│   ├── a2at_config/          # A2A-T SDK配置
+│   ├── negotiation_utils.py  # 协商工具函数
+│   └── agentcard/            # AgentCard定义
+├── workflow-designer/        # 前端可视化设计器
+├── common/                   # 公共模块（LLM、配置、日志等）
+├── config/                   # 配置文件（llm_config.json等）
+├── etc/                      # SSL证书、服务配置
+├── data/                     # 本地数据存储
+└── docs/                     # 文档
+```
+
+### 核心依赖
+
+| 依赖 | 版本 | 用途 |
+|------|------|------|
+| a2a-t-sdk | &gt;=0.1.1 | Agent协商能力（fulfillment协商） |
+| a2a-sdk | latest | A2A协议实现 |
+| fastapi | &gt;=0.135.1 | REST API框架 |
+| pydantic | &gt;=2.12.5 | 数据模型验证 |
+| openai | &gt;=2.26.0 | LLM调用 |
+| uvicorn | &gt;=0.42 | ASGI服务器 |
+
+---
+
+## Quick Start
 
 ### 环境要求
-- Node.js 20.19
-- Python 3.10+
 
-## 启动前配置
-### ip端口配置(可选)
-本项目默认是在回环地址127.0.0.1：60000上开放端口侦听，接受restful请求，可按照实际需要，修改此ip、端口配置。
-配置文件：{安装目录}/etc/conf/server.conf
-默认配置如下，可按需修改：
+| 环境 | 版本要求         |
+|------|--------------|
+| Node.js | &gt;= 20.19 |
+| Python | &gt;= 3.14  |
+
+### 安装步骤
+
+#### Windows
+
+```bash
+# 1. 创建虚拟环境
+python -m venv .venv
+
+# 2. 激活虚拟环境
+.\.venv\Scripts\activate
+
+# 3. 安装依赖
+pip install -r requirements.txt
+
+# 4. 启动后端服务
+python -m orchestrate.start
+
+# 5. 启动前端服务
+cd workflow-designer
+npm install --force
+npm run dev
+
+# 6. （可选）启动示例Agent
+cd ..
+python -m samples.start_agents_server
+```
+
+#### Linux
+
+```bash
+# 1. 创建虚拟环境
+python3 -m venv .venv
+
+# 2. 激活虚拟环境
+source .venv/bin/activate
+
+# 3. 安装依赖
+pip install -r requirements.txt
+
+# 4. 启动后端服务（后台运行）
+nohup python -m orchestrate.start > orchestrate.log 2>&1 &
+
+# 5. 启动前端服务
+cd workflow-designer
+npm install --force
+npm run dev
+
+# 6. （可选）启动示例Agent
+cd ..
+python -m samples.start_agents_server
+```
+
+### 验证启动成功
+
+| 服务 | 验证方式 |
+|------|----------|
+| 后端服务 | 看到日志输出 `Uvicorn running on http://127.0.0.1:60000` |
+| 前端服务 | 浏览器访问 `http://localhost:3003` |
+| 示例Agent | 看到日志输出各Agent启动信息 |
+
+---
+
+## A2A-T SDK集成
+
+本项目集成了a2a-t-sdk的协商能力，支持Agent间fulfillment协商交互。
+
+### 协商流程
+
+```
+编排端 → 发送任务 → Agent端
+                    ↓
+              A2ATServer.start_negotiation()
+                    ↓
+              发起fulfillment协商
+                    ↓
+              协商上下文通过Task.metadata携带
+                    ↓
+编排端 → 解析metadata中的negotiationContext
+                    ↓
+              支持多轮协商交互
+```
+
+### 协商能力说明
+
+| 组件 | 功能 |
+|------|------|
+| `A2ATServer` | Agent端协商服务，发起/接收/继续协商 |
+| `A2ATClient` | 编排端协商客户端，生成任务提示词 |
+| `NegotiationType.FULFILLMENT` | 当前支持的协商类型（任务执行协商） |
+
+### 配置说明
+
+协商配置位于 `samples/a2at_config/.env`，配置项从 `config/llm_config.json` 自动生成：
+
+```env
+A2AT_LLM_PROVIDER=deepseek
+A2AT_LLM_MODEL=deepseek-chat
+A2AT_LLM_API_KEY=<your-api-key>
+A2AT_LLM_BASE_URL=https://api.deepseek.com
+A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
+```
+
+### 协商相关代码
+
+| 文件路径 | 说明 |
+|----------|------|
+| `samples/agents/negotiation_base_agent.py` | 协商Agent基类 |
+| `samples/negotiation_utils.py` | 协商工具函数 |
+| `orchestrate/runtime/exec_engine.py` | 执行引擎（协商上下文解析） |
+
+---
+
+## 启动前配置（可选）
+
+### IP端口配置
+
+本项目默认在 `127.0.0.1:60000` 上开放端口侦听，可按需修改。
+
+配置文件：`{安装目录}/etc/conf/server.conf`
+
+```properties
 ip=127.0.0.1
 port=60000
+```
+
 ### 证书配置
-目标系统需提供一套完整证书用于启动端口，后续接受REST请求时会建立TLS传输通道，并根据配置校验对端证书。
-配置文件：{安装目录}/etc/conf/server.conf
-默认配置如下，可按需修改：
 
+如需启用HTTPS，配置SSL证书：
+
+```properties
 ssl_certfile=etc/ssl/server.cer
-
 ssl_keyfile=etc/ssl/server_key.pem
-
 ssl_keyfile_password=etc/ssl/cert_pwd
-
 ssl_ca_certs=etc/ssl/trust.cer
-
 verify_client=true
-
 enable_https=true
-如果沒有证书或者不想校验证书，将enable_https字段设置为false即可
+```
 
-persistence_mode=postgresql
+如不需要证书校验，设置 `enable_https=false`。
 
-数据的保存目前有两种：postgresql和file，如果设置为postgresql，则需要修改{安装目录}/etc/conf/db_config.json中的配置为你当前环境的postgresql的配置，如果只是想简单使用，不想使用数据库保存数据，只需要将该字段修改为file即可，数据会保存在本地{安装目录}/data目录下。
+### 数据持久化配置
 
-证书要求：
-server.cer：必选，身份证书，仅支持pem编码格式
-证书格式：X.509v3
-证书秘钥算法、秘钥长度：RSA(>= 3072 bits)，ECDSA(>= 256 bits)
-有效期：当前时间有效
+```properties
+persistence_mode=postgresql  # 或 file
+```
 
-cert_pwd:必选，私钥口令，文件名固定无后缀
-内容要求为密文
-口令原始明文复杂度需满足要求：至少8个字符，至少包含两种字符(数字、大写字母、小写字母、特殊字符`~!@#$%^&*()-_=+ | [{}]);:'",<.>/?和空格
-口令原始明文需与server_key.pem匹配
-
-server_key.pem:必选，私钥文件，金支持pem编码格式
-私钥与公钥的匹配性：需要与server.cer中的公钥时匹配的
-
-trust.cer:默认必选，仅支持pem编码格式，仅支持.cer文件，文件名固定，如果涉及多本证书，需合成一本
-启动配置项ssl_verify_client=true时，必须存在
-校验证书格式：X.509v3
-校验有效期：当前时间有效
-秘钥算法、长度：RSA(>= 3072 bits)，ECDSA(>= 256 bits)
-
-revocationlist.crl:可选，吊销列表，仅支持pem编码格式，仅支持.crl文件，文件名固定，如果涉及多本证书，需合成一本，可以不存在
-校验证书格式：X.509v2
-校验有效期：当前时间有效
-不支持国密证书
-
-注意：
-1.证书校验失败，将导致进程拉起失败。
-2.证书文件权限要求：客户配置修改证书路径后，需保证证书文件及所在目录的权限最小化(例如文件权限400，目录权限700)，同时需确保本项目进程拥有对文件的读取权限
-3.证书变更后，需重启进程生效
-
-本项目仅读取使用这些证书，不提供证书管理能力，例如证书过期告警、备份恢复等。
-
+- `postgresql`：需配置 `{安装目录}/etc/conf/db_config.json`
+- `file`：数据保存在 `{安装目录}/data` 目录
