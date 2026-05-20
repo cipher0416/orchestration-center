@@ -674,13 +674,11 @@ class TestRunWorkflow:
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_agent_card])
 
-            # Mock dependent methods
             engine._execute_subtasks = AsyncMock(return_value=({"t": "ok"}, True))
-            engine._process_llm_decision = AsyncMock(side_effect=lambda s, r: setattr(engine, 'current_step_idx', 999))
 
             result = await engine.run()
 
-            assert engine.current_step_idx == 999
+            assert result == [{'step': 'step1', 'task': 'Test energy saving analysis', 'status': 'SUCCESS', 'output': 'ok'}]
             engine._execute_subtasks.assert_called_once()
 
     @pytest.mark.asyncio
@@ -690,8 +688,7 @@ class TestRunWorkflow:
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=sample_psop, agent_cards=[mock_agent_card])
 
-            # Mock internal method throwing exception
-            engine._execute_single_step = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+            engine._execute_subtasks = AsyncMock(side_effect=RuntimeError("Unexpected error"))
 
             with pytest.raises(RuntimeError, match="Unexpected error"):
                 await engine.run()
@@ -748,7 +745,6 @@ class TestIntegration:
             history = await engine.run()
 
             # Verify execution results
-            assert engine.current_step_idx == len(psop.steps)
             assert len(history) == 2
 
             # Verify task statuses
@@ -786,7 +782,6 @@ class TestIntegration:
             # Verify flow terminated after step1 failure
             assert len(history) == 2
             assert history[0]["status"] == "FAILED"
-            assert engine.current_step_idx == len(psop.steps)
 
     @pytest.mark.asyncio
     async def test_event_callback_integration(self, mock_llm_client):
@@ -910,7 +905,7 @@ class TestCrossLayerOrchestration:
 
     @pytest.mark.asyncio
     async def test_build_context_for_step_empty(self, mock_llm_client):
-        """Test _build_context_for_step returns empty when no context_from"""
+        """Test _build_context_for_step returns empty for layer=0 step"""
         with patch('orchestrate.runtime.exec_engine.get_llm_instance',
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=MagicMock(), agent_cards=[])
@@ -918,10 +913,72 @@ class TestCrossLayerOrchestration:
                 name="step1",
                 type=StepType.ALL_SUCCESS,
                 subtasks=[],
-                next=None
+                next=None,
+                layer=0
             )
             result = engine._build_context_for_step(step)
             assert result == ""
+
+    def test_build_context_auto_derive_from_graph(self, mock_llm_client):
+        """Test _build_context_for_step auto-derives predecessors from graph topology"""
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            psop = PSOP(
+                name="branch_test",
+                steps=[
+                    Step(name="step1", type=StepType.ALL_SUCCESS, layer=0,
+                         subtasks=[Task(description="dispatch", agent="a1", skill="s1")],
+                         next=[JumpCondition(step="step2", condition=""),
+                               JumpCondition(step="step3", condition="")]),
+                    Step(name="step2", type=StepType.ALL_SUCCESS, layer=0,
+                         subtasks=[Task(description="diagnose city1", agent="a2", skill="s2")],
+                         next=[JumpCondition(step="step4", condition="")]),
+                    Step(name="step3", type=StepType.ALL_SUCCESS, layer=0,
+                         subtasks=[Task(description="diagnose city2", agent="a3", skill="s3")],
+                         next=[JumpCondition(step="step4", condition="")]),
+                    Step(name="step4", type=StepType.ALL_SUCCESS, layer=1,
+                         subtasks=[Task(description="summarize", agent="a4", skill="s4")],
+                         next=None),
+                ]
+            )
+            engine = DynamicWorkflowEngine(psop=psop, agent_cards=[])
+            engine.step_outputs = {
+                "step2": {"diagnose city1": "city1 results"},
+                "step3": {"diagnose city2": "city2 results"},
+            }
+            step4 = psop.steps[3]
+            result = engine._build_context_for_step(step4)
+            assert "step2" in result
+            assert "city1 results" in result
+            assert "step3" in result
+            assert "city2 results" in result
+            assert "step1" not in result
+
+    def test_get_step_predecessors(self, mock_llm_client):
+        """Test _get_step_predecessors identifies graph predecessors"""
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            psop = PSOP(
+                name="graph_test",
+                steps=[
+                    Step(name="step1", type=StepType.ALL_SUCCESS, subtasks=[],
+                         next=[JumpCondition(step="step2", condition=""),
+                               JumpCondition(step="step3", condition="")]),
+                    Step(name="step2", type=StepType.ALL_SUCCESS, subtasks=[],
+                         next=[JumpCondition(step="step4", condition="")]),
+                    Step(name="step3", type=StepType.ALL_SUCCESS, subtasks=[],
+                         next=[JumpCondition(step="step4", condition="")]),
+                    Step(name="step4", type=StepType.ALL_SUCCESS, subtasks=[],
+                         next=None),
+                ]
+            )
+            engine = DynamicWorkflowEngine(psop=psop, agent_cards=[])
+            preds = engine._get_step_predecessors("step4")
+            assert set(preds) == {"step2", "step3"}
+            preds = engine._get_step_predecessors("step2")
+            assert preds == ["step1"]
+            preds = engine._get_step_predecessors("step1")
+            assert preds == []
 
     def test_build_context_for_step_with_refs(self, mock_llm_client):
         """Test _build_context_for_step builds context from referenced steps"""
@@ -941,8 +998,8 @@ class TestCrossLayerOrchestration:
                 context_from=["step1", "step2"]
             )
             result = engine._build_context_for_step(step)
-            assert "step1" in result
-            assert "step2" in result
+            assert "step1 结果" in result
+            assert "step2 结果" in result
             assert "task_a" in result
             assert "result from a" in result
             assert "task_b" in result
@@ -1107,3 +1164,88 @@ class TestCrossLayerOrchestration:
         assert data["steps"][0]["context_from"] is None
         assert data["steps"][1]["layer"] == 1
         assert data["steps"][1]["context_from"] == ["step1"]
+
+    @pytest.mark.asyncio
+    async def test_parallel_fanout_execution(self, mock_llm_client):
+        """Test that unconditional multiple next targets execute all branches"""
+        psop = PSOP(
+            name="fanout_test",
+            steps=[
+                Step(name="step1", type=StepType.ALL_SUCCESS,
+                     subtasks=[Task(description="dispatch", agent="a1", skill="s1")],
+                     next=[JumpCondition(step="step2", condition=""),
+                           JumpCondition(step="step3", condition="")]),
+                Step(name="step2", type=StepType.ALL_SUCCESS,
+                     subtasks=[Task(description="task_b", agent="a2", skill="s2")],
+                     next=[JumpCondition(step="step4", condition="")]),
+                Step(name="step3", type=StepType.ALL_SUCCESS,
+                     subtasks=[Task(description="task_c", agent="a3", skill="s3")],
+                     next=[JumpCondition(step="step4", condition="")]),
+                Step(name="step4", type=StepType.ALL_SUCCESS, layer=1,
+                     subtasks=[Task(description="summarize", agent="a4", skill="s4")],
+                     next=[JumpCondition(step="endNode", condition="")]),
+            ]
+        )
+
+        mock_card = MagicMock()
+        mock_card.name = "a1"
+        mock_card.capabilities = MagicMock(streaming=False)
+
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_card])
+
+            async def mock_send(agent, task_desc):
+                return f"Result from {agent}: {task_desc}"
+
+            engine.send_message_to_agent = mock_send
+
+            history = await engine.run()
+
+            executed_steps = [h["step"] for h in history if h.get("status") == "SUCCESS"]
+            assert "step1" in executed_steps
+            assert "step2" in executed_steps
+            assert "step3" in executed_steps
+            assert "step4" in executed_steps
+            assert len([s for s in executed_steps if s == "step2"]) == 1
+            assert len([s for s in executed_steps if s == "step3"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_conditional_branch_not_auto_executed(self, mock_llm_client):
+        """Test that conditional branch targets are NOT auto-executed from initial pending"""
+        psop = PSOP(
+            name="conditional_test",
+            steps=[
+                Step(name="gen", type=StepType.ALL_SUCCESS,
+                     subtasks=[Task(description="generate", agent="a1", skill="s1")],
+                     next=[JumpCondition(step="on_success", condition="generation success"),
+                           JumpCondition(step="on_fail", condition="generation failed")]),
+                Step(name="on_success", type=StepType.ALL_SUCCESS,
+                     subtasks=[Task(description="handle success", agent="a2", skill="s2")],
+                     next=[JumpCondition(step="end", condition="")]),
+                Step(name="on_fail", type=StepType.ALL_SUCCESS,
+                     subtasks=[Task(description="handle failure", agent="a3", skill="s3")],
+                     next=[JumpCondition(step="end", condition="")]),
+            ]
+        )
+
+        mock_card = MagicMock()
+        mock_card.name = "a1"
+        mock_card.capabilities = MagicMock(streaming=False)
+
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_card])
+
+            async def mock_send(agent, task_desc):
+                return f"Result from {agent}: {task_desc}"
+
+            engine.send_message_to_agent = mock_send
+            mock_llm_client.ask_llm.return_value = ("id", "on_success")
+
+            await engine.run()
+
+            executed = [h["step"] for h in engine.execution_history if h.get("status") == "SUCCESS"]
+            assert "gen" in executed
+            assert "on_success" in executed
+            assert "on_fail" not in executed

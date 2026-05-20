@@ -22,6 +22,8 @@ export const getBaseUrl = () => {
     }
 }
 
+const ORCHESTRATE_BASE = () => `${getBaseUrl()}/rest/v1/orchestrate`;
+
 const api = axios.create({ timeout: 10000 });
 
 api.interceptors.response.use(
@@ -29,94 +31,122 @@ api.interceptors.response.use(
     (error) => Promise.reject(error)
 );
 
+// ──── Agent Cards ────
+
 export async function getAgentCards() {
-    return api.get(`${getBaseUrl()}/agent-cards`);
+    return api.get(`${ORCHESTRATE_BASE()}/agent-cards`);
 }
 
+// ──── Workflow CRUD ────
+
 export async function getWorkflow() {
-    return api.get(`${getBaseUrl()}/psops`);
+    return api.get(`${ORCHESTRATE_BASE()}/workflows`);
 }
 
 export async function getWorkflowById(id) {
-    return api.get(`${getBaseUrl()}/psops/${id}`);
+    return api.get(`${ORCHESTRATE_BASE()}/workflows/${id}`);
 }
 
 export async function delWorkflowById(id) {
-    return api.delete(`${getBaseUrl()}/psops/${id}`);
+    return api.delete(`${ORCHESTRATE_BASE()}/workflows/${id}`);
 }
 
 export async function createWorkflow(data) {
-    return api.post(`${getBaseUrl()}/psops`, { psop: data });
+    return api.post(`${ORCHESTRATE_BASE()}/workflows`, { psop: data });
 }
 
-
-export async function switchLanguage(local) {
-    return axios.post(`${getBaseUrl()}/rest/agents/switch-language?scenario='5g'`, {
-        language: local,
-    })
-}
-
+// ──── PDF Parsing ────
 
 export async function parsePdf(file) {
     const formData = new FormData();
     formData.append('file', file);
-
     try {
-        const response = await axios.post(`${getBaseUrl()}/parse-pdf`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+        const response = await axios.post(`${ORCHESTRATE_BASE()}/parse-pdf`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
-
-        if (response.data.status === "success") {
-            return JSON.parse(response.data.content);
-        } else {
-            throw new Error(response.data?.message || "PDF parsing failed");
+        const body = response.data;
+        if (body.code === 200 || body.status === "success") {
+            return body.data;
         }
+        throw new Error(body?.message || "PDF parsing failed");
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "PDF parsing interface request failed";
+        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "PDF parsing request failed";
         throw new Error(errorMsg);
     }
 }
 
+// ──── Workflow Generation ────
+
 export async function handlePlan(preflow, agentCards) {
     try {
-        const response = await axios.post(`${getBaseUrl()}/plan`, {
+        const response = await axios.post(`${ORCHESTRATE_BASE()}/generate-from-preflow`, {
             preflow: preflow,
             agent_cards: agentCards
         });
-
-        if (response.data.status === "success") {
-            const workflowData = JSON.parse(response.data.data);
-            console.log("Plan generated successfully:", workflowData);
-            return workflowData;
-        } else {
-            throw new Error(response.data?.message || "Planning generation failed");
+        const body = response.data;
+        if (body.code === 200 || body.status === "success") {
+            return body.data;
         }
+        throw new Error(body?.message || "Planning generation failed");
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "Planning interface request failed";
+        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Planning request failed";
         throw new Error(errorMsg);
     }
 }
 
 export async function generateWorkflowFromIntent(intent, name = "Generated Workflow") {
     try {
-        const response = await axios.post(`${getBaseUrl()}/generate-from-intent`, {
+        const response = await axios.post(`${ORCHESTRATE_BASE()}/generate-from-intent`, {
             user_intent: intent,
             workflow_name: name
         });
-
-        if (response.data.status === "success" || response.status === 200) {
-            const workflowData = response.data.data || response.data;
-            console.log("Natural language generation successful:", workflowData);
-            return workflowData;
-        } else {
-            throw new Error(response.data?.message || "Generation failed");
+        const body = response.data;
+        if (body.code === 200 || body.status === "success") {
+            return body.data || body;
         }
+        throw new Error(body?.message || "Generation failed");
     } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "Interface request failed";
+        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Intent generation request failed";
         throw new Error(errorMsg);
     }
+}
+
+export async function matchWorkflows(intent) {
+    try {
+        const response = await axios.post(`${ORCHESTRATE_BASE()}/retrieve-by-intent`, {
+            user_intent: intent,
+        });
+        const body = response.data;
+        if (body.code === 200 || body.status === "success") {
+            const data = body.data;
+            if (!data) return [];
+            const list = Array.isArray(data) ? data : [data];
+            return list.map(item => ({
+                workflow_id: item.id || item.workflow_id,
+                name: item.name || item.workflow_name,
+                description: item.description,
+                tags: item.tags || []
+            }));
+        }
+        throw new Error(body?.message || "Retrieval failed");
+    } catch (error) {
+        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Retrieval request failed";
+        throw new Error(errorMsg);
+    }
+}
+
+// ──── Workflow Execution ────
+
+export function getStartProcessStreamUrl(psopId) {
+    return `${ORCHESTRATE_BASE()}/execute?psop_id=${psopId}`;
+}
+
+// ──── Legacy helpers (used by other parts of the app) ────
+
+export async function switchLanguage(local) {
+    return axios.post(`${getBaseUrl()}/rest/agents/switch-language?scenario='5g'`, {
+        language: local,
+    });
 }
 
 export async function getWorkflowQuestions() {
@@ -141,35 +171,3 @@ export async function deleteWorkflowByQuestionId(questionId) {
 export async function deleteWorkflowDbByQuestionId(questionId) {
     return api.delete(`${getBaseUrl()}/rest/workflow_db?questionId=${questionId}`);
 }
-
-export function getStartProcessStreamUrl(psopId) {
-    return `${getBaseUrl()}/rest/start_process_stream?psop_id=${psopId}`;
-}
-
-export async function matchWorkflows(intent) {
-    try {
-        const response = await axios.post(`${getBaseUrl()}/retrieve-by-intent`, {
-            user_intent: intent,
-        });
-
-        if (response.data.status === "success" || response.status === 200) {
-            const data = response.data.data;
-            if (!data) return [];
-
-            const list = Array.isArray(data) ? data : [data];
-
-            return list.map(item => ({
-                workflow_id: item.id || item.workflow_id,
-                name: item.name || item.workflow_name,
-                description: item.description,
-                tags: item.tags || []
-            }));
-        } else {
-            throw new Error(response.data?.error || "Retrieval failed");
-        }
-    } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || "Interface request failed";
-        throw new Error(errorMsg);
-    }
-}
-

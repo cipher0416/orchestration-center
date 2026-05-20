@@ -15,7 +15,7 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 
 import httpx
 from a2a.client import ClientConfig, ClientFactory
@@ -24,14 +24,20 @@ from a2a.types import SendMessageRequest
 from google.protobuf.json_format import MessageToJson, MessageToDict
 from loguru import logger
 
-from a2a_t.client import A2ATClient
+try:
+    from a2a_t.client import A2ATClient
+    from samples.a2at_config import get_a2at_env_path
+    from samples.negotiation_utils import (
+        extract_negotiation_context_from_task_metadata,
+        log_negotiation_context,
+    )
+    _A2AT_AVAILABLE = True
+except ImportError:
+    _A2AT_AVAILABLE = False
+    A2ATClient = None
+
 from common.llm import get_llm_instance
 from orchestrate.core.model.psop import PSOP, Step, Task, TaskStatus
-from samples.a2at_config import get_a2at_env_path
-from samples.negotiation_utils import (
-    extract_negotiation_context_from_task_metadata,
-    log_negotiation_context,
-)
 
 class DynamicWorkflowEngine:
     def __init__(self, psop: PSOP, agent_cards, a2at_env_path: Path = None):
@@ -42,21 +48,28 @@ class DynamicWorkflowEngine:
         self.agent_cards = agent_cards
         self.push_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
         self.step_outputs: Dict[str, Dict[str, Any]] = {}
+        self.a2at_client = None
 
-        env_path = a2at_env_path or get_a2at_env_path()
-        try:
-            self.a2at_client = A2ATClient(env_path=env_path)
-            logger.info(f"DynamicWorkflowEngine initialized with A2ATClient, env_path={env_path}")
-        except Exception as e:
-            logger.warning(f"Failed to initialize A2ATClient: {e}, continuing without negotiation support")
-            self.a2at_client = None
+        if _A2AT_AVAILABLE:
+            env_path = a2at_env_path or get_a2at_env_path()
+            try:
+                self.a2at_client = A2ATClient(env_path=env_path)
+                logger.info(f"DynamicWorkflowEngine initialized with A2ATClient, env_path={env_path}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize A2ATClient: {e}, continuing without negotiation support")
+        else:
+            logger.debug("a2a_t not available, negotiation support disabled")
 
 
     def set_push_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         self.push_callback = callback
 
     def _push_event(self, event_type: str, data: Dict[str, Any]):
-        logger.info(f'push {event_type}:{data}')
+        try:
+            serialized = json.dumps(data, indent=4, ensure_ascii=False, default=str)
+        except Exception:
+            serialized = str(data)
+        logger.info(f'push {event_type}:\n{serialized}')
         if self.push_callback:
             try:
                 self.push_callback(event_type, data)
@@ -65,14 +78,73 @@ class DynamicWorkflowEngine:
 
     async def run(self):
         logger.info(f"Starting PSOP workflow, total {len(self.workflow.steps)} steps")
+        pending = [i for i, s in enumerate(self.workflow.steps) if s.layer == 0 and not self._get_step_predecessors(s.name)]
+        executed = set()
+        defer_count = {}
         try:
-            while self.current_step_idx < len(self.workflow.steps):
-                await self._execute_single_step()
+            while pending:
+                idx = pending.pop(0)
+                if idx >= len(self.workflow.steps) or idx in executed:
+                    continue
+                current_step = self.workflow.steps[idx]
+                predecessors = self._get_step_predecessors(current_step.name)
+                if not all(p in self.step_outputs for p in predecessors):
+                    dc = defer_count.get(idx, 0) + 1
+                    if dc > len(self.workflow.steps):
+                        logger.warning(f"Step {current_step.name} waiting too long, skipping")
+                        executed.add(idx)
+                        continue
+                    defer_count[idx] = dc
+                    pending.append(idx)
+                    continue
+                executed.add(idx)
+                self.current_step_idx = idx
+                current_step = self.workflow.steps[idx]
+                logger.info(f"--- Executing step: {current_step.name} ---")
+
+                step_result, success = await self._execute_subtasks(current_step)
+                if not success:
+                    logger.error(
+                        f"Step {current_step.name} execution failed, stopping workflow.")
+                    self._record_stop_event("Task execution failed", step_result)
+                    break
+                self.step_outputs[current_step.name] = step_result
+
+                next_indices = self._determine_next_steps(current_step, step_result)
+                for nxt in reversed(next_indices):
+                    if nxt not in executed and nxt not in pending:
+                        pending.insert(0, nxt)
         except Exception as e:
             logger.critical(f"Unexpected exception occurred in engine: {e}", exc_info=True)
             raise
 
         return self.execution_history
+
+    def _determine_next_steps(self, step: Step, step_result: Dict[str, Any]) -> List[int]:
+        if not step.next:
+            return []
+        if all(jc.condition == "" for jc in step.next):
+            indices = []
+            for jc in step.next:
+                if jc.step in ("end", "retry", "endNode"):
+                    continue
+                tgt = self._find_step_index(jc.step)
+                if tgt is not None:
+                    target_step = self.workflow.steps[tgt]
+                    predecessors = self._get_step_predecessors(target_step.name)
+                    if all(p in self.step_outputs for p in predecessors):
+                        indices.append(tgt)
+            return indices
+        next_name = self._llm_route_decision(step, step_result)
+        if next_name in ("end", "retry"):
+            return []
+        tgt = self._find_step_index(next_name)
+        if tgt is not None:
+            target_step = self.workflow.steps[tgt]
+            predecessors = self._get_step_predecessors(target_step.name)
+            if not all(p in self.step_outputs for p in predecessors):
+                return []
+        return [tgt] if tgt is not None else []
 
     async def send_message_to_agent(self, agent_name: str, task: str, httpx_client=None):
         agent_card = None
@@ -200,6 +272,7 @@ class DynamicWorkflowEngine:
             self._record_stop_event("Task execution failed", step_result)
             self.current_step_idx = len(self.workflow.steps)
             return
+        self.step_outputs[current_step.name] = step_result
         await self._process_llm_decision(current_step, step_result)
 
     async def _process_llm_decision(self, current_step, step_result):
@@ -289,17 +362,35 @@ class DynamicWorkflowEngine:
                 break
         return results, overall_success
 
+    def _get_step_predecessors(self, step_name: str) -> List[str]:
+        predecessors = []
+        for s in self.workflow.steps:
+            if s.next:
+                for jc in s.next:
+                    if jc.step == step_name:
+                        predecessors.append(s.name)
+                        break
+        return predecessors
+
     def _build_context_for_step(self, step: Step) -> str:
-        if not step.context_from:
+        if step.layer <= 0:
             return ""
         parts = ["## 前置步骤执行结果\n"]
-        for ref_step_name in step.context_from:
-            if ref_step_name in self.step_outputs:
-                ref_results = self.step_outputs[ref_step_name]
-                parts.append(f"### {ref_step_name} 结果")
-                for task_desc, output in ref_results.items():
-                    text = output if isinstance(output, str) else str(output)
-                    parts.append(f"- 任务: \"{task_desc}\"\n  输出: {text}")
+        if step.context_from and "*" in step.context_from:
+            ref_pairs = [(name, results) for name, results in self.step_outputs.items()]
+        elif step.context_from:
+            ref_pairs = [(name, self.step_outputs[name])
+                         for name in step.context_from if name in self.step_outputs]
+        else:
+            predecessor_names = self._get_step_predecessors(step.name)
+            ref_pairs = [(name, self.step_outputs[name])
+                         for name in predecessor_names if name in self.step_outputs]
+        for ref_step_name, ref_results in ref_pairs:
+            parts.append(f"### {ref_step_name} 结果")
+            for task_desc, output in ref_results.items():
+                text = output if isinstance(output, str) else str(output)
+                parts.append(f"**输入(任务)**: {task_desc}")
+                parts.append(f"**输出(结果)**: {text}")
                 parts.append("")
         return "\n".join(parts).strip()
 

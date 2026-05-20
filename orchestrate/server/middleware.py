@@ -99,6 +99,15 @@ def parser_rate_lime(interface_name: str, config):
         "get_all_agent_cards":(FLOW_CTL_AGENT_CARDS, 50),
         "generate_psop_from_intent":(FLOW_CTL_GENERATE_PSOP, 50),
         "retrieve_psop_by_intent":(FLOW_CTL_RETRIEVE_PSOP, 50),
+        # New endpoint names mapped to existing config keys
+        "list_workflows":(FLOW_CTL_ALL_PSOPS, 50),
+        "get_workflow":(FLOW_CTL_ONE_PSOP, 50),
+        "create_workflow":(FLOW_CTL_SAVE_PSOP, 50),
+        "delete_workflow":(FLOW_CTL_DELETE_PSOP, 50),
+        "list_agent_cards":(FLOW_CTL_AGENT_CARDS, 50),
+        "generate_from_preflow":(FLOW_CTL_PLAN, 50),
+        "generate_from_intent":(FLOW_CTL_GENERATE_PSOP, 50),
+        "retrieve_by_intent":(FLOW_CTL_RETRIEVE_PSOP, 50),
     }
 
     entry = config_map.get(interface_name)

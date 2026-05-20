@@ -184,6 +184,7 @@ def get_generate_psop_prompt(preflow: str, tasks: list, psop_scheme: str) -> str
 - 如果某个步骤需要综合、总结、分析前面步骤的执行结果，则该步骤属于聚合层。
 - 聚合层步骤需设置 layer=1（执行层默认为0），并设置 context_from 包含所有需要引用结果的步骤名称。
 - context_from 示例：["step1","step2"] 表示将 step1 和 step2 的输出注入到当前步骤 Agent 的上下文中。
+- **推荐**：当存在分支路径（多个步骤都能到达该聚合步骤），使用 context_from: ["*"] 表示自动引用所有已执行步骤的输出，避免遗漏。
 - 如果步骤中的 Agent 只需要独立执行而不依赖其他步骤结果，则不需要设置 context_from。
 
 ## 示例输出
@@ -222,6 +223,7 @@ def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_sche
 7. **上下文传递**：
    - 聚合层步骤需设置 context_from 字段，包含其依赖的前置步骤名称列表
    - context_from 示例：["step1","step2"] 表示将 step1 和 step2 的输出注入到当前步骤的 Agent 上下文中
+   - **推荐**：当存在分支路径（多个步骤都能到达该聚合步骤），使用 context_from: ["*"] 表示自动引用所有已执行步骤的输出
    - 执行层步骤不需要设置 context_from
 8. **典型场景**：当用户意图包含"总结"、"综合研判"、"根因分析"、"给出最终方案"等需要汇总前序分析的描述时，最后一步应设为聚合层步骤
 
@@ -378,7 +380,7 @@ def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_sche
             "name": "step3",
             "type": "AllSuccess",
             "layer": 1,
-            "context_from": ["step1", "step2"],
+            "context_from": ["*"],
             "subtasks": [
                 {{
                     "description": "综合前面所有排查结果，分析故障根因并生成处理建议报告",

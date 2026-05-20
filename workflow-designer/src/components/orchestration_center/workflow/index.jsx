@@ -200,6 +200,9 @@ const FlowInner = ({
     const [viewSelectedNodeId, setViewSelectedNodeId] = useState(null);
     const [viewSelectedElement, setViewSelectedElement] = useState(null);
 
+    const [viewPositionNodes, setViewPositionNodes, onViewNodesChange] = useNodesState([]);
+    const [viewPositionEdges, setViewPositionEdges, onViewEdgesChange] = useEdgesState([]);
+
     const selectViewNode = useCallback((node, subtaskIndex = null) => {
         setViewSelectedNodeId(node.id);
         setViewSelectedElement({ node, subtaskIndex });
@@ -285,6 +288,25 @@ const FlowInner = ({
             };
         });
     }, [viewEdges, viewNodes, themeClasses, mode]);
+
+    useEffect(() => {
+        if (mode === 'view' && processedNodes.length > 0) {
+            setViewPositionNodes(prev => {
+                if (prev.length === 0) return processedNodes;
+                const prevPositions = new Map(prev.map(n => [n.id, n.position]));
+                return processedNodes.map(node => ({
+                    ...node,
+                    position: prevPositions.get(node.id) || node.position,
+                }));
+            });
+        }
+    }, [processedNodes, mode]);
+
+    useEffect(() => {
+        if (mode === 'view') {
+            setViewPositionEdges(processedEdges);
+        }
+    }, [processedEdges, mode]);
 
     const lastCenteredNodeId = useRef(null);
 
@@ -585,8 +607,8 @@ const FlowInner = ({
         }
     }, [editNodes, screenToFlowPosition, setEditNodes, isDark, t, rfInstance]);
 
-    const displayNodes = mode === 'view' ? processedNodes : editNodes;
-    const displayEdges = mode === 'view' ? processedEdges : editEdges;
+    const displayNodes = mode === 'view' ? viewPositionNodes : editNodes;
+    const displayEdges = mode === 'view' ? viewPositionEdges : editEdges;
 
     return (
         <div className={`h-full w-full relative overflow-hidden select-none transition-colors duration-300 ${themeClasses.container}`}>
@@ -595,8 +617,8 @@ const FlowInner = ({
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                onNodesChange={mode === 'edit' ? onNodesChangeWithDirty : undefined}
-                onEdgesChange={mode === 'edit' ? onEdgesChangeWithDirty : undefined}
+                onNodesChange={mode === 'edit' ? onNodesChangeWithDirty : onViewNodesChange}
+                onEdgesChange={mode === 'edit' ? onEdgesChangeWithDirty : onViewEdgesChange}
                 onConnect={mode === 'edit' ? onConnect : undefined}
                 onNodeDragStop={(e, n) => { onNodeDragStop(e, n); setIsDirty(true); }}
                 onDrop={mode === 'edit' ? onDrop : undefined}

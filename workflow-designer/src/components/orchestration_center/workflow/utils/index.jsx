@@ -120,7 +120,7 @@ export const transformWorkflowToReactFlow = (rawInput) => {
         }
         nextSteps.forEach(link => {
             const targetId = link.step || link.target || 'END';
-            if (!['END', 'end', 'END_OF_WORKFLOW'].includes(targetId)) targetStepNames.add(targetId);
+            if (!['END', 'end', 'END_OF_WORKFLOW', 'endNode'].includes(targetId)) targetStepNames.add(targetId);
         });
         step._normalizedNext = nextSteps;
     });
@@ -158,13 +158,15 @@ export const transformWorkflowToReactFlow = (rawInput) => {
                 agent: agents,
                 skill: skills,
                 status: nodeStatus,
-                subtasks: subtasks
+                subtasks: subtasks,
+                layer: step.layer ?? 0,
+                context_from: step.context_from || null
             }
         });
 
         step._normalizedNext?.forEach((link, idx) => {
             const rawTarget = link.step || link.target;
-            const targetId = ['end', 'END'].includes(rawTarget) ? 'END_OF_WORKFLOW' : rawTarget;
+            const targetId = ['end', 'END', 'endNode'].includes(rawTarget) ? 'END_OF_WORKFLOW' : rawTarget;
             edges.push({
                 id: `e-${nodeId}-${targetId}-${idx}`,
                 source: nodeId,
@@ -248,7 +250,9 @@ export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
                 name: id,
                 type: data.type || "AllSuccess",
                 subtasks: subtasks,
-                next: []
+                next: [],
+                layer: typeof data.layer === 'number' ? data.layer : 0,
+                context_from: data.context_from && data.context_from.length > 0 ? data.context_from : null
             };
         }
     });

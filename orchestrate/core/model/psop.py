@@ -67,12 +67,15 @@ class Step(BaseModel):
                                                 description="Jump conditions to next steps. List of jump \
                                                 conditions (if empty, unconditional jump)")
     layer: int = Field(0, description="Orchestration layer level. 0 = execution layer (leaf agents), "
-                                      "1+ = aggregation layers (can consume lower layer outputs)")
+                                      "1+ = aggregation layers. If layer > 0 and context_from is not set, "
+                                      "the engine automatically derives predecessors from the graph topology "
+                                      "(steps whose 'next' points to this step).")
     context_from: Optional[List[str]] = Field(None,
                                               description="List of step names whose outputs should be provided as "
                                                           "context to this step's agents. "
-                                                          "If set, the execution engine will inject prior step results "
-                                                          "into each agent's input.")
+                                                          "Use ['*'] to include ALL previously executed steps. "
+                                                          "If None and layer > 0, predecessors are auto-derived "
+                                                          "from graph edges (steps with 'next' pointing to this step).")
 
 
 class PSOP(BaseModel):

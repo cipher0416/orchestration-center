@@ -182,6 +182,30 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
     };
     const isNode = !('source' in activeElement);
     const data = activeElement.data || {};
+
+    const allStepNames = useMemo(() => {
+        return nodes
+            .filter(n => n.type === 'agentNode')
+            .map(n => ({ id: n.id, label: n.data?.label || n.id }));
+    }, [nodes]);
+
+    const toggleContextFrom = (stepName) => {
+        const current = Array.isArray(data.context_from) ? [...data.context_from] : [];
+        if (current.includes(stepName)) {
+            const next = current.filter(s => s !== stepName);
+            updateData('context_from', next.length > 0 ? next : null);
+        } else {
+            updateData('context_from', [...current, stepName]);
+        }
+    };
+
+    const setContextAll = () => {
+        updateData('context_from', ['*']);
+    };
+
+    const setContextAuto = () => {
+        updateData('context_from', null);
+    };
     const renderSafeValue = (val) => {
         if (val === null || val === undefined) return '-';
         if (typeof val === 'object') {
@@ -288,6 +312,90 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                                 <ReadOnlyField label={t('workflow.panel.executeSkill')} value={data.skill} isDark={isDark} />
                             </>
                         )}
+
+                        <div className={`mt-4 pt-4 border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                            <div className="space-y-3">
+                                <label className={`text-[12px] ml-1 font-bold uppercase tracking-widest ${theme.label}`}>
+                                    {t('workflow.panel.layer')}
+                                </label>
+                                <select
+                                    value={data.layer ?? 0}
+                                    onChange={(e) => updateData('layer', parseInt(e.target.value))}
+                                    className={`w-full px-3 py-2 text-sm rounded-lg border outline-none transition-all ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-200 focus:border-blue-500' : 'bg-zinc-50 border-zinc-200 text-zinc-800 focus:border-blue-400'}`}
+                                >
+                                    <option value={0}>Layer 0 - {t('workflow.panel.layerHint').split(',')[0]}</option>
+                                    <option value={1}>Layer 1 - {t('workflow.panel.layerHint').split(',')[1]}</option>
+                                    <option value={2}>Layer 2</option>
+                                </select>
+                                <p className={`text-[11px] opacity-60 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                                    {t('workflow.panel.layerHint')}
+                                </p>
+                            </div>
+
+                            <div className="space-y-2 mt-3">
+                                <label className={`text-[12px] ml-1 font-bold uppercase tracking-widest ${theme.label}`}>
+                                    {t('workflow.panel.contextFrom')}
+                                </label>
+                                <p className={`text-[11px] opacity-60 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                                    {t('workflow.panel.contextFromHint')}
+                                </p>
+                                {data.layer > 0 ? (
+                                    <>
+                                        <div className="flex gap-1.5">
+                                            {(!data.context_from || (Array.isArray(data.context_from) && data.context_from.length === 0)) && (
+                                                <span className={`px-2.5 py-1 text-[12px] rounded-md border ${isDark ? 'bg-emerald-900/30 border-emerald-700 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                                                    {t('workflow.panel.contextFromAuto')}
+                                                </span>
+                                            )}
+                                            {data.context_from && data.context_from.length > 0 && data.context_from[0] !== '*' && (
+                                                <button onClick={setContextAuto} className={`px-2.5 py-1 text-[12px] rounded-md border transition-all ${isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500' : 'bg-zinc-100 border-zinc-200 text-zinc-600 hover:border-zinc-400'}`}>
+                                                    {t('workflow.panel.contextFromAuto')}
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={setContextAll}
+                                                className={`px-2.5 py-1 text-[12px] rounded-md border transition-all ${
+                                                    data.context_from && data.context_from[0] === '*'
+                                                        ? (isDark ? 'bg-amber-600 border-amber-500 text-white' : 'bg-amber-500 border-amber-400 text-white')
+                                                        : (isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500' : 'bg-zinc-100 border-zinc-200 text-zinc-600 hover:border-zinc-400')
+                                                }`}
+                                            >
+                                                {t('workflow.panel.contextFromAll')}
+                                            </button>
+                                        </div>
+                                        {data.context_from && data.context_from[0] !== '*' && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {allStepNames.filter(s => s.id !== activeElement.id).map(s => {
+                                                    const isSelected = Array.isArray(data.context_from) && data.context_from.includes(s.id);
+                                                    return (
+                                                        <button
+                                                            key={s.id}
+                                                            onClick={() => toggleContextFrom(s.id)}
+                                                            className={`px-2.5 py-1 text-[12px] rounded-md border transition-all ${
+                                                                isSelected
+                                                                    ? (isDark ? 'bg-blue-600 border-blue-500 text-white' : 'bg-blue-500 border-blue-400 text-white')
+                                                                    : (isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500' : 'bg-zinc-100 border-zinc-200 text-zinc-600 hover:border-zinc-400')
+                                                            }`}
+                                                        >
+                                                            {s.label || s.id}
+                                                        </button>
+                                                    );
+                                                })}
+                                                {allStepNames.filter(s => s.id !== activeElement.id).length === 0 && (
+                                                    <span className={`text-[12px] opacity-50 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                                                        {t('workflow.panel.contextFromNone')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p className={`text-[12px] opacity-50 ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                                        ({t('workflow.panel.contextFromHint')})
+                                    </p>
+                                )}
+                            </div>
+                        </div>
                     </>
                 ) : (
                     <section className="space-y-4">

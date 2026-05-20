@@ -138,7 +138,14 @@
       "noParams": "暂无参数项",
       "confirm": "确认并保存配置",
       "placeholderSelect": "请选择技能...",
-      "removeSubtask": "移除子任务"
+      "removeSubtask": "移除子任务",
+      "layer": "编排层级",
+      "layerHint": "0=执行层(叶子Agent), 1+=聚合层(可汇总下层输出)",
+      "contextFrom": "引用前置步骤",
+      "contextFromHint": "未选择时自动从图拓扑推导（流入本节点的步骤）",
+      "contextFromAll": "全选所有已执行步骤 [+]",
+      "contextFromAuto": "自动推导（默认）",
+      "contextFromNone": "无需引用(独立执行)"
     },
     "export": {
       "success": "工作流保存成功",

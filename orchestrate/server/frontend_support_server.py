@@ -22,16 +22,16 @@ import threading
 import queue
 import time
 import uuid
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 import anyio
 from a2a.types import AgentCard
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request, Depends, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google.protobuf.json_format import Parse
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette import status
 from starlette.responses import Response
 
@@ -58,8 +58,7 @@ from orchestrate.registry_client.client_factory import AgentRegistryClientFactor
 from orchestrate.workflow_storage_instance import get_workflow_storage
 from samples.a2at_config import get_a2at_env_path
 
-# Create FastAPI application
-app = FastAPI(title="Workflow Orchestration API", version="1.0.0",docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
 
 config = get_conf()
 
@@ -72,20 +71,17 @@ app.add_middleware(
 )
 
 app.add_middleware(ConnectionLimitMiddleware, max_connections=int(config.get(CONN_MAX)))
-
 app.add_middleware(TimeoutMiddleware, timeout_seconds=int(config.get(CONN_TIMEOUT)))
 
 
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next):
     request_id = str(uuid.uuid4())[:8]
-
     client_ip = request.client.host if request.client else "unknown"
     query_params = dict(request.query_params)
     logger.info(f"[{request_id}] --> {request.method} {request.url.path} "
                 f"client={client_ip}"
                 f"{' params=' + str(query_params) if query_params else ''}")
-
     start_time = time.time()
     try:
         response = await call_next(request)
@@ -103,257 +99,99 @@ async def logging_middleware(request: Request, call_next):
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
     if len(str(request.url)) > MAX_URL_LENGTH:
-        return Response(
-            content="URI Too Long",
-            status_code=status.HTTP_414_URI_TOO_LONG
-        )
+        return Response(content="URI Too Long", status_code=status.HTTP_414_URI_TOO_LONG)
     if request.method in ("POST", "PUT"):
         total_size = 0
         body_chunks = []
-
         try:
             async for chunk in request.stream():
                 total_size += len(chunk)
                 if total_size > MAX_REQUEST_BODY_SIZE:
                     return Response(
-                        content=f"Request body is toll large, maximum allowed {MAX_REQUEST_BODY_SIZE // 1024} KB",
+                        content=f"Request body is too large, maximum allowed {MAX_REQUEST_BODY_SIZE // 1024} KB",
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE
                     )
                 body_chunks.append(chunk)
             request._body = b''.join(body_chunks)
         except Exception as e:
             logger.error(f"Bad Request: {e}")
-            return Response(
-                content=f"Bad Request",
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return Response(content="Bad Request", status_code=status.HTTP_400_BAD_REQUEST)
     return await call_next(request)
 
 
-# Initialize storage and retrieval components
+# ──── Shared state ────
 save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
 delete_handle = HandlerRegistry.get_handler(InterfaceType.DELETE_PSOP)
 retrieval = WorkflowRetrieval(get_workflow_storage())
 
 
-# Define request/response models
+# ═══════════════════════════════════════════════════════════════════════════════
+# Standard response envelope
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ApiResponse(BaseModel):
+    code: int = 200
+    message: str = "success"
+    data: Any = None
+
+
+def ok(data: Any = None, message: str = "success") -> dict:
+    return {"code": 200, "message": message, "status": "success", "data": data}
+
+
+def created(data: Any = None, message: str = "created") -> dict:
+    return {"code": 201, "message": message, "status": "success", "data": data}
+
+
+# ──── Request models ────
+
 class PlanRequest(BaseModel):
-    preflow: dict
-    agent_cards: List[dict]
+    preflow: dict = Field(..., description="PreFlow model JSON")
+    agent_cards: List[dict] = Field(..., description="AgentCard list JSON")
 
 
 class SavePSOPRequest(BaseModel):
-    psop: dict
+    psop: dict = Field(..., description="PSOP model JSON")
 
 
 class IntentRequest(BaseModel):
-    user_intent: str
-    workflow_name: Optional[str] = None
+    user_intent: str = Field(..., description="Natural language intent description")
+    workflow_name: Optional[str] = Field(None, description="Optional workflow name")
 
 
 class RetrieveIntentRequest(BaseModel):
-    user_intent: str
+    user_intent: str = Field(..., description="Natural language intent for retrieval")
 
 
-class ParsePDFResponse(BaseModel):
-    status: str
-    message: str
-    content: str
+# ──── Router ────
+router = APIRouter(prefix="/rest/v1/orchestrate")
 
 
-class PlanResponse(BaseModel):
-    status: str
-    data: str
-
-
-class PSOPListResponse(BaseModel):
-    status: str
-    count: int
-    data: List[dict]
-
-
-class PSOPDetailResponse(BaseModel):
-    status: str
-    data: dict
-
-
-class PSOPDeleteResponse(BaseModel):
-    status: str
-    message: str
-
-
-class AgentCardResponse(BaseModel):
-    status: str
-    count: int
-    data: List[dict]
-
-
-class IntentResponse(BaseModel):
-    status: str
-    message: str
-    data: dict
-
-
-class RetrieveIntentResponse(BaseModel):
-    status: str
-    message: str
-    data: Optional[dict] = None
-
-parse_pdf_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PARSE_PDF)))
-@app.post("/parse-pdf", response_model=ParsePDFResponse)
-async def parse_pdf(file: UploadFile = File(...), _: Any = Depends(RateLimiter(config, "parse_pdf"))):
-    """
-    Parse PDF file and extract workflow definition
-    """
-    acquired = False
-    tmp_file_path = None
-    try:
-        parse_pdf_semaphore.acquire_nowait()
-        acquired = True
-
-        filename = file.filename or "unknown"
-        logger.info(f"Parsing PDF file: {filename}, size: {file.size or 'unknown'}")
-
-        # Validate file type
-        if not file.filename:
-            logger.warning(f"Invalid file type: {file.filename}")
-            raise HTTPException(status_code=400, detail="Filename is required")
-        # Validate filename
-        if not re.fullmatch(r"^[\w\-. ]{1,128}\.pdf$", file.filename):
-            logger.warning(f"Invalid file type: {file.filename}")
-            raise HTTPException(status_code=400, detail="Filename must be at most 128 characters, end with .pdf, and contain only letters, digits, hyphens, underscores, dots or spaces")
-
-        # Save temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-            tmp_file_path = tmp.name
-            content = await file.read()
-
-        # Validate file size
-        if len(content) > MAX_FILE_SIZE_BYTES:
-            logger.warning(f"File size exceeds limit: {len(content)} > {MAX_FILE_SIZE_BYTES}")
-            raise HTTPException(status_code=413, detail=f"File size exceeds maximum allowed {MAX_FILE_SIZE_BYTES // (1024*1024)} MB")
-
-        # Validate PDF magic bytes
-        if len(content) < 5 or content[:5] != b'%PDF-':
-            logger.warning("Uploaded file is not a valid PDF (missing magic bytes)")
-            raise HTTPException(status_code=400, detail="File is not a valid PDF (missing %PDF- header)")
-
-        # Write validated content to temp file
-        with open(tmp_file_path, 'wb') as f:
-            f.write(content)
-
-        parser = SolutionPackageParser()
-        pre_md = parser.parse_pdf_chapter(
-            tmp_file_path,
-            "5. Interaction Flow"
-        )
-        if not pre_md:
-            logger.warning(f"No '5. Interaction Flow' chapter found in PDF: {filename}")
-            raise HTTPException(status_code=400, detail="PDF parsing failed, specified chapter not found")
-
-        preflow = PreFlow(
-            name=file.filename,
-            description=f"Workflow parsed from PDF file {file.filename}",
-            steps_md=pre_md
-        )
-        logger.info(f"PDF parsed successfully: {filename}, preflow_id={preflow.id}")
-        return ParsePDFResponse(
-            status="success",
-            message="PDF file parsed successfully",
-            content=preflow.model_dump_json()
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"PDF parse server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"PDF parsing failed: {e}")
-        raise HTTPException(status_code=500, detail=f"PDF parsing failed: {str(e)}")
-    finally:
-        if tmp_file_path and os.path.exists(tmp_file_path):
-            os.unlink(tmp_file_path)
-        if acquired:
-            parse_pdf_semaphore.release()
-
-plan_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PLAN)))
-@app.post("/plan", response_model=PlanResponse)
-async def plan(request: PlanRequest, _: Any = Depends(RateLimiter(config, "plan"))):
-    """
-    Generate PSOP workflow from PreFlow and AgentCards
-    """
-    acquired = False
-    try:
-        plan_semaphore.acquire_nowait()
-        acquired = True
-        preflow_name = request.preflow.get("name", "unknown")
-        agent_count = len(request.agent_cards)
-        logger.info(f"Planning workflow from PreFlow: {preflow_name}, agent_cards={agent_count}")
-
-        generator = PsopGenerator()
-        workflow = generator.generate_psop_workflow(
-            PreFlow.model_validate(request.preflow),
-            [Parse(json.dumps(card), AgentCard()) for card in request.agent_cards]
-        )
-        save_handle.handle(workflow)
-        logger.info(f"Workflow planned and saved: id={workflow.id}, name={workflow.name}, steps={len(workflow.steps)}")
-        audit_logger.audit({
-            'object_name': OperationObject.PSOP,
-            'operation_name': OperationName.SAVE_PSOP,
-            'level': LogLevel.MINOR,
-            'result': OperationResult.SUCCESS,
-            'details': {"id": workflow.id, "name": workflow.name, "steps_count": len(workflow.steps)},
-        })
-        return PlanResponse(
-            status="success",
-            data=workflow.model_dump_json()
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"Plan server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
-    except Exception as e:
-        logger.error(f"Workflow planning failed: {e}")
-        audit_logger.audit({
-            'object_name': OperationObject.PSOP,
-            'operation_name': OperationName.SAVE_PSOP,
-            'level': LogLevel.MINOR,
-            'result': OperationResult.FAILURE,
-            'details': {"message": "PSOP planning failed"},
-        })
-        raise HTTPException(status_code=500, detail=f"PSOP planning failed: {str(e)}")
-    finally:
-        if acquired:
-            plan_semaphore.release()
-
+# ═══════════════════════════════════════════════════════════════════════════════
+# Workflow CRUD
+# ═══════════════════════════════════════════════════════════════════════════════
 
 all_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ALL_PSOPS)))
 
 
-@app.get("/psops", response_model=PSOPListResponse)
-async def get_all_psops(limit: int = 10, workflow_type: str = 'psop',
-                        _: Any = Depends(RateLimiter(config, "get_all_psops"))):
-    """
-    Get all PSOP workflow list
-    """
+@router.get("/workflows")
+async def list_workflows(
+    limit: int = Query(10, ge=1, le=100, description="Max workflows to return"),
+    _: Any = Depends(RateLimiter(config, "list_workflows"))
+):
     acquired = False
     try:
         all_psop_semaphore.acquire_nowait()
         acquired = True
-        logger.info(f"Listing PSOPs: limit={limit}, type={workflow_type}")
-        recent_workflows = retrieval.list_recent_workflows(limit=limit, workflow_type=workflow_type)
-        logger.info(f"Retrieved {len(recent_workflows)} PSOPs")
-
-        return PSOPListResponse(
-            status="success",
-            count=len(recent_workflows),
-            data=[wf.to_dict() for wf in recent_workflows]
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"List PSOPs server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
+        logger.info(f"Listing workflows: limit={limit}")
+        recent_workflows = retrieval.list_recent_workflows(limit=limit, workflow_type='psop')
+        logger.info(f"Retrieved {len(recent_workflows)} workflows")
+        return ok(data=[wf.to_dict() for wf in recent_workflows])
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except Exception as e:
-        logger.error(f"Failed to list PSOPs: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve PSOP list: {str(e)}")
+        logger.error(f"Failed to list workflows: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
             all_psop_semaphore.release()
@@ -362,34 +200,27 @@ async def get_all_psops(limit: int = 10, workflow_type: str = 'psop',
 one_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ONE_PSOP)))
 
 
-@app.get("/psops/{workflow_id}", response_model=PSOPDetailResponse)
-async def get_psop_by_id(workflow_id: str, _: Any = Depends(RateLimiter(config, "get_psop_by_id"))):
-    """
-    Get PSOP workflow details by ID
-    """
+@router.get("/workflows/{workflow_id}")
+async def get_workflow(
+    workflow_id: str,
+    _: Any = Depends(RateLimiter(config, "get_workflow"))
+):
     acquired = False
     try:
         one_psop_semaphore.acquire_nowait()
         acquired = True
-        logger.info(f"Getting PSOP by ID: {workflow_id}")
+        logger.info(f"Getting workflow: {workflow_id}")
         psop = retrieval.get_psop_by_id(workflow_id)
         if not psop:
-            logger.warning(f"PSOP not found: {workflow_id}")
-            raise HTTPException(status_code=404, detail=f"PSOP with ID {workflow_id} not found")
-
-        logger.info(f"PSOP retrieved: id={workflow_id}, name={psop.name}")
-        return PSOPDetailResponse(
-            status="success",
-            data=psop.model_dump()
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"Get PSOP server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
+            raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
+        return ok(data=psop.model_dump())
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get PSOP {workflow_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve PSOP details: {str(e)}")
+        logger.error(f"Failed to get workflow {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
             one_psop_semaphore.release()
@@ -398,20 +229,19 @@ async def get_psop_by_id(workflow_id: str, _: Any = Depends(RateLimiter(config, 
 save_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_SAVE_PSOP)))
 
 
-@app.post("/psops", status_code=201)
-async def save_psop(request: SavePSOPRequest, _: Any = Depends(RateLimiter(config, "save_psop"))):
-    """
-    Save PSOP workflow
-    """
+@router.post("/workflows", status_code=201)
+async def create_workflow(
+    request: SavePSOPRequest,
+    _: Any = Depends(RateLimiter(config, "create_workflow"))
+):
     acquired = False
     try:
         save_psop_semaphore.acquire_nowait()
         acquired = True
         psop = PSOP.model_validate(request.psop)
-        psop_name = psop.name or "unknown"
-        logger.info(f"Saving PSOP: name={psop_name}, id={psop.id}")
+        logger.info(f"Creating workflow: name={psop.name}, id={psop.id}")
         saved_id = save_handle.handle(psop)
-        logger.info(f"PSOP saved successfully: id={saved_id}, name={psop_name}")
+        logger.info(f"Workflow saved: id={saved_id}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
             'operation_name': OperationName.SAVE_PSOP,
@@ -419,27 +249,19 @@ async def save_psop(request: SavePSOPRequest, _: Any = Depends(RateLimiter(confi
             'result': OperationResult.SUCCESS,
             'details': {"id": psop.id, "name": psop.name, "steps_count": len(psop.steps)},
         })
-        return JSONResponse(
-            status_code=201,
-            content={
-                "status": "success",
-                "message": "PSOP saved successfully",
-                "workflow_id": saved_id
-            }
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"Save PSOP server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
+        return created(data={"workflow_id": saved_id}, message="Workflow created successfully")
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except Exception as e:
-        logger.error(f"Failed to save PSOP: {e}")
+        logger.error(f"Failed to create workflow: {e}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
             'operation_name': OperationName.SAVE_PSOP,
             'level': LogLevel.MINOR,
             'result': OperationResult.FAILURE,
-            'details': {"message": "Failed to save PSOP"},
+            'details': {"message": str(e)},
         })
-        raise HTTPException(status_code=500, detail=f"Failed to save PSOP: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
             save_psop_semaphore.release()
@@ -448,28 +270,23 @@ async def save_psop(request: SavePSOPRequest, _: Any = Depends(RateLimiter(confi
 delete_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_DELETE_PSOP)))
 
 
-@app.delete("/psops/{workflow_id}", response_model=PSOPDeleteResponse)
-async def delete_psop(workflow_id: str, _: Any = Depends(RateLimiter(config, "delete_psop"))):
-    """
-    Delete PSOP workflow by specified ID
-    """
+@router.delete("/workflows/{workflow_id}")
+async def delete_workflow(
+    workflow_id: str,
+    _: Any = Depends(RateLimiter(config, "delete_workflow"))
+):
     acquired = False
     try:
         delete_psop_semaphore.acquire_nowait()
         acquired = True
-        logger.info(f"Deleting PSOP: {workflow_id}")
-        # First check if PSOP exists
+        logger.info(f"Deleting workflow: {workflow_id}")
         psop = retrieval.get_psop_by_id(workflow_id)
         if not psop:
-            logger.warning(f"PSOP not found for deletion: {workflow_id}")
-            raise HTTPException(status_code=404, detail=f"PSOP with ID {workflow_id} not found")
-
-        # Delete PSOP
+            raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
         deleted = delete_handle.handle(workflow_id)
         if not deleted:
-            raise HTTPException(status_code=500, detail="Failed to delete PSOP: file might not exist")
-
-        logger.info(f"PSOP deleted successfully: {workflow_id}")
+            raise HTTPException(status_code=500, detail="Failed to delete workflow")
+        logger.info(f"Workflow deleted: {workflow_id}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
             'operation_name': OperationName.DELETE_PSOP,
@@ -477,79 +294,132 @@ async def delete_psop(workflow_id: str, _: Any = Depends(RateLimiter(config, "de
             'result': OperationResult.SUCCESS,
             'details': {"workflow_id": workflow_id, "name": psop.name},
         })
-        return PSOPDeleteResponse(
-            status="success",
-            message=f"PSOP {workflow_id} deleted successfully"
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"Delete PSOP server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
+        return ok(message=f"Workflow {workflow_id} deleted")
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete PSOP {workflow_id}: {e}")
-        audit_logger.audit({
-            'object_name': OperationObject.PSOP,
-            'operation_name': OperationName.DELETE_PSOP,
-            'level': LogLevel.MINOR,
-            'result': OperationResult.FAILURE,
-            'details': {"workflow_id": workflow_id, "error": str(e)},
-        })
-        raise HTTPException(status_code=500, detail=f"Failed to delete PSOP: {str(e)}")
+        logger.error(f"Failed to delete workflow {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
             delete_psop_semaphore.release()
 
 
-agent_cards_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_CARDS)))
+# ═══════════════════════════════════════════════════════════════════════════════
+# Workflow generation endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+
+parse_pdf_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PARSE_PDF)))
 
 
-@app.get("/agent-cards", response_model=AgentCardResponse)
-async def get_all_agent_cards(_: Any = Depends(RateLimiter(config, "get_all_agent_cards"))):
-    """
-    Get complete AgentCard list
-    """
+@router.post("/parse-pdf")
+async def parse_pdf(
+    file: UploadFile = File(...),
+    _: Any = Depends(RateLimiter(config, "parse_pdf"))
+):
+    acquired = False
+    tmp_file_path = None
+    try:
+        parse_pdf_semaphore.acquire_nowait()
+        acquired = True
+
+        filename = file.filename or "unknown"
+        logger.info(f"Parsing PDF: {filename}, size={file.size}")
+
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Filename is required")
+        if not re.fullmatch(r"^[\w\-. ]{1,128}\.pdf$", file.filename):
+            raise HTTPException(status_code=400, detail="Invalid filename format")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            tmp_file_path = tmp.name
+            content = await file.read()
+
+        if len(content) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(status_code=413,
+                detail=f"File size exceeds maximum allowed {MAX_FILE_SIZE_BYTES // (1024*1024)} MB")
+        if len(content) < 5 or content[:5] != b'%PDF-':
+            raise HTTPException(status_code=400, detail="File is not a valid PDF")
+
+        with open(tmp_file_path, 'wb') as f:
+            f.write(content)
+
+        parser = SolutionPackageParser()
+        pre_md = parser.parse_pdf_chapter(tmp_file_path, "5. Interaction Flow")
+        if not pre_md:
+            raise HTTPException(status_code=400, detail="Chapter '5. Interaction Flow' not found in PDF")
+
+        preflow = PreFlow(
+            name=file.filename,
+            description=f"Workflow parsed from PDF {file.filename}",
+            steps_md=pre_md
+        )
+        logger.info(f"PDF parsed: preflow_id={preflow.id}")
+        return ok(data=json.loads(preflow.model_dump_json()))
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"PDF parsing failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
+        if acquired:
+            parse_pdf_semaphore.release()
+
+
+plan_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PLAN)))
+
+
+@router.post("/generate-from-preflow")
+async def generate_from_preflow(
+    request: PlanRequest,
+    _: Any = Depends(RateLimiter(config, "generate_from_preflow"))
+):
     acquired = False
     try:
-        agent_cards_semaphore.acquire_nowait()
+        plan_semaphore.acquire_nowait()
         acquired = True
-        logger.info("Fetching agent cards")
-        # Get all AgentCards
-        agent_registry_factory = AgentRegistryClientFactory()
-        agent_cards = agent_registry_factory.create_from_env().list_exact()
-        logger.info(f"Retrieved {len(agent_cards)} agent cards")
+        preflow_name = request.preflow.get("name", "unknown")
+        logger.info(f"Generating PSOP from PreFlow: {preflow_name}, agents={len(request.agent_cards)}")
 
-        return AgentCardResponse(
-            status="success",
-            count=len(agent_cards),
-            data=agent_cards
+        generator = PsopGenerator()
+        workflow = generator.generate_psop_workflow(
+            PreFlow.model_validate(request.preflow),
+            [Parse(json.dumps(card), AgentCard()) for card in request.agent_cards]
         )
-    except anyio.WouldBlock as e:
-        logger.error(f"List agent cards server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
-    except FileNotFoundError as e:
-        logger.error(f"Agent card config not found: {e}")
-        raise HTTPException(status_code=404, detail=f"Configuration file not found: {str(e)}")
-    except ValueError as e:
-        logger.error(f"Agent card data format error: {e}")
-        raise HTTPException(status_code=400, detail=f"Data format error: {str(e)}")
+        save_handle.handle(workflow)
+        logger.info(f"PSOP generated: id={workflow.id}, steps={len(workflow.steps)}")
+        audit_logger.audit({
+            'object_name': OperationObject.PSOP,
+            'operation_name': OperationName.SAVE_PSOP,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.SUCCESS,
+            'details': {"id": workflow.id, "name": workflow.name, "steps_count": len(workflow.steps)},
+        })
+        return ok(data=json.loads(workflow.model_dump_json()))
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except Exception as e:
-        logger.error(f"Failed to fetch agent cards: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve AgentCards: {str(e)}")
+        logger.error(f"PreFlow generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
-            agent_cards_semaphore.release()
+            plan_semaphore.release()
 
 
 generate_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_GENERATE_PSOP)))
 
 
-@app.post("/generate-from-intent", response_model=IntentResponse)
-async def generate_psop_from_intent(request: IntentRequest,
-                                    _: Any = Depends(RateLimiter(config, "generate_psop_from_intent"))):
-    """
-    Generate PSOP workflow from natural language intent
-    """
+@router.post("/generate-from-intent")
+async def generate_from_intent(
+    request: IntentRequest,
+    _: Any = Depends(RateLimiter(config, "generate_from_intent"))
+):
     acquired = False
     try:
         generate_semaphore.acquire_nowait()
@@ -557,26 +427,22 @@ async def generate_psop_from_intent(request: IntentRequest,
         intent_preview = request.user_intent[:80] + "..." if len(request.user_intent) > 80 else request.user_intent
         logger.info(f"Generating PSOP from intent: {intent_preview}")
 
-        # Get AgentCards
         agent_registry_factory = AgentRegistryClientFactory()
         agent_cards = agent_registry_factory.create_from_env().list_exact()
         if not agent_cards:
-            logger.warning("No agent cards available for intent generation")
             raise HTTPException(status_code=404, detail="No available AgentCards found")
 
-        # Generate PSOP using IntentPsopGenerator
         generator = IntentPsopGenerator()
         psop = generator.generate_psop_from_intent(
             user_intent=request.user_intent,
             agent_cards=[Parse(json.dumps(agent), AgentCard()) for agent in agent_cards],
             workflow_name=request.workflow_name
         )
-        logger.info(f"PSOP generated from intent: id={psop.id}, name={psop.name}, steps={len(psop.steps)}")
+        logger.info(f"PSOP generated from intent: id={psop.id}, steps={len(psop.steps)}")
 
-        # Optional: auto-save generated PSOP
         try:
             save_handle.handle(psop)
-            logger.info(f"PSOP auto-saved: id={psop.id}")
+            logger.info(f"PSOP auto-saved: {psop.id}")
             audit_logger.audit({
                 'object_name': OperationObject.PSOP,
                 'operation_name': OperationName.SAVE_PSOP,
@@ -585,27 +451,16 @@ async def generate_psop_from_intent(request: IntentRequest,
                 'details': {"id": psop.id, "name": psop.name, "steps_count": len(psop.steps)},
             })
         except Exception as save_error:
-            logger.warning(f"PSOP auto-save failed (does not affect response): {save_error}")
-            audit_logger.audit({
-                'object_name': OperationObject.PSOP,
-                'operation_name': OperationName.SAVE_PSOP,
-                'level': LogLevel.MINOR,
-                'result': OperationResult.FAILURE,
-                'details': {"message": "Failed to save PSOP"},
-            })
-        return IntentResponse(
-            status="success",
-            message="PSOP generated successfully",
-            data=psop.model_dump()
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"Generate PSOP from intent server busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
+            logger.warning(f"Auto-save failed (non-fatal): {save_error}")
+
+        return ok(data=psop.model_dump())
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to generate PSOP from intent: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate PSOP: {str(e)}")
+        logger.error(f"Intent generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
             generate_semaphore.release()
@@ -614,67 +469,86 @@ async def generate_psop_from_intent(request: IntentRequest,
 retrieve_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_RETRIEVE_PSOP)))
 
 
-@app.post("/retrieve-by-intent", response_model=RetrieveIntentResponse)
-async def retrieve_psop_by_intent(request: RetrieveIntentRequest,
-                                  _: Any = Depends(RateLimiter(config, "retrieve_psop_by_intent"))):
-    """
-    Retrieve the most suitable PSOP workflow based on natural language intent
-    """
+@router.post("/retrieve-by-intent")
+async def retrieve_by_intent(
+    request: RetrieveIntentRequest,
+    _: Any = Depends(RateLimiter(config, "retrieve_by_intent"))
+):
     acquired = False
     try:
         retrieve_semaphore.acquire_nowait()
         acquired = True
-        logger.info(f"Starting PSOP retrieval based on intent: {request.user_intent}")
-
-        # Use WorkflowRetrieval.retrieve_psop_by_intent method
+        logger.info(f"Retrieving PSOP by intent: {request.user_intent[:80]}")
         psop = retrieval.retrieve_psop_by_intent(request.user_intent)
-
         if not psop:
-            return RetrieveIntentResponse(
-                status="success",
-                message="No matching PSOP found",
-                data=None
-            )
-
-        logger.info(f"Successfully retrieved PSOP: {psop.name} (ID: {psop.id})")
-
-        return RetrieveIntentResponse(
-            status="success",
-            message="PSOP retrieved successfully",
-            data=psop.model_dump()
-        )
-    except anyio.WouldBlock as e:
-        logger.error(f"Server is busy: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
+            return ok(data=None, message="No matching workflow found")
+        logger.info(f"Retrieved: {psop.name} (id={psop.id})")
+        return ok(data=psop.model_dump())
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
     except Exception as e:
-        logger.error(f"Failed to retrieve PSOP based on intent: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve PSOP: {str(e)}")
+        logger.error(f"Retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
             retrieve_semaphore.release()
 
 
-@app.get("/rest/start_process_stream")
-async def start_process_stream(psop_id: str):
-    """
-    SSE streaming workflow execution
-    """
+# ═══════════════════════════════════════════════════════════════════════════════
+# Agent cards
+# ═══════════════════════════════════════════════════════════════════════════════
+
+agent_cards_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_CARDS)))
+
+
+@router.get("/agent-cards")
+async def list_agent_cards(
+    _: Any = Depends(RateLimiter(config, "list_agent_cards"))
+):
+    acquired = False
+    try:
+        agent_cards_semaphore.acquire_nowait()
+        acquired = True
+        logger.info("Fetching agent cards")
+        agent_registry_factory = AgentRegistryClientFactory()
+        agent_cards = agent_registry_factory.create_from_env().list_exact()
+        logger.info(f"Retrieved {len(agent_cards)} agent cards")
+        return ok(data=agent_cards)
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to fetch agent cards: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if acquired:
+            agent_cards_semaphore.release()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Workflow execution (SSE streaming)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/execute")
+async def execute_workflow(
+    psop_id: str = Query(..., description="PSOP workflow ID to execute")
+):
     if not psop_id:
-        logger.warning("start_process_stream called without psop_id")
         raise HTTPException(status_code=400, detail="Missing psop_id parameter")
 
-    logger.info(f"Starting workflow execution stream: psop_id={psop_id}")
+    logger.info(f"Starting workflow execution: psop_id={psop_id}")
     psop = retrieval.get_psop_by_id(psop_id)
     if not psop:
-        logger.warning(f"PSOP not found for execution: {psop_id}")
-        raise HTTPException(status_code=404, detail=f"PSOP with ID {psop_id} not found")
+        raise HTTPException(status_code=404, detail=f"Workflow {psop_id} not found")
 
     logger.info(f"Workflow loaded: name={psop.name}, steps={len(psop.steps)}")
     agent_registry_factory = AgentRegistryClientFactory()
     all_agent_cards = agent_registry_factory.create_from_env().list_exact()
-    agent_cards = [Parse(json.dumps(agent), AgentCard())  for agent in all_agent_cards]
+    agent_cards = [Parse(json.dumps(agent), AgentCard()) for agent in all_agent_cards]
     if not agent_cards:
-        logger.warning("No agent cards available for workflow execution")
         raise HTTPException(status_code=404, detail="No available AgentCards found")
 
     async def event_generator():
@@ -682,20 +556,16 @@ async def start_process_stream(psop_id: str):
 
         def push_callback(event_type: str, data: dict):
             try:
-                # Serialize data, handle non-JSON-serializable objects
                 serializable_data = {}
                 for key, value in data.items():
                     if hasattr(value, 'model_dump'):
-                        # If Pydantic model, use model_dump()
                         serializable_data[key] = value.model_dump()
                     elif hasattr(value, '__dict__'):
-                        # If regular object, try to convert to dict
                         try:
                             serializable_data[key] = value.__dict__
                         except Exception:
                             serializable_data[key] = str(value)
                     elif isinstance(value, (tuple, list)):
-                        # Handle lists and tuples
                         serializable_data[key] = []
                         for item in value:
                             if hasattr(item, 'model_dump'):
@@ -724,19 +594,15 @@ async def start_process_stream(psop_id: str):
                 a2at_env_path = get_a2at_env_path()
                 engine = DynamicWorkflowEngine(psop, agent_cards, a2at_env_path=a2at_env_path)
                 engine.set_push_callback(push_callback)
-
                 event_queue.put({
                     "type": "start",
                     "data": {"psop_id": psop_id, "message": "Starting workflow execution"}
                 })
-
                 execution_history = await engine.run()
-
                 event_queue.put({
                     "type": "complete",
                     "data": {"psop_id": psop_id, "execution_history": execution_history}
                 })
-
             except Exception as e:
                 logger.error(f"Workflow execution failed: {e}")
                 event_queue.put({
@@ -756,11 +622,9 @@ async def start_process_stream(psop_id: str):
         workflow_thread.daemon = True
         workflow_thread.start()
 
-        # Send initialization message
         init_event = {'type': 'init', 'data': {'psop_id': psop_id, 'message': 'Initializing execution engine'}}
         yield f"data: {json.dumps(init_event)}\n\n"
 
-        # Keep sending events until workflow completes
         while workflow_thread.is_alive() or not event_queue.empty():
             try:
                 event = event_queue.get(timeout=1)
@@ -781,3 +645,47 @@ async def start_process_stream(psop_id: str):
             'X-Accel-Buffering': 'no'
         }
     )
+
+
+# ──── Register router ────
+app.include_router(router)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Legacy route aliases (backward compatibility, delegates to new routes)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/agent-cards")
+async def legacy_agent_cards():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/rest/v1/orchestrate/agent-cards", status_code=308)
+
+
+@app.get("/psops")
+async def legacy_list_workflows(limit: int = 10):
+    recent = retrieval.list_recent_workflows(limit=limit, workflow_type='psop')
+    return {"code": 200, "message": "success", "data": [wf.to_dict() for wf in recent]}
+
+
+@app.get("/psops/{workflow_id}")
+async def legacy_get_workflow(workflow_id: str):
+    psop = retrieval.get_psop_by_id(workflow_id)
+    if not psop:
+        raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
+    return {"code": 200, "message": "success", "data": psop.model_dump()}
+
+
+@app.post("/psops")
+async def legacy_save_workflow(request: SavePSOPRequest):
+    psop = PSOP.model_validate(request.psop)
+    saved_id = save_handle.handle(psop)
+    return JSONResponse(status_code=201, content={"code": 201, "message": "created", "data": {"workflow_id": saved_id}})
+
+
+@app.delete("/psops/{workflow_id}")
+async def legacy_delete_workflow(workflow_id: str):
+    psop = retrieval.get_psop_by_id(workflow_id)
+    if not psop:
+        raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
+    delete_handle.handle(workflow_id)
+    return {"code": 200, "message": f"Workflow {workflow_id} deleted", "data": None}

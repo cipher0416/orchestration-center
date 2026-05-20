@@ -139,7 +139,14 @@
       "noParams": "No parameters defined",
       "confirm": "Confirm Configuration",
       "placeholderSelect": "please choose...",
-      "removeSubtask": "Remove subtask"
+      "removeSubtask": "Remove subtask",
+      "layer": "Orchestration Layer",
+      "layerHint": "0=Execution layer (leaf agent), 1+=Aggregation layer (can summarize lower outputs)",
+      "contextFrom": "Context From",
+      "contextFromHint": "When empty: auto-derive from graph edges (steps flowing into this node)",
+      "contextFromAll": "Select all executed steps [+]",
+      "contextFromAuto": "Auto-derive (default)",
+      "contextFromNone": "None (standalone execution)"
     },
     "export": {
       "success": "Workflow saved successfully",
