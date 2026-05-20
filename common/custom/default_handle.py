@@ -66,6 +66,27 @@ class DeletePsopHandler(BaseHandler):
         return get_workflow_storage().delete_psop(*args)
 
 
+# ==================== Execution Record default handlers ====================
+class SaveExecutionRecordHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return get_workflow_storage().save_execution_record(*args)
+
+
+class ListExecutionRecordsHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return get_workflow_storage().list_execution_records()
+
+
+class GetExecutionRecordHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return get_workflow_storage().load_execution_record(*args)
+
+
+class DeleteExecutionRecordHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return get_workflow_storage().delete_execution_record(*args)
+
+
 # ==================== Registry ====================
 class HandlerRegistry:
     _registry: Dict[str, Type[BaseHandler]] = {}
@@ -99,6 +120,10 @@ class HandlerRegistry:
                 "get_all_psop": GetAllPsopsHandler,
                 "get_psop_by_id": GetPsopHandler,
                 "delete_psop": DeletePsopHandler,
+                "save_execution_record": SaveExecutionRecordHandler,
+                "list_execution_records": ListExecutionRecordsHandler,
+                "get_execution_record": GetExecutionRecordHandler,
+                "delete_execution_record": DeleteExecutionRecordHandler,
             }
             handler_class = default_map.get(interface_type.value)
             if handler_class is None:

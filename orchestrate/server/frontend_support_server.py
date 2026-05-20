@@ -50,6 +50,8 @@ from common.util.config_util import get_conf
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.model.execution_record import ExecutionRecord
+from common.custom.default_handle import HandlerRegistry
+from common.custom.interface_type import InterfaceType
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
 from orchestrate.core.retrieval import WorkflowRetrieval
@@ -638,8 +640,8 @@ async def execute_workflow(
                         events=collected_events,
                         error=record_error,
                     )
-                    storage = get_workflow_storage()
-                    storage.save_execution_record(record)
+                    handler = HandlerRegistry.get_handler(InterfaceType.SAVE_EXECUTION_RECORD)
+                    handler.handle(record)
                     logger.info(f"Execution record saved: {record.execution_id}")
                 except Exception as e:
                     logger.error(f"Failed to save execution record: {e}")
@@ -683,8 +685,8 @@ async def execute_workflow(
 
 @router.delete("/execution-records/{execution_id}")
 async def delete_execution_record(execution_id: str):
-    storage = get_workflow_storage()
-    deleted = storage.delete_execution_record(execution_id)
+    handler = HandlerRegistry.get_handler(InterfaceType.DELETE_EXECUTION_RECORD)
+    deleted = handler.handle(execution_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
     return ok(data={"deleted": execution_id})
@@ -692,18 +694,18 @@ async def delete_execution_record(execution_id: str):
 
 @router.get("/execution-records")
 async def list_execution_records():
-    storage = get_workflow_storage()
-    records = storage.list_execution_records()
+    handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
+    records = handler.handle()
     return ok(data=records)
 
 
 @router.get("/execution-records/{execution_id}")
 async def get_execution_record(execution_id: str):
-    storage = get_workflow_storage()
-    record = storage.load_execution_record(execution_id)
+    handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
+    record = handler.handle(execution_id)
     if not record:
         raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
-    return ok(data=record.model_dump())
+    return ok(data=record.model_dump() if hasattr(record, 'model_dump') else record)
 
 
 # ──── Register router ────

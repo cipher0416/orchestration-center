@@ -18,7 +18,7 @@ from database.utils.query_execution import execute_query
 
 
 def create_tables():
-    create_table_sql = """
+    create_psop_sql = """
                        CREATE TABLE IF NOT EXISTS psop
                        (
                             id           VARCHAR(1024) PRIMARY KEY, -- Primary key ID
@@ -27,7 +27,21 @@ def create_tables():
                             psop_content    TEXT             -- TEXT type suitable for long text
                        )
                        """
+    create_execution_record_sql = """
+                       CREATE TABLE IF NOT EXISTS execution_records
+                       (
+                            execution_id    VARCHAR(64) PRIMARY KEY,
+                            psop_id         VARCHAR(64) NOT NULL,
+                            psop_name       VARCHAR(1024),
+                            started_at      TIMESTAMP,
+                            completed_at    TIMESTAMP,
+                            status          VARCHAR(32),
+                            step_count      INTEGER DEFAULT 0,
+                            record_content  TEXT
+                       )
+                       """
     conn = create_connection()
-    execute_query(conn, create_table_sql)
+    execute_query(conn, create_psop_sql)
+    execute_query(conn, create_execution_record_sql)
     conn.close()
 

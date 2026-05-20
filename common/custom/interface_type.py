@@ -21,3 +21,7 @@ class InterfaceType(Enum):
     GET_ALL_PSOP = "get_all_psop"
     GET_PSOP_BY_ID = "get_psop_by_id"
     DELETE_PSOP = "delete_psop"
+    SAVE_EXECUTION_RECORD = "save_execution_record"
+    LIST_EXECUTION_RECORDS = "list_execution_records"
+    GET_EXECUTION_RECORD = "get_execution_record"
+    DELETE_EXECUTION_RECORD = "delete_execution_record"

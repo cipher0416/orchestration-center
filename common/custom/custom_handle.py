@@ -15,6 +15,12 @@
 
 from common.custom.default_handle import BaseHandler
 from common.custom.psop_processor import custom_save_psop, custom_delete_psop, get_all_psops, get_psop_by_id
+from common.custom.execution_record_processor import (
+    db_save_execution_record,
+    db_list_execution_records,
+    db_get_execution_record,
+    db_delete_execution_record,
+)
 
 
 class CustomSavePsopHandler(BaseHandler):
@@ -35,3 +41,23 @@ class CustomGetAllPsopsPsopHandler(BaseHandler):
 class CustomGetPsopPsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         return get_psop_by_id(*args)
+
+
+class CustomSaveExecutionRecordHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return db_save_execution_record(*args)
+
+
+class CustomListExecutionRecordsHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return db_list_execution_records()
+
+
+class CustomGetExecutionRecordHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return db_get_execution_record(*args)
+
+
+class CustomDeleteExecutionRecordHandler(BaseHandler):
+    def handle(self, *args, **kwargs):
+        return db_delete_execution_record(*args)
