@@ -34,6 +34,9 @@ from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExe
 from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
 from samples.agents.assurance_agent import AssuranceAgentExecutor
 from samples.agents.ran_agent import RanAgentExecutor
+from samples.agents.dispatch_agent import DispatchAgentExecutor
+from samples.agents.spn_agent_city1 import SpnCity1AgentExecutor
+from samples.agents.spn_agent_city2 import SpnCity2AgentExecutor
 from samples.a2at_config import ensure_env_file_exists
 
 
@@ -54,7 +57,10 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
         "Energy Saving Intent Agent": EnergySavingIntentAgentExecutor,
         "Live Streaming Agent": LiveStreamingAgentExecutor,
         "Assurance Agent": AssuranceAgentExecutor,
-        "RAN Agent": RanAgentExecutor
+        "RAN Agent": RanAgentExecutor,
+        "Transport Workbench Agent": DispatchAgentExecutor,
+        "SPN Fault Handling Agent City1 OMC": SpnCity1AgentExecutor,
+        "SPN Fault Handling Agent City2 OMC": SpnCity2AgentExecutor
     }
     agent_name = agent_card.name
     agent_class = agent2class.get(agent_name)
