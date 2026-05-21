@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
@@ -22,6 +23,8 @@ from loguru import logger
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.persistence import WorkflowStorage
+
+REGISTRY_FILENAME = "publish_registry.json"
 
 
 class PublishStatus(str, Enum):
@@ -65,8 +68,47 @@ class PublishedWorkflow:
 class WorkflowPublisher:
     def __init__(self, storage: WorkflowStorage):
         self.storage = storage
+        self._registry_file = storage.psop_dir.parent / REGISTRY_FILENAME
         self._published_registry: dict = {}
         self._version_registry: dict = {}
+        self._load_registry()
+
+    def _load_registry(self):
+        try:
+            if self._registry_file.exists():
+                with open(self._registry_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for key, entries in data.get("published", {}).items():
+                    self._published_registry[key] = []
+                    for e in entries:
+                        self._published_registry[key].append(PublishedWorkflow(
+                            workflow_id=e["workflow_id"],
+                            workflow_type=e["workflow_type"],
+                            name=e["name"],
+                            version=e["version"],
+                            status=PublishStatus(e["status"]),
+                            published_at=datetime.fromisoformat(e["published_at"]) if e.get("published_at") else None,
+                            published_by=e.get("published_by"),
+                            description=e.get("description")
+                        ))
+                self._version_registry = data.get("versions", {})
+                logger.info(f"Loaded publish registry from {self._registry_file}")
+        except Exception as e:
+            logger.warning(f"Failed to load publish registry, starting fresh: {e}")
+            self._published_registry = {}
+            self._version_registry = {}
+
+    def _save_registry(self):
+        try:
+            data = {"published": {}, "versions": self._version_registry}
+            for key, entries in self._published_registry.items():
+                data["published"][key] = [e.to_dict() for e in entries]
+            self._registry_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._registry_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.debug(f"Saved publish registry to {self._registry_file}")
+        except Exception as e:
+            logger.error(f"Failed to save publish registry: {e}")
 
     def publish_psop(self, psop: PSOP, version: str = "1.0.0",
                      published_by: Optional[str] = None) -> PublishedWorkflow:
@@ -88,6 +130,7 @@ class WorkflowPublisher:
             self._published_registry[registry_key].append(published_wf)
             self._version_registry[workflow_id] = version
 
+            self._save_registry()
             logger.info(f"PSOP published : {psop.name} v{version} by {published_by}")
             return published_wf
         except Exception as e:
@@ -113,6 +156,7 @@ class WorkflowPublisher:
                 self._published_registry[registry_key] = []
             self._published_registry[registry_key].append(published_wf)
             self._version_registry[workflow_id] = version
+            self._save_registry()
             logger.info(f"PreFlow published : {preflow.name} v{version} by {published_by}")
             return published_wf
         except Exception as e:
@@ -124,6 +168,7 @@ class WorkflowPublisher:
             for pwf in versions:
                 if pwf.workflow_id == workflow_id and pwf.workflow_type == workflow_type:
                     pwf.status = PublishStatus.DEPRECATED
+                    self._save_registry()
                     logger.info(f"Workflow deprecated : {workflow_id}")
                     return True
         logger.warning(f"Workflow not found for deprecation : {workflow_id}")
@@ -134,6 +179,7 @@ class WorkflowPublisher:
             for pwf in versions:
                 if pwf.workflow_id == workflow_id and pwf.workflow_type == workflow_type:
                     pwf.status = PublishStatus.ARCHIVED
+                    self._save_registry()
                     logger.info(f"Workflow archived : {workflow_id}")
                     return True
         logger.warning(f"Workflow not found for archiving : {workflow_id}")

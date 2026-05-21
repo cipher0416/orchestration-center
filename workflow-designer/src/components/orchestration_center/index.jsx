@@ -3,9 +3,9 @@ import { dump } from 'js-yaml';
 import {
     Search, Loader2, Layout, Hash,
     Plus, Upload, MessageSquare,
-    ChevronRight, Sparkles, ChevronLeft, Code2, Trash2
+    ChevronRight, Sparkles, ChevronLeft, Code2, Trash2, Download
 } from 'lucide-react';
-import { getAgentCards, getWorkflow, getWorkflowById, handlePlan, parsePdf, generateWorkflowFromIntent, delWorkflowById } from "@/service/api.js";
+import { getAgentCards, getWorkflow, getWorkflowById, handlePlan, parsePdf, generateWorkflowFromIntent, delWorkflowById, getTemplates, importTemplate } from "@/service/api.js";
 import { transformWorkflowToReactFlow } from "./workflow/utils/index.jsx";
 import UnifiedWorkflow from "../orchestration_center/workflow/index.jsx";
 import { useTranslation } from 'react-i18next';
@@ -81,6 +81,8 @@ const OrchestrationCenter = ({ isDark }) => {
     const [progress, setProgress] = useState(0);
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
+    const [templates, setTemplates] = useState([]);
+    const [importingTpl, setImportingTpl] = useState(null);
     const fileInput = useRef(null);
 
     const [loading, setLoading] = useState(false);
@@ -166,7 +168,44 @@ const OrchestrationCenter = ({ isDark }) => {
 
     useEffect(() => {
         fetchWorkflows();
+        fetchTemplates();
     }, []);
+
+    const fetchTemplates = async () => {
+        try {
+            const res = await getTemplates();
+            if (res.status === 'success') {
+                setTemplates(res.data || []);
+            }
+        } catch (e) {
+            console.error("Failed to fetch templates:", e);
+        }
+    };
+
+    const handleImportTemplate = async (tplId) => {
+        try {
+            setImportingTpl(tplId);
+            const res = await importTemplate(tplId);
+            if (res.status === 'success') {
+                const psop = res.data;
+                const { nodes: n, edges: e } = transformWorkflowToReactFlow(psop);
+                setNodes(n);
+                setEdges(e);
+                setCurrentWf({
+                    id: psop.id,
+                    name: psop.name,
+                    rawText: psop
+                });
+                setSelectedId(psop.id);
+                setActiveView('detail');
+                await fetchWorkflows();
+            }
+        } catch (e) {
+            console.error("Failed to import template:", e);
+        } finally {
+            setImportingTpl(null);
+        }
+    };
 
     useEffect(() => {
         if (!selectedId) {
@@ -270,6 +309,67 @@ const OrchestrationCenter = ({ isDark }) => {
                                 t={t}
                             />
                         </div>
+
+                        {templates.length > 0 && (
+                            <div className="z-10 mt-12 w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                <div className="text-center mb-2">
+                                    <h3 className="text-xs font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">
+                                        {t('orchestration.templates')}
+                                    </h3>
+                                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1">
+                                        {t('orchestration.templates_hint')}
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {templates.map(tpl => (
+                                        <button
+                                            key={tpl.id}
+                                            onClick={() => handleImportTemplate(tpl.id)}
+                                            disabled={importingTpl === tpl.id}
+                                            className={`
+                                                group relative text-left p-5 rounded-2xl border transition-all duration-300
+                                                bg-white dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-700
+                                                hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-lg
+                                                ${importingTpl === tpl.id ? 'opacity-60 cursor-wait' : 'hover:-translate-y-1 cursor-pointer'}
+                                            `}
+                                        >
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Sparkles size={14} className="text-amber-500" />
+                                                <span className="font-black text-sm dark:text-white truncate">
+                                                    {tpl.name}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 line-clamp-2 mb-3 leading-relaxed">
+                                                {tpl.description}
+                                            </p>
+                                            <div className="flex items-center gap-3 text-[10px] font-bold text-zinc-400">
+                                                <span>{tpl.step_count} {t('orchestration.steps')}</span>
+                                                <span className="w-1 h-1 rounded-full bg-zinc-300" />
+                                                <span>{tpl.agent_count} {t('orchestration.agents')}</span>
+                                            </div>
+                                            {tpl.tags?.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {tpl.tags.slice(0, 3).map(tag => (
+                                                        <span key={tag} className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700 flex items-center gap-1.5 text-[10px] font-bold text-blue-500 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <Download size={12} />
+                                                <span className="uppercase tracking-widest">{t('orchestration.import_btn')}</span>
+                                            </div>
+                                            {importingTpl === tpl.id && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-zinc-800/80 rounded-2xl">
+                                                    <Loader2 size={18} className="animate-spin text-blue-500" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div
                             className="absolute bottom-10 w-32 h-[1px] bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent" />

@@ -1,0 +1,81 @@
+{
+  "id": "template_spn_fault_handling",
+  "name": "跨地市SPN故障处理",
+  "description": "由Transport Workbench Agent统一调度，向各地市SPN故障处理Agent同时下发专线故障诊断指令，并行执行后汇总分析，生成综合诊断报告。",
+  "created_at": "2026-05-21T00:00:00Z",
+  "steps": [
+    {
+      "name": "step1",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_1_1",
+          "description": "向多个地市SPN故障处理Agent同时下发专线故障诊断指令。",
+          "agent": "Transport Workbench Agent",
+          "skill": "下发专线诊断",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step2",
+          "condition": "诊断指令下发成功"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step2",
+      "type": "AnySuccess",
+      "subtasks": [
+        {
+          "task_id": "task_2_1",
+          "description": "根据接收到的指令，对地市1的专线进行故障诊断，输出诊断结果。",
+          "agent": "SPN Fault Handling Agent City1 OMC",
+          "skill": "专线故障诊断",
+          "status": "pending"
+        },
+        {
+          "task_id": "task_2_2",
+          "description": "根据接收到的指令，对地市2的专线进行故障诊断，输出诊断结果。",
+          "agent": "SPN Fault Handling Agent City2 OMC",
+          "skill": "专线故障诊断",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step3",
+          "condition": "至少一个地市完成诊断"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step3",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_3_1",
+          "description": "收集并汇总各地市SPN Agent的诊断结果，进行综合分析并生成最终报告。",
+          "agent": "Transport Workbench Agent",
+          "skill": "汇总分析",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "end",
+          "condition": "报告生成完成，流程结束"
+        }
+      ],
+      "layer": 1,
+      "context_from": ["*"]
+    }
+  ],
+  "related_preflow": null,
+  "user_intent": null,
+  "tags": ["SPN", "FaultHandling", "Dispatch", "Template", "5G"]
+}

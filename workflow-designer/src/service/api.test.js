@@ -9,10 +9,17 @@ import {
   getWorkflow,
   getWorkflowById,
   createWorkflow,
-  switchLanguage,
+  delWorkflowById,
+  getTemplates,
+  importTemplate,
   parsePdf,
   handlePlan,
-  generateWorkflowFromIntent
+  generateWorkflowFromIntent,
+  getStartProcessStreamUrl,
+  matchWorkflows,
+  getExecutionRecords,
+  getExecutionRecord,
+  deleteExecutionRecord
 } from './api';
 
 // Mock axios
@@ -20,6 +27,7 @@ vi.mock('axios', () => {
   const mockApi = {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
     interceptors: {
       request: { use: vi.fn() },
       response: { use: vi.fn() }
@@ -30,6 +38,7 @@ vi.mock('axios', () => {
       create: vi.fn(() => mockApi),
       get: vi.fn(),
       post: vi.fn(),
+      delete: vi.fn(),
       interceptors: {
         request: { use: vi.fn() },
         response: { use: vi.fn() }
@@ -123,7 +132,7 @@ describe('api service', () => {
       mockApi.get.mockResolvedValue({ data: 'workflows' });
 
       await getWorkflow();
-      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining('/psops'));
+      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining('/rest/v1/orchestrate/workflows'));
     });
 
     it('getWorkflowById should call api.get with correct URL', async () => {
@@ -132,7 +141,7 @@ describe('api service', () => {
       const testId = '123';
 
       await getWorkflowById(testId);
-      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining(`/psops/${testId}`));
+      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining(`/rest/v1/orchestrate/workflows/${testId}`));
     });
 
     it('createWorkflow should call api.post with correct URL and data', async () => {
@@ -141,33 +150,31 @@ describe('api service', () => {
       const testData = { name: 'New Workflow' };
 
       await createWorkflow(testData);
-      expect(mockApi.post).toHaveBeenCalledWith(expect.stringContaining('/psops'), testData);
+      expect(mockApi.post).toHaveBeenCalledWith(expect.stringContaining('/rest/v1/orchestrate/workflows'), { psop: testData });
+    });
+
+    it('delWorkflowById should call api.delete with correct URL', async () => {
+      const mockApi = axios.create();
+      mockApi.delete.mockResolvedValue({ data: 'ok' });
+      const testId = 'abc-123';
+
+      await delWorkflowById(testId);
+      expect(mockApi.delete).toHaveBeenCalledWith(expect.stringContaining(`/rest/v1/orchestrate/workflows/${testId}`));
     });
   });
 
   describe('Direct axios requests', () => {
-    it('switchLanguage should call axios.post with correct params', async () => {
-      const testLocale = 'zh';
-      axios.post.mockResolvedValue({ data: 'ok' });
-
-      await switchLanguage(testLocale);
-      expect(axios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/rest/agents/switch-language'),
-        { language: testLocale }
-      );
-    });
-
     it('parsePdf should handle successful response', async () => {
       const mockFile = new File([''], 'test.pdf', { type: 'application/pdf' });
-      const mockContent = JSON.stringify({ key: 'value' });
+      const mockContent = { key: 'value' };
       axios.post.mockResolvedValue({
-        data: { status: 'success', content: mockContent }
+        data: { status: 'success', data: mockContent }
       });
 
       const result = await parsePdf(mockFile);
       expect(result).toEqual({ key: 'value' });
       expect(axios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/parse-pdf'),
+        expect.stringContaining('/rest/v1/orchestrate/parse-pdf'),
         expect.any(FormData),
         expect.objectContaining({
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -187,7 +194,7 @@ describe('api service', () => {
     it('handlePlan should handle successful response', async () => {
       const preflow = {};
       const agentCards = [];
-      const mockData = JSON.stringify({ plan: 'test' });
+      const mockData = { plan: 'test' };
       axios.post.mockResolvedValue({
         data: { status: 'success', data: mockData }
       });
@@ -195,7 +202,7 @@ describe('api service', () => {
       const result = await handlePlan(preflow, agentCards);
       expect(result).toEqual({ plan: 'test' });
       expect(axios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/plan'),
+        expect.stringContaining('/rest/v1/orchestrate/generate-from-preflow'),
         { preflow, agent_cards: agentCards }
       );
     });
@@ -219,8 +226,8 @@ describe('api service', () => {
       const result = await generateWorkflowFromIntent(intent);
       expect(result).toEqual(mockWorkflow);
       expect(axios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/generate-from-intent'),
-        { user_intent: intent, workflow_name: "AI Generated Workflow" }
+        expect.stringContaining('/rest/v1/orchestrate/generate-from-intent'),
+        { user_intent: intent, workflow_name: "Generated Workflow" }
       );
     });
 
@@ -230,6 +237,78 @@ describe('api service', () => {
       });
 
       await expect(generateWorkflowFromIntent('intent')).rejects.toThrow('Generation failed');
+    });
+
+    it('getTemplates should call api.get with correct URL', async () => {
+      const mockApi = axios.create();
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await getTemplates();
+      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining('/rest/v1/orchestrate/templates'));
+    });
+
+    it('importTemplate should call api.post with correct URL and template id', async () => {
+      const mockApi = axios.create();
+      mockApi.post.mockResolvedValue({ data: {} });
+      const tplId = 'template_ran_energy_saving';
+
+      await importTemplate(tplId);
+      expect(mockApi.post).toHaveBeenCalledWith(
+        expect.stringContaining(`/rest/v1/orchestrate/templates/${tplId}/import`)
+      );
+    });
+
+    it('matchWorkflows should call axios.post and return parsed results', async () => {
+      const intent = 'energy saving';
+      axios.post.mockResolvedValue({
+        status: 200,
+        data: {
+          status: 'success',
+          data: [{ id: 'wf1', name: 'ES Workflow', description: 'desc', tags: ['RAN'] }]
+        }
+      });
+
+      const result = await matchWorkflows(intent);
+      expect(result).toEqual([{ workflow_id: 'wf1', name: 'ES Workflow', description: 'desc', tags: ['RAN'] }]);
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/rest/v1/orchestrate/retrieve-by-intent'),
+        { user_intent: intent }
+      );
+    });
+
+    it('getExecutionRecords should call api.get with correct URL', async () => {
+      const mockApi = axios.create();
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await getExecutionRecords();
+      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining('/rest/v1/orchestrate/execution-records'));
+    });
+
+    it('getExecutionRecord should call api.get with execution id', async () => {
+      const mockApi = axios.create();
+      mockApi.get.mockResolvedValue({ data: {} });
+      const execId = 'exec-001';
+
+      await getExecutionRecord(execId);
+      expect(mockApi.get).toHaveBeenCalledWith(expect.stringContaining(`/rest/v1/orchestrate/execution-records/${execId}`));
+    });
+
+    it('deleteExecutionRecord should call api.delete with execution id', async () => {
+      const mockApi = axios.create();
+      mockApi.delete.mockResolvedValue({ data: 'ok' });
+      const execId = 'exec-002';
+
+      await deleteExecutionRecord(execId);
+      expect(mockApi.delete).toHaveBeenCalledWith(expect.stringContaining(`/rest/v1/orchestrate/execution-records/${execId}`));
+    });
+    it('getStartProcessStreamUrl should build correct SSE URL', () => {
+      const url1 = getStartProcessStreamUrl('psop-123');
+      expect(url1).toContain('/rest/v1/orchestrate/execute?psop_id=psop-123');
+      expect(url1).not.toContain('user_intent');
+
+      const url2 = getStartProcessStreamUrl('psop-456', 'test intent with spaces');
+      expect(url2).toContain('/rest/v1/orchestrate/execute?psop_id=psop-456');
+      expect(url2).toContain('user_intent=');
     });
   });
 });

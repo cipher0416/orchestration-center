@@ -7,7 +7,7 @@ orchestrate and execute agent workflows. Three orchestration modes are supported
 
 | Mode | Endpoint | Input | Description |
 |---|---|---|---|
-| **SOP-based** | `POST /api/v1/orchestrate/sop` | SOP text or PDF | Fixed-step business process → PSOP |
+| **SOP-based** | `POST /api/v1/orchestrate/sop` | SOP text, PDF, TXT, or MD file | Fixed-step business process → PSOP |
 | **Intent-based** | `POST /api/v1/orchestrate/intent` | Natural language intent | Open-ended task → PSOP |
 | **Auto-execute** | `POST /api/v1/orchestrate/execute` | Task description | Search → orchestrate → execute (SSE) |
 
@@ -51,10 +51,64 @@ All error responses follow the same envelope:
 
 ---
 
+## Data Models
+
+### PSOP
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | No | Unique workflow identifier (auto-generated UUID) |
+| `name` | string | Yes | Workflow name |
+| `description` | string | No | Brief workflow description |
+| `created_at` | datetime | No | Creation timestamp (auto-generated) |
+| `steps` | List[Step] | Yes | List of steps in the agent collaboration workflow |
+| `related_preflow` | string | No | Associated PreFlow ID that this PSOP was generated from |
+| `user_intent` | string | No | Original user intent that generated this workflow |
+| `tags` | List[string] | No | Tags for quick filtering |
+
+### Step
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Step identifier |
+| `type` | StepType | No | Success condition: `AllSuccess` (all subtasks succeed) or `AnySuccess` (any subtask succeeds). Default: `AllSuccess` |
+| `subtasks` | List[Task] | Yes | List of subtasks within the step. No dependencies between subtasks, can be executed in parallel |
+| `next` | List[JumpCondition] | No | Jump conditions to next steps. If empty, unconditional jump |
+| `layer` | int | No | Orchestration layer level. 0 = execution layer (leaf agents), 1+ = aggregation layers. Default: 0 |
+| `context_from` | List[string] | No | List of step names whose outputs should be provided as context. Use `["*"]` for ALL previously executed steps. If None and layer > 0, predecessors are auto-derived from graph edges |
+
+### Task
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `task_id` | string | No | Unique task identifier (auto-generated UUID) |
+| `description` | string | Yes | Task description |
+| `agent` | string | Yes | Name of the agent executing the task |
+| `skill` | string | Yes | Skill required to execute the task |
+| `status` | TaskStatus | No | Task execution status. Default: `pending` |
+
+### TaskStatus (enum)
+
+| Value | Description |
+|---|---|
+| `pending` | Task not yet started |
+| `running` | Task currently executing |
+| `success` | Task completed successfully |
+| `failed` | Task execution failed |
+
+### JumpCondition
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `step` | string | Yes | Target step name |
+| `condition` | string | Yes | Condition description for jumping |
+
+---
+
 ## 1. SOP-Based Orchestration
 
 Generates a PSOP workflow from a structured SOP (Standard Operating Procedure).
-Accepts either JSON text or a PDF SolutionPackage file.
+Accepts either JSON text or a file upload (PDF, TXT, or MD).
 **When both JSON body and file are provided, the file takes precedence.**
 
 ```
@@ -70,16 +124,24 @@ POST /api/v1/orchestrate/sop
 }
 ```
 
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sop_content` | string | Yes (if no file) | Natural language SOP steps (markdown text) |
+| `name` | string | No | Workflow name (auto-generated if omitted) |
+
 ### Request (File upload)
 
 ```
 Content-Type: multipart/form-data
-file: <SolutionPackage.pdf>
+file: <SolutionPackage.pdf|txt|md>
 name: <Optional workflow name>
 ```
 
-The PDF must contain chapter "5. Interaction Flow" with SOP steps.
-The `name` field is optional; if omitted, the PDF filename is used.
+Supported file formats:
+- **PDF**: Must contain chapter "5. Interaction Flow" with SOP steps. Filename validation: alphanumeric, hyphens, underscores, spaces, 1–128 chars + `.pdf` extension.
+- **TXT / MD**: Plain text or Markdown SOP content. Same filename validation rules with `.txt` or `.md` extension.
+
+The `name` field is optional; if omitted, the PDF filename is used. Maximum file size: 100 MB.
 
 ### Response (201 Created)
 
@@ -91,12 +153,17 @@ The `name` field is optional; if omitted, the PDF filename is used.
   "data": {
     "id": "uuid",
     "name": "SPN-Leased-Line-Diagnosis",
+    "description": null,
     "steps": [ /* Array<Step> */ ],
     "created_at": "2026-05-20T21:00:00",
+    "related_preflow": "preflow-uuid",
+    "user_intent": "## Step 1: Dispatch diagnosis...",
     "tags": []
   }
 }
 ```
+
+The `user_intent` field is automatically set to the first 200 characters of the SOP content. The `related_preflow` field links to the internally generated PreFlow.
 
 ### curl Example
 
@@ -110,6 +177,10 @@ curl -X POST http://127.0.0.1:60000/api/v1/orchestrate/sop \
 curl -X POST http://127.0.0.1:60000/api/v1/orchestrate/sop \
   -F "file=@SolutionPackage.pdf" \
   -F "name=SPN-Leased-Line-Diagnosis"
+
+# TXT file upload
+curl -X POST http://127.0.0.1:60000/api/v1/orchestrate/sop \
+  -F "file=@sop_steps.txt"
 ```
 
 ---
@@ -160,6 +231,8 @@ The primary external execution endpoint. Given a task description:
 
 Returns a **Server-Sent Events (SSE)** stream with real-time execution progress.
 
+**Important**: The `task` field is passed as `runtime_intent` to the execution engine. During execution, the engine injects the runtime intent into the context of **all steps** (including layer-0 leaf steps), so agents receive the user's original scenario description alongside their predefined task instructions. This ensures agents have the specific scenario data (e.g., "华为园区早上8点出现网络故障") needed to produce contextual responses.
+
 ```
 POST /api/v1/orchestrate/execute
 ```
@@ -175,7 +248,7 @@ POST /api/v1/orchestrate/execute
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `task` | string | Yes | Task description for search/orchestration |
+| `task` | string | Yes | Task description for search/orchestration. Also injected as runtime context into all execution steps |
 | `name` | string | No | Workflow name for auto-generation |
 
 ### SSE Event Types
@@ -186,7 +259,7 @@ POST /api/v1/orchestrate/execute
 | `start` | → | Workflow execution started |
 | `agent_request` | → | Message sent to an agent |
 | `agent_response` | ← | Agent's response received |
-| `psop_update` | → | PSOP state updated (task status changes) |
+| `psop_update` | → | Full PSOP state updated (task status changes) |
 | `complete` | → | Workflow execution completed successfully |
 | `error` | → | Workflow execution failed |
 | `close` | → | SSE connection closed |
@@ -238,29 +311,53 @@ data: {}
   "data": {
     "psop_id": "uuid",
     "execution_history": [
-      {"step": "step1", "task": "task description", "status": "SUCCESS", "output": "..."},
-      {"step": "step2", "task": "task description", "status": "SUCCESS", "output": "..."}
+      {"step": "step1", "task": "task description", "status": "success", "output": "..."},
+      {"step": "step2", "task": "task description", "status": "success", "output": "..."}
     ]
   }
 }
 ```
 
+Note: `execution_history` item `status` values are lowercase: `success` or `failed`.
+
 ### PSOP Update Event
 
-Emitted when task status changes during execution (e.g., from `PENDING` to `RUNNING` or `COMPLETED`).
+Emitted after each subtask completes or fails. Contains the **full serialized PSOP object** with updated task statuses, not a summary.
 
 ```json
 {
   "type": "psop_update",
   "data": {
-    "psop_id": "uuid",
-    "step": "step1",
-    "task_status": "RUNNING",
-    "message": "Step step1 execution started"
+    "psop": {
+      "id": "uuid",
+      "name": "SPN-Leased-Line-Diagnosis",
+      "steps": [
+        {
+          "name": "step1",
+          "type": "AllSuccess",
+          "subtasks": [
+            {
+              "task_id": "uuid",
+              "description": "Dispatch diagnosis...",
+              "agent": "Transport Workbench Agent",
+              "skill": "dispatch-diagnosis",
+              "status": "success"
+            }
+          ],
+          "next": null,
+          "layer": 0,
+          "context_from": null
+        }
+      ],
+      "created_at": "2026-05-20T21:00:00",
+      "tags": []
+    }
   },
   "timestamp": 1716230402.0
 }
 ```
+
+The `psop` field contains a complete PSOP model (same structure as the Data Models section above). Task `status` values follow the TaskStatus enum: `pending`, `running`, `success`, `failed`.
 
 ### curl Example (SSE)
 
@@ -339,14 +436,24 @@ GET /api/v1/orchestrate/execute/{psop_id}
 
 ### Path Parameters
 
-| Parameter | Type | Description |
-|---|---|---|
-| `psop_id` | string | The PSOP workflow ID (returned by SOP or intent orchestration) |
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `psop_id` | string | Yes | The PSOP workflow ID (returned by SOP or intent orchestration) |
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `user_intent` | string | No | Runtime user intent and scenario description. When provided, the engine injects this context into **all steps** (including layer-0 leaf steps), so agents receive the specific scenario alongside their predefined task instructions. This is critical when executing a retrieved PSOP — the original user intent contains scenario data that the PSOP's predefined tasks alone do not carry. |
 
 ### curl Example
 
 ```bash
+# Execute without runtime context
 curl -N http://127.0.0.1:60000/api/v1/orchestrate/execute/6a204d60-f2ff-471b-9892-c5beae1c3a5c
+
+# Execute with runtime intent (recommended when PSOP was retrieved by intent matching)
+curl -N "http://127.0.0.1:60000/api/v1/orchestrate/execute/6a204d60-f2ff-471b-9892-c5beae1c3a5c?user_intent=SPN%E4%B8%93%E7%BA%BF%E6%95%85%E9%9C%9C%E8%AF%81%E6%96%AD%EF%BC%8C%E5%8D%97%E9%9D%9E%E5%9B%AD%E5%8C%BA%E5%B7%A8%E8%AF%988%E7%82%B9%E5%87%BA%E7%8E%B0%E7%BD%AE%E7%BD%91%E6%95%9C%E9%9C%9C%E4%BA%86"
 ```
 
 ---
@@ -369,15 +476,24 @@ GET /api/v1/agents
     {
       "name": "Transport Workbench Agent",
       "description": "Responsible for dispatching...",
+      "version": "1.0.0",
+      "provider": {"organization": "Huawei", "url": "https://www.huawei.com"},
       "skills": [
-        {"id": "dispatch-diagnosis", "name": "Dispatch Diagnosis", "description": "..."},
-        {"id": "aggregate-analysis", "name": "Aggregate Analysis", "description": "..."}
+        {"id": "dispatch-diagnosis", "name": "Dispatch Diagnosis", "description": "...", "tags": ["wireless", "fault"]},
+        {"id": "aggregate-analysis", "name": "Aggregate Analysis", "description": "...", "tags": ["wireless", "analysis"]}
       ],
-      "supportedInterfaces": [{"url": "http://127.0.0.1:8904", "protocolBinding": "HTTP+JSON"}]
+      "capabilities": {"streaming": true, "pushNotifications": false, "extensions": []},
+      "defaultInputModes": ["text", "json"],
+      "defaultOutputModes": ["text", "json"],
+      "supportedInterfaces": [
+        {"protocolBinding": "HTTP+JSON", "protocolVersion": "1.0.0", "url": "http://127.0.0.1:8904"}
+      ]
     }
   ]
 }
 ```
+
+The response data is a list of A2A AgentCard objects. The exact structure follows the A2A protocol specification and may include additional fields beyond what is shown above.
 
 ---
 
@@ -390,6 +506,12 @@ GET /api/v1/executions/{execution_id}
 ```
 
 The `execution_id` is available in the `complete` SSE event or can be obtained from the execution records list.
+
+### Path Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `execution_id` | string | Yes | The execution record ID |
 
 ### Response
 
@@ -405,7 +527,7 @@ The `execution_id` is available in the `complete` SSE event or can be obtained f
     "completed_at": "2026-05-20T21:00:45",
     "status": "success",
     "execution_history": [
-      {"step": "step1", "task": "...", "status": "SUCCESS", "output": "..."}
+      {"step": "step1", "task": "...", "status": "success", "output": "..."}
     ],
     "final_psop": { /* full PSOP with updated task statuses */ },
     "events": [ /* all agent_request/response events */ ],
@@ -413,6 +535,8 @@ The `execution_id` is available in the `complete` SSE event or can be obtained f
   }
 }
 ```
+
+Note: `execution_history` item `status` values are lowercase: `success` or `failed`. The `final_psop` field contains a complete PSOP object with all task statuses updated to their final state.
 
 ---
 
@@ -423,11 +547,11 @@ The `execution_id` is available in the `complete` SSE event or can be obtained f
 │ External System  │
 └────────┬─────────┘
          │
-         │  POST /api/v1/orchestrate/sop     ──→ PSOP (from SOP text/PDF)
+         │  POST /api/v1/orchestrate/sop     ──→ PSOP (from SOP text/PDF/TXT/MD)
          │  POST /api/v1/orchestrate/intent  ──→ PSOP (from intent)
          │
          │  POST /api/v1/orchestrate/execute ──→ SSE stream (search + orchestrate + execute)
-         │  GET  /api/v1/orchestrate/execute/{id} ──→ SSE stream (execute known PSOP)
+         │  GET  /api/v1/orchestrate/execute/{id}?user_intent=... ──→ SSE stream (execute known PSOP with context)
          │
          │  GET /api/v1/agents              ──→ Agent inventory
          │  GET /api/v1/executions/{id}     ──→ Execution result
@@ -452,6 +576,8 @@ The `execution_id` is available in the `complete` SSE event or can be obtained f
    or
    POST /api/v1/orchestrate/intent       → Create PSOP from intent
 3. POST /api/v1/orchestrate/execute      → Execute (auto-search + auto-orchestrate + SSE stream)
+   or
+   GET /api/v1/orchestrate/execute/{id}?user_intent=... → Execute known PSOP with runtime context
 4. GET /api/v1/executions/{execution_id} → Retrieve detailed execution result
 ```
 
@@ -460,7 +586,9 @@ The `execution_id` is available in the `complete` SSE event or can be obtained f
 - The external API prefix is `/api/v1`. Internal UI endpoints use `/rest/v1/orchestrate`.
 - All orchestration endpoints auto-save the generated PSOP.
 - The `/orchestrate/execute` endpoint persists an `ExecutionRecord` on completion for later retrieval.
+- When executing a PSOP (via auto-execute or by ID), the runtime intent is injected into every step's context, including layer-0 leaf steps. This gives agents the user's original scenario description alongside predefined task instructions.
 - SSE connections use `text/event-stream` with keep-alive. Clients should handle reconnection.
 - Rate limiting applies to all endpoints (default 50 req/s per endpoint, configurable in `etc/conf/server.conf`).
 - Agent availability depends on the agent registry service. The orchestration center queries it on each request.
 - No authentication is required in the open-source release. Authentication can be added via middleware for production deployments.
+- All enum values (TaskStatus, StepType) are lowercase strings: `pending`, `running`, `success`, `failed`, `AllSuccess`, `AnySuccess`.

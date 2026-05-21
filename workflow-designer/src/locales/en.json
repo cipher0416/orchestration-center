@@ -94,7 +94,12 @@
     "stage_planning": "Planning workflow...",
     "stage_generating": "Generating workflow from intent...",
     "stage_finalizing": "Building preview...",
-    "stage_deleting": "Deleting workflow..."
+    "stage_deleting": "Deleting workflow...",
+    "templates": "Templates",
+    "templates_hint": "Click a template to import and start using it immediately",
+    "import_btn": "Click to import",
+    "steps": "steps",
+    "agents": "agents"
   },
   "workflow": {
     "title": "WORKFLOW PROGRESSION",

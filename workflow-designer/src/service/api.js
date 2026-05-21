@@ -55,6 +55,16 @@ export async function createWorkflow(data) {
     return api.post(`${ORCHESTRATE_BASE()}/workflows`, { psop: data });
 }
 
+// ──── Workflow Templates ────
+
+export async function getTemplates() {
+    return api.get(`${ORCHESTRATE_BASE()}/templates`);
+}
+
+export async function importTemplate(templateId) {
+    return api.post(`${ORCHESTRATE_BASE()}/templates/${templateId}/import`);
+}
+
 // ──── PDF Parsing ────
 
 export async function parsePdf(file) {
@@ -159,33 +169,4 @@ export async function deleteExecutionRecord(executionId) {
     return api.delete(`${ORCHESTRATE_BASE()}/execution-records/${executionId}`);
 }
 
-// ──── Legacy helpers (used by other parts of the app) ────
 
-export async function switchLanguage(local) {
-    return axios.post(`${getBaseUrl()}/rest/agents/switch-language?scenario='5g'`, {
-        language: local,
-    });
-}
-
-export async function getWorkflowQuestions() {
-    return api.get(`${getBaseUrl()}/rest/workflow_questions`);
-}
-
-export async function getWorkFlowRecords(questionId) {
-    return api.get(`${getBaseUrl()}/rest/workflow_records?questionId=${questionId}`);
-}
-
-export async function startProcess(questionId, questionText) {
-    return api.post(`${getBaseUrl()}/rest/start_process`, {
-        question_id: questionId,
-        question_text: questionText
-    });
-}
-
-export async function deleteWorkflowByQuestionId(questionId) {
-    return api.delete(`${getBaseUrl()}/rest/workflow_question?questionId=${questionId}`);
-}
-
-export async function deleteWorkflowDbByQuestionId(questionId) {
-    return api.delete(`${getBaseUrl()}/rest/workflow_db?questionId=${questionId}`);
-}

@@ -50,11 +50,6 @@ class IntentWorkflowGeneratorError(Exception):
     pass
 
 
-def get_plan_kg(user_intent: str):
-    """Custom function to get planning knowledge from RAG"""
-    return ""
-
-
 class IntentPsopGenerator(PsopGenerator):
     """Main class for generating PSOP workflows directly from natural language intents.
 
@@ -121,11 +116,8 @@ class IntentPsopGenerator(PsopGenerator):
             agent_cards_json = self._prepare_agent_cards_json(agent_cards)
             psop_schema = json.dumps(PSOP.model_json_schema(), ensure_ascii=False, indent=2)
 
-            # planning knowledge
-            plan_kg = get_plan_kg(user_intent)
-
             # Generate PSOP using LLM
-            prompt = get_intent_to_psop_prompt(user_intent, agent_cards_json, psop_schema, plan_kg)
+            prompt = get_intent_to_psop_prompt(user_intent, agent_cards_json, psop_schema)
             _, llm_res = self._llm.ask_llm(prompt)
 
             # Parse LLM response into PSOP object

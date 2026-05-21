@@ -14,6 +14,7 @@
 #    under the License.
 
 import asyncio
+import json
 
 import uvicorn
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -21,6 +22,7 @@ from a2a.server.routes import create_rest_routes, create_agent_card_routes
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
 from fastapi import FastAPI
+from google.protobuf.json_format import MessageToDict
 from loguru import logger
 from typing import List
 from urllib.parse import urlparse
@@ -38,6 +40,63 @@ from samples.agents.dispatch_agent import DispatchAgentExecutor
 from samples.agents.spn_agent_city1 import SpnCity1AgentExecutor
 from samples.agents.spn_agent_city2 import SpnCity2AgentExecutor
 from samples.a2at_config import ensure_env_file_exists
+
+
+def _agent_card_to_dict(agent_card: AgentCard) -> dict:
+    return MessageToDict(agent_card)
+
+
+def _is_agent_card_changed(local_dict: dict, remote_dict: dict) -> bool:
+    local_normalized = json.dumps(local_dict, sort_keys=True, ensure_ascii=False)
+    remote_normalized = json.dumps(remote_dict, sort_keys=True, ensure_ascii=False)
+    return local_normalized != remote_normalized
+
+
+def register_or_update_agent(factory, agent_card: AgentCard) -> dict:
+    local_dict = _agent_card_to_dict(agent_card)
+    name = agent_card.name
+    org = agent_card.provider.organization if agent_card.provider else ""
+    try:
+        existing = factory.get(name, org)
+    except Exception as e:
+        logger.warning(f"Query registry for {name} failed: {e}, falling back to register")
+        try:
+            return factory.register(agent_card)
+        except Exception as reg_err:
+            logger.error(f"Register agent card {name} failed: {reg_err}")
+            return None
+
+    if existing is None:
+        try:
+            result = factory.register(agent_card)
+            logger.info(f"Registered new agent card: {name} (org={org})")
+            return result
+        except Exception as e:
+            logger.error(f"Register agent card {name} failed: {e}")
+            return None
+
+    remote_agent_cards = existing.get("agentCards", [])
+    if remote_agent_cards:
+        remote_dict = remote_agent_cards[0]
+        if _is_agent_card_changed(local_dict, remote_dict):
+            try:
+                result = factory.update_full(name, org, agent_card)
+                logger.info(f"Updated agent card: {name} (org={org}), content changed")
+                return result
+            except Exception as e:
+                logger.error(f"Update agent card {name} failed: {e}")
+                return None
+        else:
+            logger.info(f"Agent card {name} (org={org}) already registered, no changes detected, skipped")
+            return existing
+    else:
+        try:
+            result = factory.register(agent_card)
+            logger.info(f"Registered agent card: {name} (org={org})")
+            return result
+        except Exception as e:
+            logger.error(f"Register agent card {name} failed: {e}")
+            return None
 
 
 def pre_insert_psop():
@@ -101,10 +160,10 @@ async def main() -> None:
     tasks: List[asyncio.Task] = []
     for agent_card in agent_cards:
         try:
-            result = factory.register(agent_card)
-            logger.info(f"register agentcard for {agent_card.name}, result is {result}")
+            result = register_or_update_agent(factory, agent_card)
+            logger.info(f"register/update agentcard for {agent_card.name}, result is {result}")
         except Exception as e:
-            logger.error(f"register agent card failed: {e}")
+            logger.error(f"register/update agent card failed: {e}")
         agent_name = agent_card.name
         parsed = urlparse(agent_card.supported_interfaces[0].url)
         task = asyncio.create_task(

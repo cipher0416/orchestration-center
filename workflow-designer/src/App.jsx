@@ -1,6 +1,5 @@
 import {useTranslation} from "react-i18next";
 import {useEffect, useState} from "react";
-import {switchLanguage} from "@/service/api.js";
 import Header from "@/components/common/header/index.jsx";
 import AgentRegistry from "./components/registry_center/index.jsx";
 import OrchestrationCenter from "@/components/orchestration_center/index.jsx";
@@ -20,7 +19,6 @@ const MainContainer = () => {
 
     const handleLangChange = (l) => {
         i18n.changeLanguage(l);
-        switchLanguage(l).then(r => console.log('switchLanguage:', r));
         localStorage.setItem('lang', l);
     }
 

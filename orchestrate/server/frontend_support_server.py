@@ -513,6 +513,86 @@ async def list_agent_cards(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Workflow templates
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import pathlib
+
+_templates_dir = pathlib.Path(__file__).resolve().parent.parent.parent / "data" / "workflow_templates"
+
+
+@router.get("/templates")
+async def list_templates(
+    _: Any = Depends(RateLimiter(config, "list_workflows"))
+):
+    try:
+        templates = []
+        if _templates_dir.exists():
+            for f in sorted(_templates_dir.glob("*.json")):
+                with open(f, "r", encoding="utf-8") as fh:
+                    tpl = json.load(fh)
+                templates.append({
+                    "id": tpl.get("id", f.stem),
+                    "name": tpl.get("name", f.stem),
+                    "description": tpl.get("description", ""),
+                    "tags": tpl.get("tags", []),
+                    "step_count": len(tpl.get("steps", [])),
+                    "agent_count": len({
+                        t["agent"] for s in tpl.get("steps", [])
+                        for t in s.get("subtasks", [])
+                    })
+                })
+        return ok(data=templates)
+    except Exception as e:
+        logger.error(f"Failed to list templates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/templates/{template_id}/import", status_code=201)
+async def import_template(
+    template_id: str,
+    _: Any = Depends(RateLimiter(config, "create_workflow"))
+):
+    acquired = False
+    try:
+        save_psop_semaphore.acquire_nowait()
+        acquired = True
+        if not _templates_dir.exists():
+            raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+        psop_data = None
+        for f in _templates_dir.glob("*.json"):
+            with open(f, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if data.get("id") == template_id:
+                psop_data = data
+                break
+        if psop_data is None:
+            raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+        psop_data["id"] = str(uuid.uuid4())
+        psop = PSOP.model_validate(psop_data)
+        saved_id = save_handle.handle(psop)
+        logger.info(f"Template imported: {psop.name} ({template_id}) -> {saved_id}")
+        audit_logger.audit({
+            'object_name': OperationObject.PSOP,
+            'object_id': saved_id,
+            'operation_dt': OperationName.SAVE_PSOP,
+            'operation_desc': f"Imported from template: {template_id}",
+            'operation_result': OperationResult.SUCCESS,
+        })
+        return created(data=psop.model_dump(), message="Template imported successfully")
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to import template {template_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if acquired:
+            save_psop_semaphore.release()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Workflow execution (SSE streaming)
 # ═══════════════════════════════════════════════════════════════════════════════
 

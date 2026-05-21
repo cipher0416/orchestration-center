@@ -90,7 +90,6 @@ class ExecuteRequest(BaseModel):
 @router.post("/orchestrate/sop")
 async def orchestrate_sop(
     request: Request,
-    body: Optional[SOPOrchestrateRequest] = None,
     file: Optional[UploadFile] = File(None),
     name: Optional[str] = Form(None),
     _: Any = Depends(RateLimiter(config, "sop_orchestrate"))
@@ -100,7 +99,9 @@ async def orchestrate_sop(
 
     Accepts either:
     - JSON body with `sop_content` (natural language SOP text)
-    - File upload (PDF SolutionPackage), with optional `name` form field
+    - File upload (PDF/TXT/MD SolutionPackage), with optional `name` form field
+
+    When both JSON body and file are provided, the file takes precedence.
 
     Returns a generated PSOP workflow.
     """
@@ -111,6 +112,15 @@ async def orchestrate_sop(
 
         sop_text = ""
         workflow_name = name
+        body = None
+
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            try:
+                raw_body = await request.json()
+                body = SOPOrchestrateRequest.model_validate(raw_body)
+            except Exception:
+                pass
 
         if file:
             filename = file.filename or ""

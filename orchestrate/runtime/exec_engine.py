@@ -66,11 +66,17 @@ class DynamicWorkflowEngine:
         self.push_callback = callback
 
     def _push_event(self, event_type: str, data: Dict[str, Any]):
+        log_data = dict(data)
+        if event_type == "agent_response" and isinstance(log_data.get("response"), str):
+            try:
+                log_data["response"] = json.loads(log_data["response"])
+            except (json.JSONDecodeError, TypeError):
+                pass
         try:
-            serialized = json.dumps(data, indent=4, ensure_ascii=False, default=str)
+            serialized = json.dumps(log_data, indent=4, ensure_ascii=False, default=str)
         except Exception:
-            serialized = str(data)
-        logger.info(f'push {event_type}:\n{serialized}')
+            serialized = str(log_data)
+        logger.info(f"push {event_type}:\n{serialized}")
         if self.push_callback:
             try:
                 self.push_callback(event_type, data)
@@ -262,20 +268,6 @@ class DynamicWorkflowEngine:
             logger.error(f"Communicate with agent failed : {e}", exc_info=True)
             raise
 
-    async def _execute_single_step(self):
-        current_step = self.workflow.steps[self.current_step_idx]
-        logger.info(f"--- Executing step: {current_step.name} ---")
-
-        step_result, success = await self._execute_subtasks(current_step)
-        if not success:
-            logger.error(
-                f"Step {current_step.name} execution failed, triggering error handling strategy: stop process.")
-            self._record_stop_event("Task execution failed", step_result)
-            self.current_step_idx = len(self.workflow.steps)
-            return
-        self.step_outputs[current_step.name] = step_result
-        await self._process_llm_decision(current_step, step_result)
-
     async def _process_llm_decision(self, current_step, step_result):
         next_step_name = self._llm_route_decision(current_step, step_result)
         if next_step_name == "end":
@@ -329,7 +321,7 @@ class DynamicWorkflowEngine:
                 self.execution_history.append({
                     "step": step.name,
                     "task": task.description,
-                    "status": "SUCCESS",
+                    "status": "success",
                     "output": raw_output[:200]
                 })
 
@@ -357,7 +349,7 @@ class DynamicWorkflowEngine:
                 self.execution_history.append({
                     "step": step.name,
                     "task": task.description,
-                    "status": "FAILED",
+                    "status": "failed",
                     "output": error_msg
                 })
                 break
