@@ -57,7 +57,8 @@ class CipherConverter:
         try:
             if cipher.startswith('TLS_'):
                 cipher = cipher[len('TLS_'):]
-            cipher = cipher.replace('_WITH_', '-')
+            cipher = cipher.replace('_WITH_', '-WITH-')
+            cipher = cipher.replace('WITH', '')
             cipher = cipher.replace('_', '-')
             return cipher
         except Exception as e:

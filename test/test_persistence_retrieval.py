@@ -22,12 +22,20 @@ Tests for framework/core/persistence.py and retrieval.py
 import sys
 import os
 import tempfile
+import atexit
 from datetime import datetime
 
-# Add project root to Python path
+import pytest
+
+# Add project root to Python path (removed after test run)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
+
+def _cleanup_sys_path():
+    if project_root in sys.path:
+        sys.path.remove(project_root)
+atexit.register(_cleanup_sys_path)
 
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP, Task, TaskStatus, Step, StepType, JumpCondition
@@ -566,10 +574,17 @@ def test_error_handling():
         try:
             # Try to use invalid workflow type
             storage._get_file_path("test-id", "invalid-type")
-            assert False, "Should raise WorkflowStorageError"
+            pytest.fail("Should raise WorkflowStorageError")
         except WorkflowStorageError as e:
             print(f"  Invalid workflow type error handling: {e}")
             assert "Unknown workflow type" in str(e)
+
+        # Test invalid workflow_id with path traversal
+        try:
+            storage._get_file_path("../etc/hosts", "psop")
+            pytest.fail("Should raise WorkflowStorageError for invalid workflow_id")
+        except WorkflowStorageError as e:
+            print(f"  Invalid workflow_id error handling: {e}")
 
         # Test save error (simulate permission error)
         # Create a read-only directory to test save error

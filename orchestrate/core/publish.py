@@ -14,6 +14,8 @@
 #    under the License.
 
 import json
+import tempfile
+import os
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
@@ -104,8 +106,13 @@ class WorkflowPublisher:
             for key, entries in self._published_registry.items():
                 data["published"][key] = [e.to_dict() for e in entries]
             self._registry_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._registry_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            content = json.dumps(data, indent=2, ensure_ascii=False)
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=self._registry_file.parent, suffix='.tmp')
+            try:
+                os.write(tmp_fd, content.encode('utf-8'))
+            finally:
+                os.close(tmp_fd)
+            os.replace(tmp_path, self._registry_file)
             logger.debug(f"Saved publish registry to {self._registry_file}")
         except Exception as e:
             logger.error(f"Failed to save publish registry: {e}")

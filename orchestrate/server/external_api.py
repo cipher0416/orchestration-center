@@ -58,9 +58,9 @@ config = get_conf()
 
 MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
 
-execute_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_START_PROCESS_STREAM)))
-sop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PLAN)))
-intent_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_GENERATE_PSOP)))
+execute_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_START_PROCESS_STREAM, 50)))
+sop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PLAN, 10)))
+intent_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_GENERATE_PSOP, 10)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

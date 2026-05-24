@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 from uuid import uuid4
@@ -83,7 +83,7 @@ class PSOP(BaseModel):
                     description="Unique workflow identifier (auto-generated if not provided)")
     name: str = Field(..., description="Workflow name", examples=['energy_saving_process', 'fault_diagnosis_process'])
     description: Optional[str] = Field(None, description="Brief work description, empty by default")
-    created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc), description="Creation timestamp")
     steps: List[Step] = Field(..., description="List of steps in the agent collaboration workflow")
     related_preflow: Optional[str] = Field(None,
                                            description="Associated Preflow ID that this PSOP was generated from,\

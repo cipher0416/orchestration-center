@@ -27,7 +27,7 @@ def parse_cer_certificate(cert_path: str) -> X509Obj:
     try:
         with open(cert_path, 'rb') as f:
             cert_data = f.read()
-        if f"-----BEGIN " not in cert_data:
+        if b"-----BEGIN " not in cert_data:
             raise CertParseException(f'Parse certificate error! "-----BEGIN" not found! Unsupported der binary type!')
         cert_org_list = x509.load_pem_x509_certificates(cert_data)
         cer_obj_list = _extract_certificate_infos(cert_org_list)
@@ -88,7 +88,7 @@ def parse_crl_list(cert_path: str) -> x509.CertificateRevocationList:
     try:
         with open(cert_path, 'rb') as f:
             cert_data = f.read()
-        if f"-----BEGIN " not in cert_data:
+        if b"-----BEGIN " not in cert_data:
             raise CertParseException(f'Parse crl file error! "-----BEGIN" not found! Unsupported der binary type!')
         crl_list = x509.load_pem_x509_crl(cert_data)
         if len(crl_list) == 0:

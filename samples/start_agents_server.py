@@ -186,6 +186,9 @@ async def main() -> None:
             except Exception as e:
                 logger.error(f"register/update agent card failed: {e}")
         agent_name = agent_card.name
+        if not agent_card.supported_interfaces:
+            logger.warning(f"Skipping agent '{agent_name}': no supported interfaces")
+            continue
         parsed = urlparse(agent_card.supported_interfaces[0].url)
         task = asyncio.create_task(
             start_server(agent_card, port=parsed.port, host=parsed.hostname),

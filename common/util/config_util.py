@@ -50,3 +50,5 @@ def load_configs(config_path, config):
                 key = key.strip()
                 value = value.strip()
                 config[key.lower()] = value
+            else:
+                logger.warning(f"Skipping line without '=': {line}")

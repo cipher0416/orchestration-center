@@ -31,22 +31,24 @@ def db_save_execution_record(record: ExecutionRecord) -> str:
     conn = create_connection()
     if conn is None:
         raise RuntimeError("Unable to connect to database")
-    _, error = execute_query(conn, save_sql, (
-        record.execution_id,
-        record.psop_id,
-        record.psop_name,
-        record.started_at,
-        record.completed_at,
-        record.status,
-        len(record.execution_history),
-        record.model_dump_json(),
-    ))
-    conn.close()
-    if error:
-        logger.error(f"[DB] Failed to save execution record (id={record.execution_id}): {error}")
-        raise RuntimeError(f"Failed to save execution record: {error}")
-    logger.info(f"[DB] Execution record saved (id={record.execution_id}, psop='{record.psop_name}', status={record.status})")
-    return record.execution_id
+    try:
+        _, error = execute_query(conn, save_sql, (
+            record.execution_id,
+            record.psop_id,
+            record.psop_name,
+            record.started_at,
+            record.completed_at,
+            record.status,
+            len(record.execution_history),
+            record.model_dump_json(),
+        ))
+        if error:
+            logger.error(f"[DB] Failed to save execution record (id={record.execution_id}): {error}")
+            raise RuntimeError(f"Failed to save execution record: {error}")
+        logger.info(f"[DB] Execution record saved (id={record.execution_id}, psop='{record.psop_name}', status={record.status})")
+        return record.execution_id
+    finally:
+        conn.close()
 
 
 def db_list_execution_records():
@@ -58,31 +60,33 @@ def db_list_execution_records():
     conn = create_connection()
     if conn is None:
         return []
-    rows, error = execute_query(conn, query_sql)
-    conn.close()
-    if error:
-        logger.error(f"[DB] Failed to list execution records: {error}")
-        return []
-    result = []
-    for row in rows:
-        summary = {
-            "execution_id": row[0],
-            "psop_id": row[1],
-            "psop_name": row[2],
-            "started_at": row[3].isoformat() if hasattr(row[3], 'isoformat') else row[3],
-            "completed_at": row[4].isoformat() if hasattr(row[4], 'isoformat') else row[4],
-            "status": row[5],
-            "step_count": row[6],
-            "error": None,
-        }
-        try:
-            content = json.loads(row[7]) if row[7] else {}
-            summary["error"] = content.get("error")
-        except Exception:
-            pass
-        result.append(summary)
-    logger.debug(f"[DB] Listed {len(result)} execution record(s)")
-    return result
+    try:
+        rows, error = execute_query(conn, query_sql)
+        if error:
+            logger.error(f"[DB] Failed to list execution records: {error}")
+            return []
+        result = []
+        for row in rows:
+            summary = {
+                "execution_id": row[0],
+                "psop_id": row[1],
+                "psop_name": row[2],
+                "started_at": row[3].isoformat() if hasattr(row[3], 'isoformat') else row[3],
+                "completed_at": row[4].isoformat() if hasattr(row[4], 'isoformat') else row[4],
+                "status": row[5],
+                "step_count": row[6],
+                "error": None,
+            }
+            try:
+                content = json.loads(row[7]) if row[7] else {}
+                summary["error"] = content.get("error")
+            except Exception:
+                logger.warning(f"[DB] Failed to parse execution record content for {row[0]}")
+            result.append(summary)
+        logger.debug(f"[DB] Listed {len(result)} execution record(s)")
+        return result
+    finally:
+        conn.close()
 
 
 def db_get_execution_record(execution_id: str):
@@ -90,16 +94,18 @@ def db_get_execution_record(execution_id: str):
     conn = create_connection()
     if conn is None:
         return None
-    results, error = execute_query(conn, query_sql, (execution_id,))
-    conn.close()
-    if error:
-        logger.error(f"[DB] Failed to load execution record (id={execution_id}): {error}")
+    try:
+        results, error = execute_query(conn, query_sql, (execution_id,))
+        if error:
+            logger.error(f"[DB] Failed to load execution record (id={execution_id}): {error}")
+            return None
+        if results and len(results) > 0:
+            logger.debug(f"[DB] Execution record loaded (id={execution_id})")
+            return ExecutionRecord.model_validate(json.loads(results[0][0]))
+        logger.warning(f"[DB] Execution record not found (id={execution_id})")
         return None
-    if results and len(results) > 0:
-        logger.debug(f"[DB] Execution record loaded (id={execution_id})")
-        return ExecutionRecord.model_validate(json.loads(results[0][0]))
-    logger.warning(f"[DB] Execution record not found (id={execution_id})")
-    return None
+    finally:
+        conn.close()
 
 
 def db_delete_execution_record(execution_id: str) -> bool:
@@ -107,10 +113,12 @@ def db_delete_execution_record(execution_id: str) -> bool:
     conn = create_connection()
     if conn is None:
         return False
-    _, error = execute_query(conn, delete_sql, (execution_id,))
-    conn.close()
-    if error:
-        logger.error(f"[DB] Failed to delete execution record (id={execution_id}): {error}")
-        return False
-    logger.info(f"[DB] Execution record deleted (id={execution_id})")
-    return True
+    try:
+        _, error = execute_query(conn, delete_sql, (execution_id,))
+        if error:
+            logger.error(f"[DB] Failed to delete execution record (id={execution_id}): {error}")
+            return False
+        logger.info(f"[DB] Execution record deleted (id={execution_id})")
+        return True
+    finally:
+        conn.close()

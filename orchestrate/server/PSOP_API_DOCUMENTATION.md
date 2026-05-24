@@ -1,41 +1,49 @@
 # PSOP Orchestration Center API 文档
 
+> **DEPRECATED**: This document describes the legacy API surface. The current API has been split into:
+> - **Frontend API**: `/rest/v1/orchestrate/*` (defined in `orchestrate/server/frontend_support_server.py`)
+> - **External API**: `/api/v1/*` (defined in `orchestrate/server/external_api.py`)
+> - **Startup command**: `python -m orchestrate.start` (not `python -m framework.server.frontend_support_server`)
+>
+> Refer to `docs/zh/编排中心API参考.md` for the current external API documentation.
+> The routes described below may still work via legacy compatibility aliases but have been superseded.
+
 ## 概述
 
 PSOP (Parallel-Standard Operation Process) 是运行时工作流，用于系统执行。它定义了明确的任务及其在智能体粒度上的关系。每个任务指定了使用哪个智能体和技能。
 
-本文档描述了 `framework/server/frontend_support_server.py` 中的所有API接口。
+本文档描述了 `orchestrate/server/frontend_support_server.py` 中旧版API接口。
 
 ## 服务器信息
 
 - **服务器地址**: `http://localhost:60000`
-- **启动命令**: `python -m framework.server.frontend_support_server`
+- **启动命令**: `python -m orchestrate.start`
 - **默认端口**: 60000
 - **日志输出**: 启动时会显示所有可用接口
 
-## 接口概览
+## 接口概览（旧版路由 -> 新版路由）
 
 ### 1. PDF解析接口
-- `POST /parse-pdf` - 上传PDF文件并解析
+- Legacy: `POST /parse-pdf` -> New: `POST /rest/v1/orchestrate/parse-pdf`
 
 ### 2. 工作流规划接口
-- `POST /plan` - 提交任务和步骤，获取规划结果
+- Legacy: `POST /plan` -> New: `POST /rest/v1/orchestrate/generate-from-preflow`
 
 ### 3. PSOP管理接口
-- `GET /psops` - 获取PSOP列表
-- `GET /psops/<workflow_id>` - 根据ID获取PSOP详情
-- `POST /psops` - 保存PSOP
-- `DELETE /psops/<workflow_id>` - 删除PSOP
+- Legacy: `GET /psops` -> New: `GET /rest/v1/orchestrate/workflows`
+- Legacy: `GET /psops/<workflow_id>` -> New: `GET /rest/v1/orchestrate/workflows/<workflow_id>`
+- Legacy: `POST /psops` -> New: `POST /rest/v1/orchestrate/workflows`
+- Legacy: `DELETE /psops/<workflow_id>` -> New: `DELETE /rest/v1/orchestrate/workflows/<workflow_id>`
 
 ### 4. AgentCard管理接口
-- `GET /agent-cards` - 获取全量AgentCard列表
+- Legacy: `GET /agent-cards` -> New: `GET /rest/v1/orchestrate/agent-cards`
 
 ### 5. 意图生成接口
-- `POST /generate-from-intent` - 根据自然语言意图生成PSOP
-- `POST /retrieve-by-intent` - 根据自然语言意图检索PSOP
+- Legacy: `POST /generate-from-intent` -> New: `POST /rest/v1/orchestrate/generate-from-intent`
+- Legacy: `POST /retrieve-by-intent` -> New: `POST /rest/v1/orchestrate/retrieve-by-intent`
 
 ### 6. SSE执行接口
-- `GET /rest/start_process_stream?psop_id=<id>` - 启动PSOP执行并推送实时进展
+- Legacy: `GET /rest/start_process_stream?psop_id=<id>` -> New: `GET /rest/v1/orchestrate/execute?psop_id=<id>`
 
 ---
 

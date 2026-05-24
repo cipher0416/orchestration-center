@@ -80,7 +80,10 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
                 )
             )
             negotiation_text = negotiation_result.get(NEGOTIATION_TEXT_KEY)
-            logger.info(f"[{self.__class__.__name__}] Started fulfillment negotiation: {negotiation_text[:100]}...")
+            if negotiation_text:
+                logger.info(f"[{self.__class__.__name__}] Started fulfillment negotiation: {negotiation_text[:100]}...")
+            else:
+                logger.info(f"[{self.__class__.__name__}] Started fulfillment negotiation (no text in result)")
             return negotiation_result
         except Exception as e:
             logger.error(f"[{self.__class__.__name__}] Failed to start negotiation: {e}")

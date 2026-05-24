@@ -63,13 +63,13 @@ config = get_conf()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.add_middleware(ConnectionLimitMiddleware, max_connections=int(config.get(CONN_MAX)))
-app.add_middleware(TimeoutMiddleware, timeout_seconds=int(config.get(CONN_TIMEOUT)))
+app.add_middleware(ConnectionLimitMiddleware, max_connections=int(config.get(CONN_MAX, 200)))
+app.add_middleware(TimeoutMiddleware, timeout_seconds=int(config.get(CONN_TIMEOUT, 300)))
 
 
 @app.middleware("http")
@@ -117,10 +117,31 @@ async def security_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-# ──── Shared state ────
-save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
-delete_handle = HandlerRegistry.get_handler(InterfaceType.DELETE_PSOP)
-retrieval = WorkflowRetrieval(get_workflow_storage())
+# ──── Shared state (lazily initialized) ────
+_save_handle = None
+_delete_handle = None
+_retrieval = None
+
+
+def _get_save_handle():
+    global _save_handle
+    if _save_handle is None:
+        _save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
+    return _save_handle
+
+
+def _get_delete_handle():
+    global _delete_handle
+    if _delete_handle is None:
+        _delete_handle = HandlerRegistry.get_handler(InterfaceType.DELETE_PSOP)
+    return _delete_handle
+
+
+def _get_retrieval():
+    global _retrieval
+    if _retrieval is None:
+        _retrieval = WorkflowRetrieval(get_workflow_storage())
+    return _retrieval
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -155,7 +176,7 @@ router = APIRouter(prefix="/rest/v1/orchestrate")
 # Workflow CRUD
 # ═══════════════════════════════════════════════════════════════════════════════
 
-all_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ALL_PSOPS)))
+all_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ALL_PSOPS, 20)))
 
 
 @router.get("/workflows")
@@ -168,7 +189,7 @@ async def list_workflows(
         all_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Listing workflows: limit={limit}")
-        recent_workflows = retrieval.list_recent_workflows(limit=limit, workflow_type='psop')
+        recent_workflows = _get_retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
         logger.info(f"Retrieved {len(recent_workflows)} workflows")
         return ok(data=[wf.to_dict() for wf in recent_workflows])
     except anyio.WouldBlock:
@@ -181,7 +202,7 @@ async def list_workflows(
             all_psop_semaphore.release()
 
 
-one_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ONE_PSOP)))
+one_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ONE_PSOP, 10)))
 
 
 @router.get("/workflows/{workflow_id}")
@@ -194,7 +215,7 @@ async def get_workflow(
         one_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Getting workflow: {workflow_id}")
-        psop = retrieval.get_psop_by_id(workflow_id)
+        psop = _get_retrieval().get_psop_by_id(workflow_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
         return ok(data=psop.model_dump())
@@ -210,7 +231,7 @@ async def get_workflow(
             one_psop_semaphore.release()
 
 
-save_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_SAVE_PSOP)))
+save_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_SAVE_PSOP, 10)))
 
 
 @router.post("/workflows", status_code=201)
@@ -224,7 +245,7 @@ async def create_workflow(
         acquired = True
         psop = PSOP.model_validate(request.psop)
         logger.info(f"Creating workflow: name={psop.name}, id={psop.id}")
-        saved_id = save_handle.handle(psop)
+        saved_id = _get_save_handle().handle(psop)
         logger.info(f"Workflow saved: id={saved_id}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
@@ -251,7 +272,7 @@ async def create_workflow(
             save_psop_semaphore.release()
 
 
-delete_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_DELETE_PSOP)))
+delete_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_DELETE_PSOP, 5)))
 
 
 @router.delete("/workflows/{workflow_id}")
@@ -264,10 +285,10 @@ async def delete_workflow(
         delete_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Deleting workflow: {workflow_id}")
-        psop = retrieval.get_psop_by_id(workflow_id)
+        psop = _get_retrieval().get_psop_by_id(workflow_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
-        deleted = delete_handle.handle(workflow_id)
+        deleted = _get_delete_handle().handle(workflow_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete workflow")
         logger.info(f"Workflow deleted: {workflow_id}")
@@ -295,7 +316,7 @@ async def delete_workflow(
 # Workflow generation endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
-parse_pdf_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PARSE_PDF)))
+parse_pdf_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PARSE_PDF, 5)))
 
 
 @router.post("/parse-pdf")
@@ -356,7 +377,7 @@ async def parse_pdf(
             parse_pdf_semaphore.release()
 
 
-plan_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PLAN)))
+plan_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PLAN, 10)))
 
 
 @router.post("/generate-from-preflow")
@@ -376,7 +397,7 @@ async def generate_from_preflow(
             PreFlow.model_validate(request.preflow),
             [Parse(json.dumps(card), AgentCard()) for card in request.agent_cards]
         )
-        save_handle.handle(workflow)
+        _get_save_handle().handle(workflow)
         logger.info(f"PSOP generated: id={workflow.id}, steps={len(workflow.steps)}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
@@ -396,7 +417,7 @@ async def generate_from_preflow(
             plan_semaphore.release()
 
 
-generate_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_GENERATE_PSOP)))
+generate_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_GENERATE_PSOP, 10)))
 
 
 @router.post("/generate-from-intent")
@@ -425,7 +446,7 @@ async def generate_from_intent(
         logger.info(f"PSOP generated from intent: id={psop.id}, steps={len(psop.steps)}")
 
         try:
-            save_handle.handle(psop)
+            _get_save_handle().handle(psop)
             logger.info(f"PSOP auto-saved: {psop.id}")
             audit_logger.audit({
                 'object_name': OperationObject.PSOP,
@@ -450,7 +471,7 @@ async def generate_from_intent(
             generate_semaphore.release()
 
 
-retrieve_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_RETRIEVE_PSOP)))
+retrieve_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_RETRIEVE_PSOP, 10)))
 
 
 @router.post("/retrieve-by-intent")
@@ -463,7 +484,7 @@ async def retrieve_by_intent(
         retrieve_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Retrieving PSOP by intent: {request.user_intent[:80]}")
-        psop = retrieval.retrieve_psop_by_intent(request.user_intent)
+        psop = _get_retrieval().retrieve_psop_by_intent(request.user_intent)
         if not psop:
             return ok(data=None, message="No matching workflow found")
         logger.info(f"Retrieved: {psop.name} (id={psop.id})")
@@ -482,7 +503,7 @@ async def retrieve_by_intent(
 # Agent cards
 # ═══════════════════════════════════════════════════════════════════════════════
 
-agent_cards_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_CARDS)))
+agent_cards_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_CARDS, 20)))
 
 
 @router.get("/agent-cards")
@@ -570,14 +591,15 @@ async def import_template(
             raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
         psop_data["id"] = str(uuid.uuid4())
         psop = PSOP.model_validate(psop_data)
-        saved_id = save_handle.handle(psop)
+        saved_id = _get_save_handle().handle(psop)
         logger.info(f"Template imported: {psop.name} ({template_id}) -> {saved_id}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
             'object_id': saved_id,
-            'operation_dt': OperationName.SAVE_PSOP,
-            'operation_desc': f"Imported from template: {template_id}",
-            'operation_result': OperationResult.SUCCESS,
+            'operation_name': OperationName.SAVE_PSOP,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.SUCCESS,
+            'details': {"template_id": template_id, "workflow_id": saved_id},
         })
         return created(data=psop.model_dump(), message="Template imported successfully")
     except anyio.WouldBlock:
@@ -605,7 +627,7 @@ async def execute_workflow(
         raise HTTPException(status_code=400, detail="Missing psop_id parameter")
 
     logger.info(f"Starting workflow execution: psop_id={psop_id}, user_intent={user_intent[:80] if user_intent else 'N/A'}")
-    psop = retrieval.get_psop_by_id(psop_id)
+    psop = _get_retrieval().get_psop_by_id(psop_id)
     if not psop:
         raise HTTPException(status_code=404, detail=f"Workflow {psop_id} not found")
 
@@ -657,13 +679,13 @@ async def legacy_agent_cards():
 
 @app.get("/psops")
 async def legacy_list_workflows(limit: int = 10):
-    recent = retrieval.list_recent_workflows(limit=limit, workflow_type='psop')
+    recent = _get_retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
     return {"code": 200, "message": "success", "data": [wf.to_dict() for wf in recent]}
 
 
 @app.get("/psops/{workflow_id}")
 async def legacy_get_workflow(workflow_id: str):
-    psop = retrieval.get_psop_by_id(workflow_id)
+    psop = _get_retrieval().get_psop_by_id(workflow_id)
     if not psop:
         raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
     return {"code": 200, "message": "success", "data": psop.model_dump()}
@@ -672,14 +694,14 @@ async def legacy_get_workflow(workflow_id: str):
 @app.post("/psops")
 async def legacy_save_workflow(request: SavePSOPRequest):
     psop = PSOP.model_validate(request.psop)
-    saved_id = save_handle.handle(psop)
+    saved_id = _get_save_handle().handle(psop)
     return JSONResponse(status_code=201, content={"code": 201, "message": "created", "data": {"workflow_id": saved_id}})
 
 
 @app.delete("/psops/{workflow_id}")
 async def legacy_delete_workflow(workflow_id: str):
-    psop = retrieval.get_psop_by_id(workflow_id)
+    psop = _get_retrieval().get_psop_by_id(workflow_id)
     if not psop:
         raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
-    delete_handle.handle(workflow_id)
+    _get_delete_handle().handle(workflow_id)
     return {"code": 200, "message": f"Workflow {workflow_id} deleted", "data": None}

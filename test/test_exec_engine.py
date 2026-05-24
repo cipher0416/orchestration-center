@@ -757,7 +757,7 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_any_success_step_type(self, mock_llm_client):
-        """Test StepType.ANY_SUCCESS logic (current implementation executes subtasks sequentially)"""
+        """Test StepType.ANY_SUCCESS: should return success when any subtask succeeds"""
         step = Step(
             name="any_step",
             type=StepType.ANY_SUCCESS,
@@ -771,7 +771,6 @@ class TestEdgeCases:
         with patch('orchestrate.runtime.exec_engine.get_llm_instance',
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=MagicMock(), agent_cards=[])
-            # First fails, second succeeds
             engine.send_message_to_agent = AsyncMock(side_effect=[
                 RuntimeError("fail"),
                 "success"
@@ -779,9 +778,8 @@ class TestEdgeCases:
 
             results, success = await engine._execute_subtasks(step)
 
-            # Note: current implementation breaks on first task failure, so success is False
-            # This is an implementation detail; the test documents current behavior
-            assert success is False
+            assert success is True
+            assert "Task2" in results
 
     @pytest.mark.asyncio
     async def test_empty_subtasks_step(self, mock_llm_client):

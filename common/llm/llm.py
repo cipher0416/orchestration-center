@@ -48,7 +48,7 @@ if __name__ == "__main__":
     llm = get_llm_instance()
     assert llm is not None, "LLM get instance faild"
     print(f"current Chat model: {llm.to_dict()}")
-    result, reasoning = llm.ask_llm("what's the weather today？")
+    reasoning, result = llm.ask_llm("what's the weather today？")
     print(result)
     print(reasoning)
 
