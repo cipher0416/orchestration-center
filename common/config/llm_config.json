@@ -3,7 +3,7 @@
     "description": "Chat/LLM model for PSOP generation and execution",
     "model": "deepseek-chat",
     "url": "https://api.deepseek.com/v1/chat/completions",
-    "api_key": "sk-f80c71a4058c4ea9a6df03e69804ecec",
+    "api_key": "<YOUR_API_KEY>",
     "enable_thinking": true,
     "auth": null,
     "headers": {},
