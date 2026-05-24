@@ -14,7 +14,7 @@
 #    under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from common.llm.config.config_reader import read_config_as_json
 
