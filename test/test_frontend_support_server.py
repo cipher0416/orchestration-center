@@ -18,8 +18,8 @@ import pytest
 import json
 from unittest.mock import patch, MagicMock
 from io import BytesIO
+from fastapi.testclient import TestClient
 
-# Set test config before importing app
 import os
 
 _prev_testing = os.environ.get('TESTING')
@@ -41,9 +41,8 @@ atexit.register(_cleanup_testing_env)
 
 @pytest.fixture
 def client():
-    """Create Flask test client"""
-    app.config['TESTING'] = True
-    with app.test_client() as client:
+    """Create FastAPI test client"""
+    with TestClient(app) as client:
         yield client
 
 

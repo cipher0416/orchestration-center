@@ -20,7 +20,7 @@ import {
     XCircle,
     RotateCcw
 } from 'lucide-react';
-import { getWorkflowById, getStartProcessStreamUrl, matchWorkflows, getExecutionRecords, getExecutionRecord, deleteExecutionRecord } from '@/service/api.js';
+import { getWorkflowById, getStartProcessStreamUrl, matchWorkflowsTopN, getExecutionRecords, getExecutionRecord, deleteExecutionRecord } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 
@@ -396,6 +396,8 @@ const ExecutionCenter = ({ isDark }) => {
     const [activeTab, setActiveTab] = useState('match');
     const [executionRecords, setExecutionRecords] = useState([]);
     const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+    const [showSelectionDialog, setShowSelectionDialog] = useState(false);
+    const [workflowCandidates, setWorkflowCandidates] = useState([]);
 
     const handleNodeSelect = useCallback((node) => {
         if (!node) {
@@ -429,9 +431,12 @@ const ExecutionCenter = ({ isDark }) => {
         setError(null);
 
         try {
-            const results = await matchWorkflows(userIntent);
+            const results = await matchWorkflowsTopN(userIntent, 3);
 
-            if (results && results.length > 0) {
+            if (results && results.length > 1) {
+                setWorkflowCandidates(results);
+                setShowSelectionDialog(true);
+            } else if (results && results.length === 1) {
                 setMatchedWorkflows(results);
                 setSelectedId(results[0].workflow_id);
                 setWorkflowSource('retrieved');
@@ -444,6 +449,14 @@ const ExecutionCenter = ({ isDark }) => {
         } finally {
             setIsMatching(false);
         }
+    };
+
+    const handleSelectCandidate = (workflowId) => {
+        setShowSelectionDialog(false);
+        setSelectedId(workflowId);
+        setWorkflowSource('retrieved');
+        setMatchedWorkflows(workflowCandidates);
+        setWorkflowCandidates([]);
     };
 
     const loadHistoryRecords = useCallback(async () => {
@@ -913,6 +926,66 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
             </div>
+
+            {showSelectionDialog && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm" onClick={() => setShowSelectionDialog(false)} />
+                    <div className={`relative rounded-[2.5rem] border p-10 w-[560px] max-h-[80vh] overflow-y-auto custom-scrollbar shadow-2xl animate-in zoom-in-95 duration-200 ${theme.panel}`}>
+                        <div className="flex flex-col gap-6">
+                            <div className="text-center">
+                                <h2 className="text-xl font-black dark:text-white tracking-tight">{t('execution.select_workflow')}</h2>
+                                <p className="text-sm text-zinc-400 mt-2 font-medium">{t('execution.select_workflow_hint')}</p>
+                            </div>
+                            <div className="space-y-3">
+                                {workflowCandidates.map((wf, idx) => (
+                                    <button
+                                        key={wf.workflow_id}
+                                        onClick={() => handleSelectCandidate(wf.workflow_id)}
+                                        className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-200 group hover:border-blue-500/50 hover:bg-blue-500/5 active:scale-[0.98]
+                                            ${isDark ? 'bg-zinc-800/50 border-zinc-700/50 hover:bg-zinc-800' : 'bg-white border-zinc-100 hover:bg-blue-50/50'}`}
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black
+                                                ${isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-100 text-zinc-600'}`}>
+                                                {idx + 1}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="text-sm font-black dark:text-white truncate">{wf.name}</h3>
+                                                    {wf.score && (
+                                                        <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${wf.score >= 0.8 ? 'bg-emerald-500/10 text-emerald-500' : wf.score >= 0.5 ? 'bg-amber-500/10 text-amber-500' : 'bg-zinc-500/10 text-zinc-500'}`}>
+                                                            {Math.round(wf.score * 100)}%
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className={`text-xs leading-relaxed line-clamp-2 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                                    {wf.description || t('execution.no_description')}
+                                                </p>
+                                                {wf.tags && wf.tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                                        {wf.tags.map(tag => (
+                                                            <span key={tag} className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-100 text-zinc-600'}`}>{tag}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <ChevronRight size={20} className="text-blue-500" />
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => setShowSelectionDialog(false)}
+                                className={`text-sm font-bold py-3 px-6 rounded-2xl transition-all mx-auto ${isDark ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'}`}
+                            >
+                                {t('common.cancel')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

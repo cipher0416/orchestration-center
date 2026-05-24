@@ -107,6 +107,22 @@ export async function matchWorkflows(intent) {
     }));
 }
 
+export async function matchWorkflowsTopN(intent, topN = 3) {
+    const body = await api.post(`${ORCHESTRATE_BASE()}/retrieve-topn-by-intent`, {
+        user_intent: intent,
+        top_n: topN
+    });
+    const data = body.data;
+    if (!data) return [];
+    return (Array.isArray(data) ? data : [data]).map(item => ({
+        workflow_id: item.workflow_id,
+        name: item.name,
+        description: item.description,
+        tags: item.tags || [],
+        score: item.score
+    }));
+}
+
 // ──── Workflow Execution ────
 
 export function getStartProcessStreamUrl(psopId, userIntent = '') {

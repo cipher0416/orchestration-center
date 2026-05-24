@@ -47,6 +47,8 @@
     "no_text": "No text content detected, please check details.",
     "workflow_list": "Matched Workflows",
     "no_match": "No matching workflow found",
+    "select_workflow": "Select the correct workflow",
+    "select_workflow_hint": "Multiple matches found, please select the one that best matches your intent",
     "match_failed": "Match request failed.",
     "no_description": "No description provided for this workflow.",
     "expand": "Expand Panel",

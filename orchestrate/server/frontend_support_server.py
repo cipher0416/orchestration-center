@@ -51,6 +51,7 @@ from orchestrate.server.external_api import router as external_router
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
 from orchestrate.core.retrieval import WorkflowRetrieval
+from orchestrate.core.workflow_search_result import WorkflowSearchResult
 from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
 from orchestrate.solution_package.parse_flow import SolutionPackageParser
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
@@ -493,6 +494,35 @@ async def retrieve_by_intent(
         raise HTTPException(status_code=503, detail="Server is busy")
     except Exception as e:
         logger.error(f"Retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if acquired:
+            retrieve_semaphore.release()
+
+
+class RetrieveTopNRequest(BaseModel):
+    user_intent: str = Field(..., description="Natural language intent for retrieval")
+    top_n: int = Field(default=3, ge=1, le=10, description="Max results to return")
+
+
+@router.post("/retrieve-topn-by-intent")
+async def retrieve_topn_by_intent(
+    request: RetrieveTopNRequest,
+    _: Any = Depends(RateLimiter(config, "retrieve_by_intent"))
+):
+    acquired = False
+    try:
+        retrieve_semaphore.acquire_nowait()
+        acquired = True
+        top_n = request.top_n if request.top_n else 3
+        logger.info(f"Retrieving TopN PSOPs by intent (n={top_n}): {request.user_intent[:80]}")
+        results: List[WorkflowSearchResult] = _get_retrieval().retrieve_psop_by_intent_topn(request.user_intent, top_n)
+        logger.info(f"TopN returned {len(results)} result(s)")
+        return ok(data=[r.to_dict() for r in results], message=f"Found {len(results)} matching workflow(s)")
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    except Exception as e:
+        logger.error(f"TopN retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if acquired:
