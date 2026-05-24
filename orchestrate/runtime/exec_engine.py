@@ -37,9 +37,11 @@ except ImportError:
     A2ATClient = None
 
 from common.llm import get_llm_instance
-from orchestrate.core.model.psop import PSOP, Step, Task, TaskStatus
+from orchestrate.core.model.psop import PSOP, Step, StepType, Task, TaskStatus
 
 class DynamicWorkflowEngine:
+    _MAX_CONTEXT_TOKENS_ESTIMATE = 6000
+
     def __init__(self, psop: PSOP, agent_cards, runtime_intent: str = None, a2at_env_path: Path = None):
         self.workflow = psop
         self.runtime_intent = runtime_intent
@@ -50,6 +52,7 @@ class DynamicWorkflowEngine:
         self.push_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
         self.step_outputs: Dict[str, Dict[str, Any]] = {}
         self.a2at_client = None
+        self._httpx_client: Optional[httpx.AsyncClient] = None
 
         if _A2AT_AVAILABLE:
             env_path = a2at_env_path or get_a2at_env_path()
@@ -64,6 +67,17 @@ class DynamicWorkflowEngine:
 
     def set_push_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         self.push_callback = callback
+
+    def _get_httpx_client(self) -> httpx.AsyncClient:
+        if self._httpx_client is None:
+            timeout_config = httpx.Timeout(connect=60, read=60, write=60, pool=10.0)
+            self._httpx_client = httpx.AsyncClient(timeout=timeout_config)
+        return self._httpx_client
+
+    async def _close_httpx_client(self):
+        if self._httpx_client is not None:
+            await self._httpx_client.aclose()
+            self._httpx_client = None
 
     def _push_event(self, event_type: str, data: Dict[str, Any]):
         log_data = dict(data)
@@ -124,6 +138,8 @@ class DynamicWorkflowEngine:
         except Exception as e:
             logger.critical(f"Unexpected exception occurred in engine: {e}", exc_info=True)
             raise
+        finally:
+            await self._close_httpx_client()
 
         return self.execution_history
 
@@ -174,14 +190,9 @@ class DynamicWorkflowEngine:
                 logger.warning(f"[A2AT] Failed to generate task prompt: {e}")
 
         try:
-            timeout_config = httpx.Timeout(
-                connect=60,
-                read=60,
-                write=60,
-                pool=10.0
-            )
+            client = httpx_client or self._get_httpx_client()
             config = ClientConfig(
-                httpx_client=httpx.AsyncClient(timeout=timeout_config),
+                httpx_client=client,
                 supported_protocol_bindings=[
                     "JSONRPC",
                     "HTTP+JSON",
@@ -268,22 +279,6 @@ class DynamicWorkflowEngine:
             logger.error(f"Communicate with agent failed : {e}", exc_info=True)
             raise
 
-    async def _process_llm_decision(self, current_step, step_result):
-        next_step_name = self._llm_route_decision(current_step, step_result)
-        if next_step_name == "end":
-            logger.info(f"Process normal (LLM determined).")
-            self.current_step_idx = len(self.workflow.steps)
-        elif next_step_name == "retry":
-            logger.warning("Request retry, current logic does not support automatic retry, terminating process.")
-            self.current_step_idx = len(self.workflow.steps)
-        else:
-            target_idx = self._find_step_index(next_step_name)
-            if target_idx is not None:
-                self.current_step_idx = target_idx
-                logger.info(f"Jump to next step: {next_step_name} (index: {target_idx})")
-            else:
-                logger.error(f"Target step '{next_step_name}' does not exist, terminating process.")
-
     def _record_stop_event(self, reason, details):
         self.execution_history.append({
             "event": "STOPPED",
@@ -293,59 +288,63 @@ class DynamicWorkflowEngine:
 
     async def _execute_subtasks(self, step: Step) -> tuple[Dict[str, Any], bool]:
         results = {}
-        overall_success = True
+        failed = False
         context_message = self._build_context_for_step(step)
+
+        if step.type == StepType.ANY_SUCCESS:
+            for task in step.subtasks:
+                if failed:
+                    break
+                try:
+                    logger.info(f"   > Calling Agent: {task.agent}, Skill: {task.skill}, Desc: {task.description}")
+                    task_message = self._build_task_message(task, context_message)
+                    raw_output = await self.send_message_to_agent(task.agent, task_message)
+                    task.status = TaskStatus.SUCCESS
+                    results[task.description] = raw_output
+                    self._push_psop_update()
+                    self.execution_history.append({
+                        "step": step.name,
+                        "task": task.description,
+                        "status": "success",
+                        "output": raw_output[:200]
+                    })
+                    return results, True
+                except Exception as e:
+                    task.status = TaskStatus.FAILED
+                    error_msg = f"Agent call failed : {str(e)}"
+                    results[task.description] = {"error": error_msg}
+                    logger.warning(f"  >Task failed (any_success continues): {task.description} | Error: {error_msg}")
+                    self._push_psop_update()
+                    self.execution_history.append({
+                        "step": step.name,
+                        "task": task.description,
+                        "status": "failed",
+                        "output": error_msg
+                    })
+            self._record_stop_event("ANY_SUCCESS: all subtasks failed", results)
+            return results, False
+
         for task in step.subtasks:
             try:
                 logger.info(f"   > Calling Agent: {task.agent}, Skill: {task.skill}, Desc: {task.description}")
-
                 task_message = self._build_task_message(task, context_message)
                 raw_output = await self.send_message_to_agent(task.agent, task_message)
                 task.status = TaskStatus.SUCCESS
                 results[task.description] = raw_output
-
-                # Push complete PSOP status
-                try:
-                    psop_data = (
-                        self.workflow.model_dump_json()
-                        if hasattr(self.workflow, 'model_dump_json')
-                        else self.workflow.model_dump()
-                    )
-                except Exception:
-                    psop_data = str(self.workflow)
-
-                self._push_event("psop_update", {
-                    "psop": psop_data
-                })
-
+                self._push_psop_update()
                 self.execution_history.append({
                     "step": step.name,
                     "task": task.description,
                     "status": "success",
                     "output": raw_output[:200]
                 })
-
             except Exception as e:
                 task.status = TaskStatus.FAILED
-                overall_success = False
+                failed = True
                 error_msg = f"Agent call failed : {str(e)}"
                 results[task.description] = {"error": error_msg}
                 logger.error(f"  >Task failed: {task.description} | Error: {error_msg}")
-
-                # Push PSOP status on failure
-                try:
-                    psop_data = (
-                        self.workflow.model_dump_json()
-                        if hasattr(self.workflow, 'model_dump_json')
-                        else self.workflow.model_dump()
-                    )
-                except Exception:
-                    psop_data = str(self.workflow)
-
-                self._push_event("psop_update", {
-                    "psop": psop_data
-                })
-
+                self._push_psop_update()
                 self.execution_history.append({
                     "step": step.name,
                     "task": task.description,
@@ -353,7 +352,18 @@ class DynamicWorkflowEngine:
                     "output": error_msg
                 })
                 break
-        return results, overall_success
+        return results, not failed
+
+    def _push_psop_update(self):
+        try:
+            psop_data = (
+                self.workflow.model_dump_json()
+                if hasattr(self.workflow, 'model_dump_json')
+                else self.workflow.model_dump()
+            )
+        except Exception:
+            psop_data = str(self.workflow)
+        self._push_event("psop_update", {"psop": psop_data})
 
     def _get_step_predecessors(self, step_name: str) -> List[str]:
         predecessors = []
@@ -383,13 +393,21 @@ class DynamicWorkflowEngine:
             predecessor_names = self._get_step_predecessors(step.name)
             ref_pairs = [(name, self.step_outputs[name])
                          for name in predecessor_names if name in self.step_outputs]
+
+        total_chars = 0
         for ref_step_name, ref_results in ref_pairs:
-            parts.append(f"### {ref_step_name} Results")
+            step_header = f"### {ref_step_name} Results\n"
+            parts.append(step_header)
+            total_chars += len(step_header)
             for task_desc, output in ref_results.items():
                 text = output if isinstance(output, str) else str(output)
-                parts.append(f"**Input (Task)**: {task_desc}")
-                parts.append(f"**Output (Result)**: {text}")
-                parts.append("")
+                truncated = text[:300] if len(text) > 300 else text
+                entry = f"**Input (Task)**: {task_desc}\n**Output (Result)**: {truncated}\n\n"
+                parts.append(entry)
+                total_chars += len(entry)
+            if total_chars > self._MAX_CONTEXT_TOKENS_ESTIMATE * 3:
+                parts.append("... (context truncated)\n")
+                break
         return "\n".join(parts).strip()
 
     @staticmethod

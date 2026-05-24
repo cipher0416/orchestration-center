@@ -24,7 +24,7 @@ export const getBaseUrl = () => {
 
 const ORCHESTRATE_BASE = () => `${getBaseUrl()}/rest/v1/orchestrate`;
 
-const api = axios.create({ timeout: 10000 });
+const api = axios.create({ timeout: 120000 });
 
 api.interceptors.response.use(
     (response) => response.data,
@@ -70,79 +70,41 @@ export async function importTemplate(templateId) {
 export async function parsePdf(file) {
     const formData = new FormData();
     formData.append('file', file);
-    try {
-        const response = await axios.post(`${ORCHESTRATE_BASE()}/parse-pdf`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        const body = response.data;
-        if (body.code === 200 || body.status === "success") {
-            return body.data;
-        }
-        throw new Error(body?.message || "PDF parsing failed");
-    } catch (error) {
-        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "PDF parsing request failed";
-        throw new Error(errorMsg);
-    }
+    const body = await api.post(`${ORCHESTRATE_BASE()}/parse-pdf`, formData);
+    return body.data;
 }
 
 // ──── Workflow Generation ────
 
 export async function handlePlan(preflow, agentCards) {
-    try {
-        const response = await axios.post(`${ORCHESTRATE_BASE()}/generate-from-preflow`, {
-            preflow: preflow,
-            agent_cards: agentCards
-        });
-        const body = response.data;
-        if (body.code === 200 || body.status === "success") {
-            return body.data;
-        }
-        throw new Error(body?.message || "Planning generation failed");
-    } catch (error) {
-        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Planning request failed";
-        throw new Error(errorMsg);
-    }
+    const body = await api.post(`${ORCHESTRATE_BASE()}/generate-from-preflow`, {
+        preflow: preflow,
+        agent_cards: agentCards
+    });
+    return body.data;
 }
 
 export async function generateWorkflowFromIntent(intent, name = "Generated Workflow") {
-    try {
-        const response = await axios.post(`${ORCHESTRATE_BASE()}/generate-from-intent`, {
-            user_intent: intent,
-            workflow_name: name
-        });
-        const body = response.data;
-        if (body.code === 200 || body.status === "success") {
-            return body.data || body;
-        }
-        throw new Error(body?.message || "Generation failed");
-    } catch (error) {
-        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Intent generation request failed";
-        throw new Error(errorMsg);
-    }
+    const body = await api.post(`${ORCHESTRATE_BASE()}/generate-from-intent`, {
+        user_intent: intent,
+        workflow_name: name
+    });
+    return body.data || body;
 }
 
 export async function matchWorkflows(intent) {
-    try {
-        const response = await axios.post(`${ORCHESTRATE_BASE()}/retrieve-by-intent`, {
-            user_intent: intent,
-        });
-        const body = response.data;
-        if (body.code === 200 || body.status === "success") {
-            const data = body.data;
-            if (!data) return [];
-            const list = Array.isArray(data) ? data : [data];
-            return list.map(item => ({
-                workflow_id: item.id || item.workflow_id,
-                name: item.name || item.workflow_name,
-                description: item.description,
-                tags: item.tags || []
-            }));
-        }
-        throw new Error(body?.message || "Retrieval failed");
-    } catch (error) {
-        const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Retrieval request failed";
-        throw new Error(errorMsg);
-    }
+    const body = await api.post(`${ORCHESTRATE_BASE()}/retrieve-by-intent`, {
+        user_intent: intent,
+    });
+    const data = body.data;
+    if (!data) return [];
+    const list = Array.isArray(data) ? data : [data];
+    return list.map(item => ({
+        workflow_id: item.id || item.workflow_id,
+        name: item.name || item.workflow_name,
+        description: item.description,
+        tags: item.tags || []
+    }));
 }
 
 // ──── Workflow Execution ────

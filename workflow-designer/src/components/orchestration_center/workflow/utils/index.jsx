@@ -187,8 +187,13 @@ export const transformWorkflowToReactFlow = (rawInput) => {
 
     const terminalNodes = steps.filter(s => !s._normalizedNext || s._normalizedNext.length === 0);
     if (edges.some(e => e.target === 'END_OF_WORKFLOW') || terminalNodes.length > 0) {
+        const allAgentNodesSuccess = nodes.length > 0 && nodes.every(n => n.type === 'endNode' || n.type === 'startNode' || n.data?.status === BACKEND_STATUS.SUCCESS);
+        const endStatus = allAgentNodesSuccess ? BACKEND_STATUS.SUCCESS : 'pending';
         if (!nodes.find(n => n.id === 'END_OF_WORKFLOW')) {
-            nodes.push({ id: 'END_OF_WORKFLOW', type: 'endNode', position: { x: 0, y: 0 }, width: 120, height: 50, data: { label: 'END', status: 'pending' } });
+            nodes.push({ id: 'END_OF_WORKFLOW', type: 'endNode', position: { x: 0, y: 0 }, width: 120, height: 50, data: { label: 'END', status: endStatus } });
+        } else {
+            const endNode = nodes.find(n => n.id === 'END_OF_WORKFLOW');
+            if (endNode) endNode.data.status = endStatus;
         }
         terminalNodes.forEach(tn => edges.push({ id: `e-${tn.name}-implicit-end`, source: tn.name, target: 'END_OF_WORKFLOW', style: { stroke: '#94a3b8', strokeWidth: 2 } }));
     }

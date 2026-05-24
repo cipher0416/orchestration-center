@@ -599,7 +599,7 @@ const ExecutionCenter = ({ isDark }) => {
         };
 
         setEventSource(es);
-    }, [selectedId]);
+    }, [selectedId, userIntent]);
 
     useEffect(() => {
         return () => {

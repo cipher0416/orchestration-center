@@ -22,9 +22,21 @@ from io import BytesIO
 # Set test config before importing app
 import os
 
+_prev_testing = os.environ.get('TESTING')
 os.environ['TESTING'] = 'True'
 
 from orchestrate.server.frontend_support_server import app
+
+
+def _cleanup_testing_env():
+    if _prev_testing is not None:
+        os.environ['TESTING'] = _prev_testing
+    else:
+        os.environ.pop('TESTING', None)
+
+
+import atexit
+atexit.register(_cleanup_testing_env)
 
 
 @pytest.fixture

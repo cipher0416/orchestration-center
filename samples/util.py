@@ -173,6 +173,23 @@ mock_workflow_data = {
             ]
         },
         {
+            "name": "step8",
+            "type": "AllSuccess",
+            "subtasks": [
+                {
+                    "agent": "Dispatch Agent",
+                    "skill": "RAN ES Implementation",
+                    "description": "执行RAN域节能策略下发"
+                },
+            ],
+            "next": [
+                {
+                    "step": "step9",
+                    "condition": ""
+                }
+            ]
+        },
+        {
             "name": "step9",
             "type": "AllSuccess",
             "subtasks": [

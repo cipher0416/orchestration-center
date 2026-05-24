@@ -117,8 +117,11 @@ def ensure_env_file_exists() -> Path:
         return generate_env_from_llm_config()
     
     env_content = env_path.read_text(encoding='utf-8')
-    if "A2AT_LLM_MODEL=" in env_content and "A2AT_LLM_MODEL=\n" in env_content:
-        logger.info(f"A2AT .env file has empty LLM config, regenerating")
-        return generate_env_from_llm_config()
+    if "A2AT_LLM_MODEL=" in env_content:
+        lines = env_content.split('\n')
+        model_lines = [l for l in lines if l.startswith("A2AT_LLM_MODEL=")]
+        if model_lines and model_lines[0].strip() == "A2AT_LLM_MODEL=":
+            logger.info(f"A2AT .env file has empty LLM config, regenerating")
+            return generate_env_from_llm_config()
     
     return env_path

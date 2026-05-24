@@ -123,7 +123,6 @@ class AuditLogger:
             self._rotate_logs()
             with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-            os.chmod(self.log_file, FILE_PERMISSION_MODE)
 
 
 audit_logger = AuditLogger()

@@ -61,7 +61,7 @@ orchestration-center/
 │   └── agentcard/            # AgentCard定义
 ├── workflow-designer/        # 前端可视化设计器
 ├── common/                   # 公共模块（LLM、配置、日志等）
-├── config/                   # 配置文件（llm_config.json等）
+│   └── config/               # 配置文件（llm_config.json等）
 ├── etc/                      # SSL证书、服务配置
 ├── data/                     # 本地数据存储
 └── docs/                     # 文档
@@ -181,7 +181,7 @@ python -m samples.start_agents_server
 
 ### 配置说明
 
-协商配置位于 `samples/a2at_config/.env`，配置项从 `config/llm_config.json` 自动生成：
+协商配置位于 `samples/a2at_config/.env`（由 `config_adapter.py` 从 `common/config/llm_config.json` 自动生成）：
 
 ```env
 A2AT_LLM_PROVIDER=deepseek

@@ -16,7 +16,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
-from common.llm.config.config_reader import read_config_as_json
+from loguru import logger
 
 
 @dataclass
@@ -46,17 +46,27 @@ class ModelConfig:
         )
 
 
-def _load_raw_config() -> Dict[str, Dict[str, Any]]:
-    return read_config_as_json("../../config/llm_config.json")
+_model_configs: Optional[Dict[str, ModelConfig]] = None
 
 
-_raw_config = _load_raw_config()
+def _load_model_configs() -> Dict[str, ModelConfig]:
+    global _model_configs
+    if _model_configs is not None:
+        return _model_configs
 
-_model_configs: Dict[str, ModelConfig] = {
-    key: ModelConfig.from_dict(key, val)
-    for key, val in _raw_config.items()
-}
+    try:
+        from common.llm.config.config_reader import read_config_as_json
+        raw_config = read_config_as_json("../../config/llm_config.json")
+    except Exception as e:
+        logger.error(f"Failed to load LLM config: {e}")
+        raw_config = {}
+
+    _model_configs = {
+        key: ModelConfig.from_dict(key, val)
+        for key, val in raw_config.items()
+    }
+    return _model_configs
 
 
 def get_model_config(capability: str) -> Optional[ModelConfig]:
-    return _model_configs.get(capability)
+    return _load_model_configs().get(capability)

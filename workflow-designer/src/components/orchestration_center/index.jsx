@@ -129,7 +129,8 @@ const OrchestrationCenter = ({ isDark }) => {
             const contentData = await parsePdf(file);
             const agentCards = await getAgentCards();
             setLoadingStatus(LOADING_STAGES.PLANNING);
-            const finalPlan = await handlePlan(contentData, agentCards.data);
+            const agentCardsList = agentCards?.data || agentCards || [];
+            const finalPlan = await handlePlan(contentData, agentCardsList);
 
             setLoadingStatus(LOADING_STAGES.FINALIZING);
             const { nodes: n, edges: e } = transformWorkflowToReactFlow(finalPlan);

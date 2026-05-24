@@ -83,7 +83,7 @@ class PathValidatorLink(AbstractValidatorLink):
         return [
             PathValidator(conf_obj.ssl_certfile, suffix=".cer", is_required=True, conf_tip="ssl_certfile"),
             PathValidator(conf_obj.ssl_keyfile, suffix=".pem", is_required=True, conf_tip="ssl_keyfile"),
-            PathValidator(conf_obj.ssl_keyfile_password, suffix=".cer", is_required=True,
+            PathValidator(conf_obj.ssl_keyfile_password, suffix=".conf", is_required=True,
                           conf_tip="ssl_keyfile_password"),
             PathValidator(conf_obj.ssl_ca_certs, suffix=".cer", is_required=True, conf_tip="ssl_ca_certs"),
             PathValidator(conf_obj.ssl_crl_file, suffix=".cer", is_required=True, conf_tip="ssl_crl_file"),
@@ -106,9 +106,9 @@ class CommonContentValidator:
 
     @staticmethod
     def validate_private_key_length(private_key) -> bool:
-        if isinstance(private_key, rsa.RSAPublicKey):
+        if isinstance(private_key, rsa.RSAPrivateKey):
             return private_key.key_size >= 3072
-        if isinstance(private_key, ec.EllipticCurvePublicKey):
+        if isinstance(private_key, ec.EllipticCurvePrivateKey):
             return private_key.key_size >= 256
         return False
 

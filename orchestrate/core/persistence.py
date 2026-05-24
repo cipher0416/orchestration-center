@@ -14,6 +14,9 @@
 #    under the License.
 
 import json
+import re
+import tempfile
+import os
 from loguru import logger
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -63,8 +66,7 @@ class WorkflowStorage:
         """
         try:
             file_path = self._get_file_path(psop.id, "psop")
-            with open(file_path, "w", encoding='utf-8') as f:
-                f.write(psop.model_dump_json(indent=2))
+            self._atomic_write(file_path, psop.model_dump_json(indent=2))
             logger.info(f"PSOP saved: {psop.id} at {file_path}")
             return psop.id
         except Exception as e:
@@ -86,8 +88,7 @@ class WorkflowStorage:
         """
         try:
             file_path = self._get_file_path(preflow.id, "preflow")
-            with open(file_path, "w", encoding='utf-8') as f:
-                f.write(preflow.model_dump_json(indent=2))
+            self._atomic_write(file_path, preflow.model_dump_json(indent=2))
             logger.info(f"PreFlow saved : {preflow.id} at {file_path}")
             return preflow.id
         except Exception as e:
@@ -266,8 +267,7 @@ class WorkflowStorage:
         """
         try:
             file_path = self.execution_dir / f"{record.execution_id}.json"
-            with open(file_path, "w", encoding='utf-8') as f:
-                f.write(record.model_dump_json(indent=2))
+            self._atomic_write(file_path, record.model_dump_json(indent=2))
             logger.info(f"Execution record saved: {record.execution_id} @ {file_path}")
             return record.execution_id
         except Exception as e:
@@ -364,11 +364,23 @@ class WorkflowStorage:
             Path: File path
 
         Raises:
-            WorkflowStorageError: If workflow type is unknown
+            WorkflowStorageError: If workflow type is unknown or workflow_id is invalid
         """
+        if not re.match(r'^[\w\-]+$', workflow_id):
+            raise WorkflowStorageError(f"Invalid workflow_id: {workflow_id}")
         if workflow_type == "psop":
             return self.psop_dir / f"{workflow_id}.json"
         elif workflow_type == "preflow":
             return self.preflow_dir / f"{workflow_id}.json"
         else:
             raise WorkflowStorageError(f"Unknown workflow type : {workflow_type}")
+
+    @staticmethod
+    def _atomic_write(file_path: Path, content: str) -> None:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=file_path.parent, suffix='.tmp')
+        try:
+            os.write(tmp_fd, content.encode('utf-8'))
+        finally:
+            os.close(tmp_fd)
+        os.replace(tmp_path, file_path)

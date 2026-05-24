@@ -45,19 +45,19 @@ def add_module_logger(module_prefix: str):
     logger.configure(extra={"request_id": ''})
     logger.remove()
     old_mask = os.umask(0o027)
-    try:
-        logger.add(sys.stdout, format=LOG_FORMAT, level="INFO", backtrace=False, colorize=True)
+    logger.add(sys.stdout, format=LOG_FORMAT, level="INFO", backtrace=False, colorize=True)
 
-        logger.add(
-            _LOG_DIR / f"{module_prefix}_{{time:YYYY-MM-DD}}_{os.getpid()}.log",
-            format=LOG_FORMAT,
-            level="INFO",
-            rotation="10 MB",
-            retention="30 days",
-            compression=safe_compression,
-            encoding="utf-8",
-            enqueue=True,
-        )
+    log_file = _LOG_DIR / f"{module_prefix}_{{time:YYYY-MM-DD}}_{os.getpid()}.log"
+    logger.add(
+        log_file,
+        format=LOG_FORMAT,
+        level="INFO",
+        rotation="10 MB",
+        retention="30 days",
+        compression=safe_compression,
+        encoding="utf-8",
+        enqueue=True,
+    )
 
-    finally:
-        os.umask(old_mask)
+    logger.bind(request_id='init').info("Log system initialized")
+    os.umask(old_mask)

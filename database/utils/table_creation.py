@@ -44,8 +44,13 @@ def create_tables():
     conn = create_connection()
     if conn is None:
         raise RuntimeError("Unable to create database connection; tables not created")
-    execute_query(conn, create_psop_sql)
-    execute_query(conn, create_execution_record_sql)
-    conn.close()
-    logger.info("Database tables verified/created: psop, execution_records")
-
+    try:
+        _, err1 = execute_query(conn, create_psop_sql)
+        if err1:
+            raise RuntimeError(f"Failed to create psop table: {err1}")
+        _, err2 = execute_query(conn, create_execution_record_sql)
+        if err2:
+            raise RuntimeError(f"Failed to create execution_records table: {err2}")
+        logger.info("Database tables verified/created: psop, execution_records")
+    finally:
+        conn.close()

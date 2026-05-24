@@ -182,6 +182,8 @@ class GenericLLM:
             return {k: GenericLLM._deep_replace(v, vars_ctx) for k, v in obj.items()}
         if isinstance(obj, list):
             return [GenericLLM._deep_replace(item, vars_ctx) for item in obj]
+        if isinstance(obj, bool):
+            return obj
         return obj
 
     def __del__(self):
