@@ -1,0 +1,151 @@
+{
+  "id": "psop_ran_energy_saving",
+  "name": "RAN Energy Saving Closed Loop",
+  "description": "Complete closed-loop for RAN energy-saving intent exploration, generation, delivery, execution and effect evaluation",
+  "created_at": "2026-06-01T00:00:00Z",
+  "steps": [
+    {
+      "name": "step1",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task-ran-001",
+          "description": "根据当前5G基站运行数据(PRB利用率45%，RRC连接数280/小区，下行流量8.2Gbps，当前能耗1.2kW)，评估并确定基站节能意图目标的可行范围。目标：在不影响用户体验的前提下，降低能耗10%-15%。",
+          "agent": "RAN Energy Saving Agent",
+          "skill": "RAN ES Intent Exploration",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step2",
+          "condition": "意图目标评估完成"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step2",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task-ran-002",
+          "description": "向上游RAN Energy Saving Agent发起RAN ES意图探索请求，获取指定意图目标(降低能耗10%-15%，保持用户感知不劣化)的最佳可行性方案。接收RAN Agent返回的探索报告，提取关键参数：建议的节能时段、各RAT的吞吐量目标、符号关断等节能策略的适用性。",
+          "agent": "Energy Saving Intent Agent",
+          "skill": "Intent Exploration Request",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step3",
+          "condition": "意图探索请求完成"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step3",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task-ran-003",
+          "description": "根据探索报告和运营商业务需求(夜间低负载时段优先节能，日间仅在PRB利用率<30%时触发)，生成具体的RAN节能意图：时段划分(0:00-6:00深度节能、10:00-22:00差异化节能)、各RAT吞吐量上限(4G:200Mbps, 5G:500Mbps)、符号/通道关断策略配置、能耗目标下降12%等。",
+          "agent": "Energy Saving Intent Agent",
+          "skill": "Intent Generation",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step4",
+          "condition": "节能意图内容生成成功"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step4",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task-ran-004",
+          "description": "将已生成的RAN节能意图(含时段策略、RAT吞吐量上限、符号关断配置)交付给RAN Energy Saving Agent执行，激活意图生命周期管理。确认交付成功并建立意图监控。",
+          "agent": "Energy Saving Intent Agent",
+          "skill": "Intent Delivery",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step5",
+          "condition": "意图成功交付并激活"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step5",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task-ran-005a",
+          "description": "根据收到的RAN节能意图配置，管理其完整生命周期：采集0:00-24:00的基站PRB利用率、RRC连接数、流量、能耗等运行数据；分析节能策略执行效果；当指标偏离意图目标时自动调整方案；向基站下发配置变更指令。",
+          "agent": "RAN Energy Saving Agent",
+          "skill": "RAN ES Intent Lifecycle Management",
+          "status": "pending"
+        },
+        {
+          "task_id": "task-ran-005b",
+          "description": "基于RAN ES Intent Lifecycle Management的生命周期数据，生成意图执行报告：包含各时段实际能耗vs目标能耗、PRB利用率变化、用户感知指标(时延、速率)是否劣化、符不符合意图目标的达成情况等。",
+          "agent": "RAN Energy Saving Agent",
+          "skill": "RAN ES Intent Reporting",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step6",
+          "condition": "收到意图执行报告"
+        }
+      ],
+      "layer": 0,
+      "context_from": null
+    },
+    {
+      "name": "step6",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task-ran-006",
+          "description": "综合前面所有步骤的分析与执行结果(探索报告、生成意图配置、生命周期执行数据、意图达成报告)，对照初始目标(降低能耗10%-15%且用户感知不劣化)，评估各RAN域的节能效果：实际能耗下降比例、用户感知指标变化、哪些策略生效/失效、是否需要调整意图参数。给出最终评估结论和优化建议。",
+          "agent": "Energy Saving Intent Agent",
+          "skill": "Effect Evaluation",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "end",
+          "condition": "评估完成，节能闭环结束"
+        }
+      ],
+      "layer": 1,
+      "context_from": [
+        "*"
+      ]
+    }
+  ],
+  "related_preflow": null,
+  "user_intent": "The 5G base station currently has high energy consumption (1.2kW). Reduce energy consumption by 10-15% while maintaining user experience. Complete the closed-loop process of intent exploration, generation, delivery, execution, and effect evaluation for intelligent energy-saving optimization.",
+  "tags": [
+    "RAN",
+    "EnergySaving",
+    "Linear",
+    "Aggregation"
+  ]
+}

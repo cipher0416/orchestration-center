@@ -18,6 +18,6 @@ from functools import lru_cache
 from orchestrate.core.persistence import WorkflowStorage
 
 
-@lru_cache(maxsize=1)
-def get_workflow_storage() -> WorkflowStorage:
-    return WorkflowStorage()
+@lru_cache(maxsize=4)
+def get_workflow_storage(lang: str = None) -> WorkflowStorage:
+    return WorkflowStorage(lang=lang)

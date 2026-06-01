@@ -32,28 +32,36 @@ class WorkflowStorageError(Exception):
 
 class WorkflowStorage:
     """Storage for workflows (PSOP and PreFlow)."""
-    def __init__(self, storage_dir: Optional[str] = None):
+    def __init__(self, storage_dir: Optional[str] = None, lang: str = None):
         """
         Initialize workflow storage.
 
         Args:
             storage_dir: Storage directory path, defaults to data/workflow_storage under project root
+            lang: Language code (zh/en). Reads from lang-specific subdirectory, writes to zh/ as canonical.
         """
         if storage_dir is None:
             current_file = Path(__file__).resolve()
             project_root = current_file.parent.parent.parent
-            self.psop_dir = project_root / "data" / "workflow_storage" / "psop"
-            self.preflow_dir = project_root / "data" / "workflow_storage" / "preflow"
+            self._base_psop_dir = project_root / "data" / "workflow_storage" / "psop"
+            self._base_preflow_dir = project_root / "data" / "workflow_storage" / "preflow"
             self.execution_dir = project_root / "data" / "workflow_storage" / "execution_records"
         else:
-            self.psop_dir = Path(storage_dir) / "workflow_storage" / "psop"
-            self.preflow_dir = Path(storage_dir) / "workflow_storage" / "preflow"
-            self.execution_dir = Path(storage_dir) / "workflow_storage" / "execution_records"
+            base = Path(storage_dir) / "workflow_storage"
+            self._base_psop_dir = base / "psop"
+            self._base_preflow_dir = base / "preflow"
+            self.execution_dir = base / "execution_records"
+
+        self.lang = lang or "zh"
+        self.psop_dir = self._base_psop_dir / self.lang
+        self.preflow_dir = self._base_preflow_dir / self.lang
+        self._zh_psop_dir = self._base_psop_dir / "zh"
+        self._zh_preflow_dir = self._base_preflow_dir / "zh"
         self._init_storage()
 
     def save_psop(self, psop: PSOP) -> str:
         """
-        Save PSOP to storage.
+        Save PSOP to storage (always to zh/ canonical directory).
 
         Args:
             psop: PSOP object to save
@@ -65,7 +73,7 @@ class WorkflowStorage:
             WorkflowStorageError: If save fails
         """
         try:
-            file_path = self._get_file_path(psop.id, "psop")
+            file_path = self._get_save_path(psop.id, "psop")
             self._atomic_write(file_path, psop.model_dump_json(indent=2))
             logger.info(f"PSOP saved: {psop.id} at {file_path}")
             return psop.id
@@ -87,7 +95,7 @@ class WorkflowStorage:
             WorkflowStorageError: If save fails
         """
         try:
-            file_path = self._get_file_path(preflow.id, "preflow")
+            file_path = self._get_save_path(preflow.id, "preflow")
             self._atomic_write(file_path, preflow.model_dump_json(indent=2))
             logger.info(f"PreFlow saved : {preflow.id} at {file_path}")
             return preflow.id
@@ -97,7 +105,7 @@ class WorkflowStorage:
 
     def load_psop(self, workflow_id: str) -> Optional[PSOP]:
         """
-        Load PSOP from storage.
+        Load PSOP from storage. Tries lang-specific directory first, falls back to zh/.
 
         Args:
             workflow_id: PSOP ID
@@ -106,8 +114,8 @@ class WorkflowStorage:
             Optional[PSOP]: PSOP object if found, None otherwise
         """
         try:
-            file_path = self._get_file_path(workflow_id, "psop")
-            if not file_path.exists():
+            file_path = self._resolve_read_path(workflow_id, "psop")
+            if file_path is None:
                 logger.warning(f"PSOP not found : {workflow_id}")
                 return None
             with open(file_path, "r", encoding='utf-8') as f:
@@ -181,13 +189,14 @@ class WorkflowStorage:
 
     def list_psops(self) -> List[str]:
         """
-        List all PSOP IDs in storage.
+        List all PSOP IDs in storage (zh/ canonical directory).
 
         Returns:
             List[str]: List of PSOP IDs (from JSON content, not filenames)
         """
         ids = []
-        for f in self.psop_dir.glob("*.json"):
+        scan_dir = self._zh_psop_dir if self._zh_psop_dir.exists() else self.psop_dir
+        for f in scan_dir.glob("*.json"):
             try:
                 with open(f, "r", encoding='utf-8') as fh:
                     data = json.loads(fh.read())
@@ -345,12 +354,43 @@ class WorkflowStorage:
         """
         Initialize storage directories.
         """
-        self.psop_dir.mkdir(parents=True, exist_ok=True)
+        self._zh_psop_dir.mkdir(parents=True, exist_ok=True)
+        self._zh_preflow_dir.mkdir(parents=True, exist_ok=True)
+        if self.lang != "zh":
+            self.psop_dir.mkdir(parents=True, exist_ok=True)
+            self.preflow_dir.mkdir(parents=True, exist_ok=True)
+        self.execution_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"PSOP storage initialized at : {self.psop_dir}")
         self.preflow_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Preflow storage initialized at : {self.preflow_dir}")
         self.execution_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Execution record storage initialized at : {self.execution_dir}")
+
+    def _resolve_read_path(self, workflow_id: str, workflow_type: str) -> Optional[Path]:
+        if not re.match(r'^[\w\-]+$', workflow_id):
+            raise WorkflowStorageError(f"Invalid workflow_id: {workflow_id}")
+        dirs = {"psop": (self.psop_dir, self._zh_psop_dir),
+                "preflow": (self.preflow_dir, self._zh_preflow_dir)}
+        lang_dir, zh_dir = dirs.get(workflow_type, (None, None))
+        if lang_dir is None:
+            raise WorkflowStorageError(f"Unknown workflow type: {workflow_type}")
+        lang_path = lang_dir / f"{workflow_id}.json"
+        if lang_path.exists():
+            return lang_path
+        zh_path = zh_dir / f"{workflow_id}.json"
+        if zh_path.exists():
+            return zh_path
+        return None
+
+    def _get_save_path(self, workflow_id: str, workflow_type: str) -> Path:
+        if not re.match(r'^[\w\-]+$', workflow_id):
+            raise WorkflowStorageError(f"Invalid workflow_id: {workflow_id}")
+        if workflow_type == "psop":
+            return self._zh_psop_dir / f"{workflow_id}.json"
+        elif workflow_type == "preflow":
+            return self._zh_preflow_dir / f"{workflow_id}.json"
+        else:
+            raise WorkflowStorageError(f"Unknown workflow type: {workflow_type}")
 
     def _get_file_path(self, workflow_id: str, workflow_type: str) -> Path:
         """
