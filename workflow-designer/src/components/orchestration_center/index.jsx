@@ -150,7 +150,7 @@ const OrchestrationCenter = ({ isDark }) => {
     const fetchWorkflows = async () => {
         try {
             setLoading(true);
-            const res = await getWorkflow(i18n.language);
+            const res = await getWorkflow();
             if (res.status === 'success') {
                 const data = (res.data || []).map(item => ({
                     id: item.workflow_id,
@@ -170,11 +170,11 @@ const OrchestrationCenter = ({ isDark }) => {
     useEffect(() => {
         fetchWorkflows();
         fetchTemplates();
-    }, [i18n.language]);
+    }, []);
 
     const fetchTemplates = async () => {
         try {
-            const res = await getTemplates(i18n.language);
+            const res = await getTemplates();
             if (res.status === 'success') {
                 setTemplates(res.data || []);
             }
@@ -186,7 +186,7 @@ const OrchestrationCenter = ({ isDark }) => {
     const handleImportTemplate = async (tplId) => {
         try {
             setImportingTpl(tplId);
-            const res = await importTemplate(tplId, i18n.language);
+            const res = await importTemplate(tplId);
             if (res.status === 'success') {
                 const psop = res.data;
                 const { nodes: n, edges: e } = transformWorkflowToReactFlow(psop);
@@ -217,7 +217,7 @@ const OrchestrationCenter = ({ isDark }) => {
         (async () => {
             try {
                 setDetailLoading(true);
-                const res = await getWorkflowById(selectedId, i18n.language);
+                const res = await getWorkflowById(selectedId);
                 if (res?.status === 'success') {
                     const detailData = res.data;
 

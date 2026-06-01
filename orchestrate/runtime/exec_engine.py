@@ -57,6 +57,8 @@ class DynamicWorkflowEngine:
 
         if _A2AT_AVAILABLE:
             env_path = a2at_env_path or get_a2at_env_path()
+            from samples.a2at_config.config_adapter import update_a2at_language
+            update_a2at_language(self.lang)
             try:
                 self.a2at_client = A2ATClient(env_path=env_path)
                 logger.info(f"DynamicWorkflowEngine initialized with A2ATClient, env_path={env_path}")

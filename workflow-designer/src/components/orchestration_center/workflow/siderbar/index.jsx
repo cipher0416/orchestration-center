@@ -13,7 +13,7 @@ const Sidebar = ({ isDark }) => {
     useEffect(() => {
         const fetchAgents = async () => {
             try {
-                const res = await getAgentCards(i18n.language);
+                const res = await getAgentCards();
                 setAgentGroups(res.data || []);
             } catch (error) {
                 console.error("Failed to fetch agents:", error);
@@ -22,7 +22,7 @@ const Sidebar = ({ isDark }) => {
             }
         };
         fetchAgents();
-    }, [i18n.language]);
+    }, []);
 
     const onDragStart = (event, agentKey, agentInfo) => {
         const defaultSkill = agentInfo.skills?.[0];

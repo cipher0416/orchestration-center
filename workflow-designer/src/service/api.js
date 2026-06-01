@@ -33,21 +33,18 @@ api.interceptors.response.use(
 
 // ──── Agent Cards ────
 
-export async function getAgentCards(lang = '') {
-    const url = lang ? `${ORCHESTRATE_BASE()}/agent-cards?lang=${lang}` : `${ORCHESTRATE_BASE()}/agent-cards`;
-    return api.get(url);
+export async function getAgentCards() {
+    return api.get(`${ORCHESTRATE_BASE()}/agent-cards`);
 }
 
 // ──── Workflow CRUD ────
 
-export async function getWorkflow(lang = '') {
-    const url = lang ? `${ORCHESTRATE_BASE()}/workflows?lang=${lang}` : `${ORCHESTRATE_BASE()}/workflows`;
-    return api.get(url);
+export async function getWorkflow() {
+    return api.get(`${ORCHESTRATE_BASE()}/workflows`);
 }
 
-export async function getWorkflowById(id, lang = '') {
-    const url = lang ? `${ORCHESTRATE_BASE()}/workflows/${id}?lang=${lang}` : `${ORCHESTRATE_BASE()}/workflows/${id}`;
-    return api.get(url);
+export async function getWorkflowById(id) {
+    return api.get(`${ORCHESTRATE_BASE()}/workflows/${id}`);
 }
 
 export async function delWorkflowById(id) {
@@ -60,14 +57,12 @@ export async function createWorkflow(data) {
 
 // ──── Workflow Templates ────
 
-export async function getTemplates(lang = '') {
-    const url = lang ? `${ORCHESTRATE_BASE()}/templates?lang=${lang}` : `${ORCHESTRATE_BASE()}/templates`;
-    return api.get(url);
+export async function getTemplates() {
+    return api.get(`${ORCHESTRATE_BASE()}/templates`);
 }
 
-export async function importTemplate(templateId, lang = '') {
-    const url = lang ? `${ORCHESTRATE_BASE()}/templates/${templateId}/import?lang=${lang}` : `${ORCHESTRATE_BASE()}/templates/${templateId}/import`;
-    return api.post(url);
+export async function importTemplate(templateId) {
+    return api.post(`${ORCHESTRATE_BASE()}/templates/${templateId}/import`);
 }
 
 // ──── PDF Parsing ────
@@ -158,5 +153,3 @@ export async function getExecutionRecord(executionId) {
 export async function deleteExecutionRecord(executionId) {
     return api.delete(`${ORCHESTRATE_BASE()}/execution-records/${executionId}`);
 }
-
-

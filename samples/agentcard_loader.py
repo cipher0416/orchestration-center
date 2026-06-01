@@ -30,36 +30,28 @@ class AgentCardLoader:
     def __init__(self):
         pass
 
-    def _get_config_file(self, lang: str) -> Path:
-        lang_dir = _CARDS_DIR / lang
-        config_file = lang_dir / "agent_cards.yaml"
-        if config_file.exists():
-            return config_file
-        fallback = _CARDS_DIR / "zh" / "agent_cards.yaml"
-        if fallback.exists():
-            logger.warning(f"Agent card file not found for lang '{lang}', falling back to zh")
-            return fallback
-        raise FileNotFoundError(f"No agent card file found for lang '{lang}' or fallback 'zh'")
+    def _get_config_file(self) -> Path:
+        return _CARDS_DIR / "agent_cards.yaml"
 
-    def get_all_agent_cards(self, lang: str = "zh") -> List[AgentCard]:
-        config_file = self._get_config_file(lang)
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        if not config:
-            raise ValueError(f"Configuration file is empty or has invalid format: {config_file}")
-
-        if "agents" not in config:
-            raise ValueError(f"Invalid configuration format, missing 'agents' field: {config_file}")
-
-        agents_data = config["agents"]
-        if not isinstance(agents_data, list):
-            raise ValueError(f"The 'agents' field in configuration must be a list: {config_file}")
-
+    def get_all_agent_cards(self) -> List[AgentCard]:
         cards = []
-        for agent_dict in agents_data:
+        for agent_dict in self.get_raw_agent_dicts():
             try:
                 agent_card = Parse(json.dumps(agent_dict), AgentCard())
                 cards.append(agent_card)
             except Exception as e:
                 logger.warning(f"Failed to parse AgentCard: {agent_dict.get('name', 'unknown')} - {e}")
         return cards
+
+    def get_raw_agent_dicts(self) -> List[Dict[str, Any]]:
+        config_file = self._get_config_file()
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        if not config:
+            raise ValueError(f"Configuration file is empty or has invalid format: {config_file}")
+        if "agents" not in config:
+            raise ValueError(f"Invalid configuration format, missing 'agents' field: {config_file}")
+        agents_data = config["agents"]
+        if not isinstance(agents_data, list):
+            raise ValueError(f"The 'agents' field in configuration must be a list: {config_file}")
+        return agents_data

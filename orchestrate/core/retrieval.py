@@ -22,6 +22,7 @@ from loguru import logger
 
 from common.custom import HandlerRegistry, InterfaceType
 from common.llm import get_llm_instance
+from common.util.config_util import get_conf
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.persistence import WorkflowStorage
@@ -32,14 +33,31 @@ from orchestrate.core.workflow_search_result import WorkflowSearchResult
 class WorkflowRetrieval:
     def __init__(self, storage: WorkflowStorage):
         self.storage = storage
+        self._db_mode = get_conf().get("persistence_mode", "file") != "file"
 
     def _list_psop_summaries(self) -> List[WorkflowSearchResult]:
-        handler = HandlerRegistry.get_handler(InterfaceType.GET_ALL_PSOP)
-        return handler.handle()
+        if self._db_mode:
+            return HandlerRegistry.get_handler(InterfaceType.GET_ALL_PSOP).handle()
+        results = []
+        for wf_id in self.storage.list_psops():
+            psop = self.storage.load_psop(wf_id)
+            if psop:
+                results.append(WorkflowSearchResult(
+                    workflow_id=psop.id,
+                    workflow_type="psop",
+                    name=psop.name,
+                    description=psop.description,
+                    tags=psop.tags,
+                    created_at=psop.created_at,
+                    user_intent=psop.user_intent,
+                    related_preflow=psop.related_preflow,
+                ))
+        return results
 
     def _load_psop_by_id(self, workflow_id: str) -> Optional[PSOP]:
-        handler = HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID)
-        return handler.handle(workflow_id)
+        if self._db_mode:
+            return HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID).handle(workflow_id)
+        return self.storage.load_psop(workflow_id)
 
     def get_psop_by_id(self, workflow_id: str) -> Optional[PSOP]:
         result = self._load_psop_by_id(workflow_id)

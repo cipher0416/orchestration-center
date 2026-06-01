@@ -15,6 +15,7 @@
 
 from pathlib import Path
 from typing import Optional
+import re
 from loguru import logger
 
 
@@ -111,3 +112,15 @@ def ensure_env_file_exists() -> Path:
             return generate_env_from_llm_config()
 
     return env_path
+
+
+LANG_MAP = {"en": "en-US", "zh": "zh-CN"}
+
+
+def update_a2at_language(language: str) -> None:
+    env_path = get_a2at_env_path()
+    lang_code = LANG_MAP.get(language, language)
+    content = env_path.read_text(encoding='utf-8')
+    updated = re.sub(r'^(A2AT_LANGUAGE=).*$', rf'\1{lang_code}', content, flags=re.MULTILINE)
+    env_path.write_text(updated, encoding='utf-8')
+    logger.info(f"Updated A2AT_LANGUAGE to {lang_code} in {env_path}")

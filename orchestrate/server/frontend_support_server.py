@@ -121,7 +121,7 @@ async def security_middleware(request: Request, call_next):
 # ──── Shared state (lazily initialized) ────
 _save_handle = None
 _delete_handle = None
-_retrievals = {}
+_retrieval = None
 
 
 def _get_save_handle():
@@ -138,11 +138,11 @@ def _get_delete_handle():
     return _delete_handle
 
 
-def _get_retrieval(lang: str = None):
-    key = lang or "zh"
-    if key not in _retrievals:
-        _retrievals[key] = WorkflowRetrieval(get_workflow_storage(lang=key))
-    return _retrievals[key]
+def _get_retrieval():
+    global _retrieval
+    if _retrieval is None:
+        _retrieval = WorkflowRetrieval(get_workflow_storage())
+    return _retrieval
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -183,7 +183,6 @@ all_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ALL_PSOPS,
 @router.get("/workflows")
 async def list_workflows(
     limit: int = Query(10, ge=1, le=100, description="Max workflows to return"),
-    lang: str = Query(None, description="Language code (zh/en)"),
     _: Any = Depends(RateLimiter(config, "list_workflows"))
 ):
     acquired = False
@@ -191,7 +190,7 @@ async def list_workflows(
         all_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Listing workflows: limit={limit}")
-        recent_workflows = _get_retrieval(lang=lang).list_recent_workflows(limit=limit, workflow_type='psop')
+        recent_workflows = _get_retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
         logger.info(f"Retrieved {len(recent_workflows)} workflows")
         return ok(data=[wf.to_dict() for wf in recent_workflows])
     except anyio.WouldBlock:
@@ -210,7 +209,6 @@ one_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ONE_PSOP, 
 @router.get("/workflows/{workflow_id}")
 async def get_workflow(
     workflow_id: str,
-    lang: str = Query(None, description="Language code (zh/en)"),
     _: Any = Depends(RateLimiter(config, "get_workflow"))
 ):
     acquired = False
@@ -218,7 +216,7 @@ async def get_workflow(
         one_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Getting workflow: {workflow_id}")
-        psop = _get_retrieval(lang=lang).get_psop_by_id(workflow_id)
+        psop = _get_retrieval().get_psop_by_id(workflow_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
         return ok(data=psop.model_dump())
@@ -544,18 +542,17 @@ agent_cards_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_C
 
 @router.get("/agent-cards")
 async def list_agent_cards(
-    lang: str = Query(None, description="Language code (zh/en)"),
     _: Any = Depends(RateLimiter(config, "list_agent_cards"))
 ):
     acquired = False
     try:
         agent_cards_semaphore.acquire_nowait()
         acquired = True
-        logger.info(f"Fetching agent cards (lang={lang})")
-        loader = AgentCardLoader()
-        agent_cards = loader.get_all_agent_cards(lang=lang or "zh")
+        logger.info("Fetching agent cards")
+        agent_registry_factory = AgentRegistryClientFactory()
+        agent_cards = agent_registry_factory.create_from_env().list_exact()
         logger.info(f"Retrieved {len(agent_cards)} agent cards")
-        return ok(data=[card.model_dump() if hasattr(card, 'model_dump') else MessageToDict(card, preserving_proto_field_name=True) for card in agent_cards])
+        return ok(data=agent_cards)
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
     except FileNotFoundError as e:
@@ -581,14 +578,11 @@ _templates_dir = pathlib.Path(__file__).resolve().parent.parent.parent / "data" 
 
 @router.get("/templates")
 async def list_templates(
-    lang: str = Query(None, description="Language code (zh/en)"),
     _: Any = Depends(RateLimiter(config, "list_workflows"))
 ):
     try:
         templates = []
-        lang_dir = _templates_dir / (lang or "zh")
-        scan_dir = lang_dir if lang_dir.exists() else _templates_dir
-        for f in sorted(scan_dir.glob("*.json")):
+        for f in sorted(_templates_dir.glob("*.json")):
                 with open(f, "r", encoding="utf-8") as fh:
                     tpl = json.load(fh)
                 templates.append({
@@ -611,26 +605,18 @@ async def list_templates(
 @router.post("/templates/{template_id}/import", status_code=201)
 async def import_template(
     template_id: str,
-    lang: str = Query(None, description="Language code (zh/en)"),
     _: Any = Depends(RateLimiter(config, "create_workflow"))
 ):
     acquired = False
     try:
         save_psop_semaphore.acquire_nowait()
         acquired = True
-        lang_dir = _templates_dir / (lang or "zh")
-        scan_dirs = [lang_dir] if lang_dir.exists() else []
-        if _templates_dir.exists():
-            scan_dirs.append(_templates_dir)
         psop_data = None
-        for scan_dir in scan_dirs:
-            for f in scan_dir.glob("*.json"):
-                with open(f, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
-                if data.get("id") == template_id:
-                    psop_data = data
-                    break
-            if psop_data:
+        for f in _templates_dir.glob("*.json"):
+            with open(f, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if data.get("id") == template_id:
+                psop_data = data
                 break
         if psop_data is None:
             raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
