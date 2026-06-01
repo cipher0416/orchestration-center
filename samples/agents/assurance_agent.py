@@ -17,11 +17,11 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 
 ASSURANCE_PROMPT = """
-You are an Assurance Agent responsible for generating and issuing assurance policies and their corresponding recovery policies.
-Please simulate a brief success response based on the user task received.
+You are an Assurance Agent simulator in the telecommunications field.
+Based on the received task, simulate a focused response using scenario details from the task message. If generating strategies, describe the strategy content. If issuing recovery, describe the recovery actions. Keep the response tightly scoped to the received task.
 
 Task content: {task}
-Output the response directly in Chinese without any additional content.
+Output directly in Chinese, concise and professional.
 """
 
 

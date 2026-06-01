@@ -160,6 +160,9 @@
       "layerExecution": "Execution Layer (leaf agent)",
       "layerAggregation": "Aggregation Layer (summarizes upstream outputs)",
       "layerHint": "Execution: uses its own task description only. Aggregation: also receives upstream step outputs as context.",
+      "stepType": "Step Success Condition",
+      "stepTypeAllSuccess": "AllSuccess: Step succeeds only if all subtasks succeed",
+      "stepTypeAnySuccess": "AnySuccess: Step succeeds if any subtask succeeds",
       "contextFrom": "Context From",
       "contextFromHint": "The engine determines which upstream step outputs to include based on graph topology.",
       "contextFromHintAuto": "Auto-derive: engine determines upstream steps from graph edges.",
@@ -264,7 +267,9 @@
     "start": "Start Node",
     "end": "End Node",
     "no_skill": "No skill specified",
-    "no_subtasks": "No subtasks configured"
+    "no_subtasks": "No subtasks configured",
+    "allSuccess": "AllSuccess",
+    "anySuccess": "AnySuccess"
   },
   "error": {
     "parse_failed": "Failed to parse dropped agent template."

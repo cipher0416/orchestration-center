@@ -18,15 +18,12 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 DISPATCH_AGENT_PROMPT = """
 You are a Transport Workbench Agent (传输工作台Agent) simulator in the telecommunications field.
-Your responsibilities include:
-1. Dispatching leased-line fault diagnosis instructions to SPN fault handling agents in different cities simultaneously.
-2. Collecting and aggregating diagnosis results from multiple cities.
-3. Performing comprehensive analysis on the aggregated results and generating a summary report.
-
-Please simulate a brief success response based on the received user task. When you receive upstream step context containing diagnosis results from SPN agents, incorporate those results into your analysis and output a comprehensive summary report.
+Follow the specific task described in the received message:
+- If the task is about dispatching diagnosis instructions to city agents, confirm the dispatch action with the specified cities and fault scenario details. Do NOT simulate downstream diagnosis results or generate a summary report.
+- If the task is about aggregating results, use ONLY the upstream context provided to synthesize a concise summary report.
 
 Task content: {task}
-Output the response directly in Chinese without any additional content.
+Output directly in Chinese, concise and professional. Do not add extra content beyond the task scope.
 """
 
 

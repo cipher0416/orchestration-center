@@ -397,6 +397,20 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                         <div className={`mt-4 pt-4 border-t ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
                             <div className="space-y-3">
                                 <label className={`text-[12px] ml-1 font-bold uppercase tracking-widest ${theme.label}`}>
+                                    {t('workflow.panel.stepType')}
+                                </label>
+                                <select
+                                    value={data.type || 'AllSuccess'}
+                                    onChange={(e) => updateData('type', e.target.value)}
+                                    className={`w-full px-3 py-2 text-sm rounded-lg border outline-none transition-all ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-200 focus:border-blue-500' : 'bg-zinc-50 border-zinc-200 text-zinc-800 focus:border-blue-400'}`}
+                                >
+                                    <option value="AllSuccess">{t('workflow.panel.stepTypeAllSuccess')}</option>
+                                    <option value="AnySuccess">{t('workflow.panel.stepTypeAnySuccess')}</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-3 mt-3">
+                                <label className={`text-[12px] ml-1 font-bold uppercase tracking-widest ${theme.label}`}>
                                     {t('workflow.panel.layer')}
                                 </label>
                                 <select

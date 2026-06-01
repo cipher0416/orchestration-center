@@ -159,6 +159,9 @@
       "layerExecution": "执行层（叶子Agent）",
       "layerAggregation": "聚合层（汇总上游输出）",
       "layerHint": "执行层：仅依据自身任务描述执行。聚合层：额外接收上游步骤的输出作为上下文进行汇总。",
+      "stepType": "步骤成功条件",
+      "stepTypeAllSuccess": "全成功（AllSuccess）：步骤内所有子任务都成功，步骤才算成功",
+      "stepTypeAnySuccess": "任一成功（AnySuccess）：步骤内任一子任务成功，步骤即算成功",
       "contextFrom": "引用前置步骤",
       "contextFromHint": "引擎根据连线自动确定引用哪些前置步骤的输出。",
       "contextFromHintAuto": "自动推导：引擎根据连线关系确定前置步骤。",
@@ -263,7 +266,9 @@
     "start": "开始节点",
     "end": "结束节点",
     "no_skill": "未指定技能",
-    "no_subtasks": "未配置子任务"
+    "no_subtasks": "未配置子任务",
+    "allSuccess": "全成功",
+    "anySuccess": "任一成功"
   },
   "error": {
     "parse_failed": "解析拖拽的 Agent 模板失败。"

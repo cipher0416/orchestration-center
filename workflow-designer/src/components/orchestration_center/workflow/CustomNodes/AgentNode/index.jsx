@@ -25,14 +25,35 @@ const getAgentTheme = (agentName) => {
     return AGENT_COLORS[index];
 };
 
+const StepTypeIcon = ({ isAnySuccess, isDark }) => {
+    if (isAnySuccess) {
+        return (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0" title="AnySuccess: step succeeds if any subtask succeeds">
+                <circle cx="7" cy="2.5" r="2" fill="currentColor" opacity="0.85" />
+                <line x1="7" y1="4.5" x2="3" y2="12" stroke="currentColor" strokeWidth="1.2" opacity="0.25" strokeLinecap="round" />
+                <line x1="7" y1="4.5" x2="11" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+        );
+    }
+    return (
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none" className="flex-shrink-0" title="AllSuccess: step succeeds only if all subtasks succeed">
+            <rect x="4.5" y="1" width="3" height="2.5" rx="1.2" fill="currentColor" opacity="0.35" />
+            <rect x="3.5" y="5.75" width="5" height="2.5" rx="1.2" fill="currentColor" opacity="0.6" />
+            <rect x="2" y="10.5" width="8" height="2.5" rx="1.2" fill="currentColor" />
+        </svg>
+    );
+};
+
 const AgentNode = ({ data, selected }) => {
     const connection = useConnection();
     const { t } = useTranslation();
     const isConnecting = connection.inProgress;
 
     const isDark = data.isDark || false;
-    const status = data.status || 'pending'; // pending, running, success, failed
+    const status = data.status || 'pending';
     const stepName = data.label || 'Step';
+    const stepType = data.type || 'AllSuccess';
+    const isAnySuccess = stepType === 'AnySuccess';
     const subtasks = data.subtasks || [];
     const selectedSubtaskIndex = data.selectedSubtaskIndex;
 
@@ -46,21 +67,22 @@ const AgentNode = ({ data, selected }) => {
             : 'shadow-sm hover:shadow-md'
     };
 
+    const stepTypeColor = isAnySuccess
+        ? (isDark ? 'text-amber-400' : 'text-amber-600')
+        : (isDark ? 'text-blue-400' : 'text-blue-600');
+
     const handleBaseStyle = `
         !w-[10px] !h-[10px] !bg-blue-500 border-2 border-white dark:border-zinc-800
         transition-all duration-300 ease-out cursor-crosshair
         hover:!w-[18px] hover:!h-[18px] hover:shadow-lg
         z-[110]
         
-        /* Feedback from the starting point of the connection */
         [&.react-flow__handle-connecting]:ring-4 [&.react-flow__handle-connecting]:ring-blue-500/20
         
-        /* Invisible hot zone */
         after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 
         after:w-[80px] after:h-[80px] after:bg-transparent
     `;
 
-    // Target point style: Normally hidden and not blocking clicks, it becomes full screen blocking when connected
     const targetHandleBaseClasses = `
         !w-0 !h-0 !bg-transparent !border-0 !absolute !transform-none
         z-[100]
@@ -85,73 +107,71 @@ const AgentNode = ({ data, selected }) => {
                 ${selected ? 'ring-2 ring-blue-500/50 ring-offset-2 ' + (isDark ? 'ring-offset-zinc-950' : 'ring-offset-white') : ''}
             `}
         >
-            <div className={`h-[4px] w-full transition-colors duration-500 bg-blue-500/50`} />
- 
-             <div className="px-4 py-3 flex flex-col gap-2">
-                 {/* Step Header */}
-                 <div className="flex justify-between items-start gap-2">
-                     <div className="flex flex-col">
-                         <span className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Workflow Step</span>
-                         <h3 className="text-[14px] font-bold leading-[1.15] break-words whitespace-normal">
-                             {stepName}
-                         </h3>
-                     </div>
-                     {/* Overall Status */}
-                     <div className="mt-1">
-                         <div className="relative flex h-2.5 w-2.5">
-                             {(status === 'running' || status === 'current') && (
-                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                             )}
-                             <span className={`relative inline-flex rounded-full h-2.5 w-2.5 transition-colors duration-300 ${getStatusColor(status)}`}></span>
-                         </div>
-                     </div>
-                 </div>
- 
-                 {/* Subtasks List */}
-                 <div className="flex flex-col gap-1.5 mt-1">
-                     {subtasks.map((task, idx) => {
-                         const isSubtaskSelected = selectedSubtaskIndex === idx;
-                         return (
-                          <button
-                              key={idx}
-                              type="button"
-                              onClick={(event) => {
-                                  event.stopPropagation();
-                                  data.onSubtaskClick?.(idx, task);
-                              }}
-                              className={`
-                              group/task relative p-2 px-3 rounded-lg border flex flex-col gap-0.5 transition-all text-left
-                              ${isSubtaskSelected ? 'ring-2 ring-blue-500/50 border-blue-400/60' : ''}
-                              ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
-                          `}
-                          >
-                              <div className="flex justify-between items-center">
-                                  <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 break-words whitespace-normal">
-                                      {task.agent || 'Agent'}
-                                 </span>
-                                 <div className={`h-1.5 w-1.5 rounded-full ${getStatusColor(task.status)} opacity-60`} />
-                             </div>
-                              <div className={`text-[11px] font-medium leading-[1.15] break-words whitespace-normal ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
-                                  {task.skill || t('node_label.no_skill')}
-                              </div>
-                          </button>
-                         );
-                     })}
-                     {subtasks.length === 0 && (
-                         <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
-                             {t('node_label.no_subtasks')}
-                         </div>
-                     )}
-                 </div>
-             </div>
- 
-             {/* Target Handle (Hidden drop zone covering the entire node, entering from Left) */}
-             <Handle type="target" position={Position.Left} id="t-left" style={{ top: '50%', left: 0 }} className={`${targetHandleBaseClasses} after:w-[500px] after:h-[800px] after:left-[250px] after:top-0 after:-translate-x-1/2 after:-translate-y-1/2`} />
- 
-             {/* Source Handle (Right center trigger point) */}
-             <Handle type="source" position={Position.Right} id="s-right" style={{ top: '50%' }} className={handleBaseStyle} />
-         </div>
-     );
- };
+            <div className={`h-[4px] w-full transition-colors duration-500 ${isAnySuccess ? 'bg-amber-500/70' : 'bg-blue-500/50'}`} />
+
+            <div className="px-4 py-3 flex flex-col gap-2">
+                {/* Step Header: icon + name + status */}
+                <div className="flex items-center gap-2">
+                    <span className={stepTypeColor}>
+                        <StepTypeIcon isAnySuccess={isAnySuccess} isDark={isDark} />
+                    </span>
+                    <h3 className="text-[14px] font-bold leading-[1.15] break-words whitespace-normal flex-1">
+                        {stepName}
+                    </h3>
+                    <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                        {(status === 'running' || status === 'current') && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        )}
+                        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 transition-colors duration-300 ${getStatusColor(status)}`}></span>
+                    </div>
+                </div>
+
+                {/* Subtasks List */}
+                <div className="flex flex-col gap-1.5">
+                    {subtasks.map((task, idx) => {
+                        const isSubtaskSelected = selectedSubtaskIndex === idx;
+                        const agentTheme = getAgentTheme(task.agent);
+                        return (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    data.onSubtaskClick?.(idx, task);
+                                }}
+                                className={`
+                                    group/task relative p-2 px-3 rounded-lg border flex flex-col gap-0.5 transition-all text-left
+                                    ${isSubtaskSelected ? 'ring-2 ring-blue-500/50 border-blue-400/60' : ''}
+                                    ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
+                                `}
+                            >
+                                <div className="flex justify-between items-center">
+                                    <span className={`text-[9px] font-bold uppercase tracking-tight opacity-80 break-words whitespace-normal ${isDark ? agentTheme.dark : agentTheme.light}`}>
+                                        {task.agent || 'Agent'}
+                                    </span>
+                                    <div className={`h-1.5 w-1.5 rounded-full ${getStatusColor(task.status)} opacity-60`} />
+                                </div>
+                                <div className={`text-[11px] font-medium leading-[1.15] break-words whitespace-normal ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
+                                    {task.skill || t('node_label.no_skill')}
+                                </div>
+                            </button>
+                        );
+                    })}
+                    {subtasks.length === 0 && (
+                        <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
+                            {t('node_label.no_subtasks')}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Target Handle */}
+            <Handle type="target" position={Position.Left} id="t-left" style={{ top: '50%', left: 0 }} className={`${targetHandleBaseClasses} after:w-[500px] after:h-[800px] after:left-[250px] after:top-0 after:-translate-x-1/2 after:-translate-y-1/2`} />
+
+            {/* Source Handle */}
+            <Handle type="source" position={Position.Right} id="s-right" style={{ top: '50%' }} className={handleBaseStyle} />
+        </div>
+    );
+};
 
 export default memo(AgentNode);

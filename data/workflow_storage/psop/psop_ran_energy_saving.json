@@ -1,7 +1,7 @@
 {
   "id": "psop_ran_energy_saving",
   "name": "基站节能闭环",
-  "description": "RAN节能意图的探索、生成、交付、执行与效果评估完整闭环流程",
+  "description": "基于当前5G基站负载数据，完成RAN节能意图的探索、生成、交付、执行与效果评估完整闭环",
   "created_at": "2026-06-01T00:00:00Z",
   "steps": [
     {
@@ -10,7 +10,7 @@
       "subtasks": [
         {
           "task_id": "task-ran-001",
-          "description": "评估并确定指定RAN ES意图目标的最佳可能性，考虑当前资源状况和系统能力",
+          "description": "根据当前5G基站运行数据(PRB利用率45%，RRC连接数280/小区，下行流量8.2Gbps，当前能耗1.2kW)，评估并确定基站节能意图目标的可行范围。目标：在不影响用户体验的前提下，降低能耗10%-15%。",
           "agent": "RAN Energy Saving Agent",
           "skill": "RAN ES Intent Exploration",
           "status": "pending"
@@ -31,7 +31,7 @@
       "subtasks": [
         {
           "task_id": "task-ran-002",
-          "description": "发起RAN ES意图探索请求，获取指定意图目标的最佳可能值",
+          "description": "向上游RAN Energy Saving Agent发起RAN ES意图探索请求，获取指定意图目标(降低能耗10%-15%，保持用户感知不劣化)的最佳可行性方案。接收RAN Agent返回的探索报告，提取关键参数：建议的节能时段、各RAT的吞吐量目标、符号关断等节能策略的适用性。",
           "agent": "Energy Saving Intent Agent",
           "skill": "Intent Exploration Request",
           "status": "pending"
@@ -52,7 +52,7 @@
       "subtasks": [
         {
           "task_id": "task-ran-003",
-          "description": "根据探索报告和业务需求生成RAN节能意图内容，包括不同时段和不同RAT的吞吐量及节能目标",
+          "description": "根据探索报告和运营商业务需求(夜间低负载时段优先节能，日间仅在PRB利用率<30%时触发)，生成具体的RAN节能意图：时段划分(0:00-6:00深度节能、10:00-22:00差异化节能)、各RAT吞吐量上限(4G:200Mbps, 5G:500Mbps)、符号/通道关断策略配置、能耗目标下降12%等。",
           "agent": "Energy Saving Intent Agent",
           "skill": "Intent Generation",
           "status": "pending"
@@ -73,7 +73,7 @@
       "subtasks": [
         {
           "task_id": "task-ran-004",
-          "description": "将生成的节能意图交付给RAN能效优化智能体，并管理意图生命周期",
+          "description": "将已生成的RAN节能意图(含时段策略、RAT吞吐量上限、符号关断配置)交付给RAN Energy Saving Agent执行，激活意图生命周期管理。确认交付成功并建立意图监控。",
           "agent": "Energy Saving Intent Agent",
           "skill": "Intent Delivery",
           "status": "pending"
@@ -94,14 +94,14 @@
       "subtasks": [
         {
           "task_id": "task-ran-005a",
-          "description": "管理RAN节能意图的完整生命周期，包括数据采集、分析、方案制定与配置下发",
+          "description": "根据收到的RAN节能意图配置，管理其完整生命周期：采集0:00-24:00的基站PRB利用率、RRC连接数、流量、能耗等运行数据；分析节能策略执行效果；当指标偏离意图目标时自动调整方案；向基站下发配置变更指令。",
           "agent": "RAN Energy Saving Agent",
           "skill": "RAN ES Intent Lifecycle Management",
           "status": "pending"
         },
         {
           "task_id": "task-ran-005b",
-          "description": "查询并报告意图实现状态、达成值与推荐值，提供配置修改信息",
+          "description": "基于RAN ES Intent Lifecycle Management的生命周期数据，生成意图执行报告：包含各时段实际能耗vs目标能耗、PRB利用率变化、用户感知指标(时延、速率)是否劣化、符不符合意图目标的达成情况等。",
           "agent": "RAN Energy Saving Agent",
           "skill": "RAN ES Intent Reporting",
           "status": "pending"
@@ -122,7 +122,7 @@
       "subtasks": [
         {
           "task_id": "task-ran-006",
-          "description": "综合前面所有步骤的分析与执行结果，评估各RAN域的节能效果，决定是否调整意图",
+          "description": "综合前面所有步骤的分析与执行结果(探索报告、生成意图配置、生命周期执行数据、意图达成报告)，对照初始目标(降低能耗10%-15%且用户感知不劣化)，评估各RAN域的节能效果：实际能耗下降比例、用户感知指标变化、哪些策略生效/失效、是否需要调整意图参数。给出最终评估结论和优化建议。",
           "agent": "Energy Saving Intent Agent",
           "skill": "Effect Evaluation",
           "status": "pending"
@@ -141,7 +141,7 @@
     }
   ],
   "related_preflow": null,
-  "user_intent": null,
+  "user_intent": "5G基站当前能耗较高(1.2kW)，需要在保证用户体验的前提下实现节能10%-15%。请通过意图探索、生成、交付、执行和效果评估的完整闭环，完成基站智能节能优化。",
   "tags": [
     "RAN",
     "EnergySaving",

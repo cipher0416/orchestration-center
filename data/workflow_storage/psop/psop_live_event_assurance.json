@@ -1,7 +1,7 @@
 {
   "id": "psop_live_event_assurance",
   "name": "赛事直播应急保障",
-  "description": "解析赛事需求后自动生成保障策略，LLM根据策略生成结果路由到网络优化或恢复配置分支",
+  "description": "解析上海马拉松赛事需求后生成保障策略，LLM根据策略生成结果自动路由到网络优化或应急恢复分支",
   "created_at": "2026-06-01T00:00:00Z",
   "steps": [
     {
@@ -10,7 +10,7 @@
       "subtasks": [
         {
           "task_id": "task-event-001",
-          "description": "提取赛事路线与业务需求，输出结构化赛事信息",
+          "description": "提取上海马拉松赛事的关键信息并输出结构化赛事数据：赛事路线(外滩→上海体育场，全长42.195km)、预计参赛人数3.5万、直播覆盖时长6小时、直播带宽需求(上行200Mbps/下行500Mbps)、关键保障路段(起终点及20km/30km/40km计时点)。",
           "agent": "Live Streaming Agent",
           "skill": "赛事信息解析",
           "status": "pending"
@@ -31,7 +31,7 @@
       "subtasks": [
         {
           "task_id": "task-event-002",
-          "description": "根据赛事需求信息，生成保障策略及对应的恢复策略预案",
+          "description": "根据上海马拉松的赛事需求(42.195km赛道、3.5万参赛者、6小时直播)，生成网络保障策略：带宽保障方案(赛道沿线基站扩容至上行300Mbps)、QoS策略(直播流量标记EF优先级)、覆盖优化(起终点部署应急通信车)、以及策略失败的应急预案(自动回落至保底带宽200Mbps)。同时生成对应的恢复策略预案。",
           "agent": "Assurance Agent",
           "skill": "策略生成",
           "status": "pending"
@@ -56,7 +56,7 @@
       "subtasks": [
         {
           "task_id": "task-event-003",
-          "description": "根据前序步骤输出的保障策略，分析无线网络当前负载，执行网络规划与策略优化",
+          "description": "根据前序步骤输出的保障策略，执行网络优化：分析赛道沿线5G基站当前负载(PRB利用率68%，RRC连接数420/小区)，对照保障需求(上行300Mbps)评估是否需要扩容；针对起终点高密度区域规划波束优化和载波聚合；向基站下发QoS策略配置。",
           "agent": "RAN Agent",
           "skill": "分析评估",
           "status": "pending"
@@ -77,7 +77,7 @@
       "subtasks": [
         {
           "task_id": "task-event-004",
-          "description": "策略生成失败时的应急处理：恢复网络原有配置并下发保底策略",
+          "description": "策略生成失败，启动应急预案：恢复赛道沿线基站至原有网络配置，下发保底策略(上行200Mbps、下行500Mbps，QoS标记AF优先级)，确保直播业务最低可用。记录失败原因以便后续排查。",
           "agent": "Assurance Agent",
           "skill": "恢复策略下发",
           "status": "pending"
@@ -94,7 +94,7 @@
     }
   ],
   "related_preflow": null,
-  "user_intent": null,
+  "user_intent": "上海马拉松赛事的网络直播保障：42.195km赛道、3.5万参赛者、6小时直播。需要生成差异化保障策略，并根据策略生成结果自动选择执行网络优化或应急恢复。",
   "tags": [
     "LiveStreaming",
     "Conditional",

@@ -17,10 +17,11 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 
 ENERGY_SAVING_INTENT_PROMPT = """
-You are a wireless intent handling agent simulator in the telecommunications field. Please simulate a brief success response based on the received user task.
+You are a wireless intent handling agent simulator in the telecommunications field.
+Based on the received task, simulate a focused success response using scenario details from the task message. Keep the response concise and scoped to the specific task.
 
 Task: {task}
-Output the response directly in Chinese without any additional content.
+Output directly in Chinese, concise and professional.
 """
 
 
