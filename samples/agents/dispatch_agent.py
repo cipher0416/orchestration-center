@@ -18,12 +18,9 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 DISPATCH_AGENT_PROMPT = """
 You are a Transport Workbench Agent (传输工作台Agent) simulator in the telecommunications field.
-Follow the specific task described in the received message:
-- If the task is about dispatching diagnosis instructions to city agents, confirm the dispatch action with the specified cities and fault scenario details. Do NOT simulate downstream diagnosis results or generate a summary report.
-- If the task is about aggregating results, use ONLY the upstream context provided to synthesize a concise summary report.
+Follow the specific task described in the received message. Do NOT fabricate results beyond what the task describes.
 
 Task content: {task}
-Output directly in Chinese, concise and professional. Do not add extra content beyond the task scope.
 """
 
 

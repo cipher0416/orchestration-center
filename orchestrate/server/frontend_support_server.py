@@ -655,7 +655,8 @@ async def import_template(
 @router.get("/execute")
 async def execute_workflow(
     psop_id: str = Query(..., description="PSOP workflow ID to execute"),
-    user_intent: str = Query(None, description="Runtime user intent for context injection")
+    user_intent: str = Query(None, description="Runtime user intent for context injection"),
+    lang: str = Query(None, description="Language for agent responses (zh/en)")
 ):
     if not psop_id:
         raise HTTPException(status_code=400, detail="Missing psop_id parameter")
@@ -668,7 +669,7 @@ async def execute_workflow(
     logger.info(f"Workflow loaded: name={psop.name}, steps={len(psop.steps)}")
     agent_cards = get_agent_cards()
 
-    return await run_psop_sse(psop, agent_cards, runtime_intent=user_intent)
+    return await run_psop_sse(psop, agent_cards, runtime_intent=user_intent, lang=lang)
 
 
 @router.delete("/execution-records/{execution_id}")

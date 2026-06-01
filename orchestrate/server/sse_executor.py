@@ -38,7 +38,7 @@ from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from samples.a2at_config import get_a2at_env_path
 
 
-async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent: str = None) -> StreamingResponse:
+async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent: str = None, lang: str = None) -> StreamingResponse:
     """
     Execute a PSOP workflow and return an SSE stream.
 
@@ -96,7 +96,7 @@ async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent:
             execution_history = []
             try:
                 a2at_env_path = get_a2at_env_path()
-                engine = DynamicWorkflowEngine(psop, agent_cards, runtime_intent=runtime_intent, a2at_env_path=a2at_env_path)
+                engine = DynamicWorkflowEngine(psop, agent_cards, runtime_intent=runtime_intent, a2at_env_path=a2at_env_path, lang=lang)
                 engine.set_push_callback(push_callback)
                 await event_queue.put({
                     "type": "start",

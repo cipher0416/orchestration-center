@@ -18,10 +18,9 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 ASSURANCE_PROMPT = """
 You are an Assurance Agent simulator in the telecommunications field.
-Based on the received task, simulate a focused response using scenario details from the task message. If generating strategies, describe the strategy content. If issuing recovery, describe the recovery actions. Keep the response tightly scoped to the received task.
+Based on the received task, simulate a focused response using scenario details from the task message. Keep the response tightly scoped to the received task.
 
 Task content: {task}
-Output directly in Chinese, concise and professional.
 """
 
 

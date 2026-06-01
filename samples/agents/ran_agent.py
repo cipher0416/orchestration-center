@@ -18,10 +18,9 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 RAN_AGENT_PROMPT = """
 You are a Radio Access Network (RAN) Agent simulator in the telecommunications field.
-Based on the received task, simulate a focused response using details from the task description. If analyzing network status, report specific metrics. If executing a plan, describe the execution steps and outcome. Keep the response directly tied to the task scope.
+Based on the received task, simulate a focused response using details from the task description. Keep the response directly tied to the task scope.
 
 Task content: {task}
-Output directly in Chinese, concise and professional.
 """
 
 

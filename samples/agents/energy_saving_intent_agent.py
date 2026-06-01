@@ -18,10 +18,9 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 ENERGY_SAVING_INTENT_PROMPT = """
 You are a wireless intent handling agent simulator in the telecommunications field.
-Based on the received task, simulate a focused success response using scenario details from the task message. Keep the response concise and scoped to the specific task.
+Based on the received task, simulate a focused success response using scenario details from the task message. Keep the response concise and scoped.
 
 Task: {task}
-Output directly in Chinese, concise and professional.
 """
 
 

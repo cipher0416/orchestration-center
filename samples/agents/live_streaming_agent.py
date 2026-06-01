@@ -18,10 +18,9 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 LIVE_STREAMING_PROMPT = """
 You are a Live Streaming Agent simulator in the telecommunications field.
-Based on the received task, simulate a focused response using details from the task message. If parsing event requirements, output structured event info. If monitoring KQI, report specific metric values. Keep the response tightly scoped.
+Based on the received task, simulate a focused response using details from the task message. Keep the response tightly scoped.
 
 Task content: {task}
-Output directly in Chinese, concise and professional.
 """
 
 

@@ -42,9 +42,10 @@ from orchestrate.core.model.psop import PSOP, Step, StepType, Task, TaskStatus
 class DynamicWorkflowEngine:
     _MAX_CONTEXT_TOKENS_ESTIMATE = 6000
 
-    def __init__(self, psop: PSOP, agent_cards, runtime_intent: str = None, a2at_env_path: Path = None):
+    def __init__(self, psop: PSOP, agent_cards, runtime_intent: str = None, a2at_env_path: Path = None, lang: str = None):
         self.workflow = psop
         self.runtime_intent = runtime_intent
+        self.lang = lang or "zh"
         self.current_step_idx = 0
         self.execution_history = []
         self.llm_client = get_llm_instance()
@@ -425,11 +426,15 @@ class DynamicWorkflowEngine:
                 break
         return "\n".join(parts).strip()
 
-    @staticmethod
-    def _build_task_message(task: Task, context_message: str) -> str:
+    def _build_task_message(self, task: Task, context_message: str) -> str:
+        lang_hint = ""
+        if self.lang == "en":
+            lang_hint = "\n\nPlease respond in English."
+        elif self.lang == "zh":
+            lang_hint = "\n\n请用中文回复。"
         if context_message:
-            return f"{context_message}\n\n## Current Task\n{task.description}"
-        return task.description
+            return f"{context_message}\n\n## Current Task\n{task.description}{lang_hint}"
+        return f"{task.description}{lang_hint}"
 
     def _llm_route_decision(self, current_step: Step, task_result: Dict[str, Any]) -> str:
         results_context = []

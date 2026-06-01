@@ -125,10 +125,17 @@ export async function matchWorkflowsTopN(intent, topN = 3) {
 
 // ──── Workflow Execution ────
 
-export function getStartProcessStreamUrl(psopId, userIntent = '') {
+export function getStartProcessStreamUrl(psopId, userIntent = '', lang = '') {
     const base = `${ORCHESTRATE_BASE()}/execute?psop_id=${psopId}`;
+    const params = [];
     if (userIntent) {
-        return `${base}&user_intent=${encodeURIComponent(userIntent)}`;
+        params.push(`user_intent=${encodeURIComponent(userIntent)}`);
+    }
+    if (lang) {
+        params.push(`lang=${encodeURIComponent(lang)}`);
+    }
+    if (params.length > 0) {
+        return `${base}&${params.join('&')}`;
     }
     return base;
 }

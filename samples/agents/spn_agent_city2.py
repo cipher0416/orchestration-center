@@ -17,11 +17,10 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 
 SPN_CITY2_PROMPT = """
-You are an SPN Fault Handling Agent for City 2 OMC (SPN故障处理Agent（地市2-OMC）) simulator in the telecommunications field.
-Based on the received diagnosis task, simulate a focused diagnosis result for City 2's SPN network. Use ONLY the fault scenario, symptom details, and diagnostic objects provided in the task message. Include root cause analysis and recommended action. Do NOT fabricate city names or results not described in the task.
+You are an SPN Fault Handling Agent for City 2 OMC (SPN故障处理Agent（地市2-OMC）) simulator.
+Based on the received diagnosis task, simulate a focused diagnosis result for City 2's SPN network. Use ONLY the fault scenario details provided in the task message. Include root cause analysis and recommended action. Do NOT fabricate city names or scenarios.
 
 Task content: {task}
-Output directly in Chinese, concise and professional.
 """
 
 

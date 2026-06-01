@@ -258,6 +258,7 @@ async def search_workflows(
 async def execute_workflow(
     request: Request,
     body: ExecuteRequest,
+    lang: str = Query(None, description="Language for agent responses (zh/en)"),
     _: Any = Depends(RateLimiter(config, "ext_execute_auto"))
 ):
     """
@@ -290,7 +291,7 @@ async def execute_workflow(
                 raise HTTPException(status_code=500, detail=f"Auto-generation failed: {e}")
 
         agent_cards = get_agent_cards()
-        return await run_psop_sse(psop, agent_cards, runtime_intent=body.task)
+        return await run_psop_sse(psop, agent_cards, runtime_intent=body.task, lang=lang)
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
     finally:
@@ -307,6 +308,7 @@ async def execute_psop_by_id(
     request: Request,
     psop_id: str,
     user_intent: str = Query(None, description="Runtime user intent for context injection"),
+    lang: str = Query(None, description="Language for agent responses (zh/en)"),
     _: Any = Depends(RateLimiter(config, "ext_execute_by_id"))
 ):
     """
@@ -322,7 +324,7 @@ async def execute_psop_by_id(
         psop = retrieval.get_psop_by_id(psop_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"PSOP {psop_id} not found")
-        return await run_psop_sse(psop, get_agent_cards(), runtime_intent=user_intent)
+        return await run_psop_sse(psop, get_agent_cards(), runtime_intent=user_intent, lang=lang)
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
     finally:

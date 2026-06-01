@@ -963,16 +963,20 @@ class TestCrossLayerOrchestration:
             assert "step2" not in result
 
     def test_build_task_message_without_context(self):
-        """Test _build_task_message returns just description when no context"""
+        """Test _build_task_message returns description + lang hint when no context"""
         task = Task(description="do something", agent="agent1", skill="skill1")
-        result = DynamicWorkflowEngine._build_task_message(task, "")
-        assert result == "do something"
+        engine = DynamicWorkflowEngine.__new__(DynamicWorkflowEngine)
+        engine.lang = "zh"
+        result = engine._build_task_message(task, "")
+        assert "do something" in result
 
     def test_build_task_message_with_context(self):
         """Test _build_task_message prepends context to task description"""
         task = Task(description="summarize findings", agent="agent1", skill="skill1")
         context = "## Previous Step Execution Results\n### step1 Results\n**Input (Task)**: \"analyze\"\n**Output (Result)**: OK"
-        result = DynamicWorkflowEngine._build_task_message(task, context)
+        engine = DynamicWorkflowEngine.__new__(DynamicWorkflowEngine)
+        engine.lang = "zh"
+        result = engine._build_task_message(task, context)
         assert context in result
         assert task.description in result
         assert "Current Task" in result

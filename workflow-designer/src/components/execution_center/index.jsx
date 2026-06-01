@@ -372,7 +372,7 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
 });
 
 const ExecutionCenter = ({ isDark }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [selectedId, setSelectedId] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
     const [events, setEvents] = useState([]);
@@ -565,7 +565,7 @@ const ExecutionCenter = ({ isDark }) => {
         setAutoScroll(true);
         setSelectedExecutionId(null);
 
-        const url = getStartProcessStreamUrl(idToRun, userIntent);
+        const url = getStartProcessStreamUrl(idToRun, userIntent, i18n.language);
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
