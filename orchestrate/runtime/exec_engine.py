@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List
@@ -26,11 +27,6 @@ from loguru import logger
 
 try:
     from a2a_t.client import A2ATClient
-    from samples.a2at_config import get_a2at_env_path
-    from samples.negotiation_utils import (
-        extract_negotiation_context_from_task_metadata,
-        log_negotiation_context,
-    )
     _A2AT_AVAILABLE = True
 except ImportError:
     _A2AT_AVAILABLE = False
@@ -50,14 +46,16 @@ class DynamicWorkflowEngine:
         self.execution_history = []
         self.llm_client = get_llm_instance()
         self.agent_cards = agent_cards
+        self._agent_map = {card.name: card for card in agent_cards if hasattr(card, 'name')}
+        self._step_index = {s.name: i for i, s in enumerate(psop.steps)}
         self.push_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
         self.step_outputs: Dict[str, Dict[str, Any]] = {}
         self.a2at_client = None
         self._httpx_client: Optional[httpx.AsyncClient] = None
 
         if _A2AT_AVAILABLE:
+            from common.a2at_config import get_a2at_env_path, update_a2at_language
             env_path = a2at_env_path or get_a2at_env_path()
-            from samples.a2at_config.config_adapter import update_a2at_language
             update_a2at_language(self.lang)
             try:
                 self.a2at_client = A2ATClient(env_path=env_path)
@@ -134,7 +132,7 @@ class DynamicWorkflowEngine:
                     break
                 self.step_outputs[current_step.name] = step_result
 
-                next_indices = self._determine_next_steps(current_step, step_result)
+                next_indices = await self._determine_next_steps(current_step, step_result)
                 for nxt in reversed(next_indices):
                     if nxt not in executed and nxt not in pending:
                         pending.insert(0, nxt)
@@ -146,7 +144,7 @@ class DynamicWorkflowEngine:
 
         return self.execution_history
 
-    def _determine_next_steps(self, step: Step, step_result: Dict[str, Any]) -> List[int]:
+    async def _determine_next_steps(self, step: Step, step_result: Dict[str, Any]) -> List[int]:
         if not step.next:
             return []
         if all(jc.condition == "" for jc in step.next):
@@ -156,27 +154,16 @@ class DynamicWorkflowEngine:
                     continue
                 tgt = self._find_step_index(jc.step)
                 if tgt is not None:
-                    target_step = self.workflow.steps[tgt]
-                    predecessors = self._get_step_predecessors(target_step.name)
-                    if all(p in self.step_outputs for p in predecessors):
-                        indices.append(tgt)
+                    indices.append(tgt)
             return indices
-        next_name = self._llm_route_decision(step, step_result)
+        next_name = await self._llm_route_decision(step, step_result)
         if next_name in ("end", "retry"):
             return []
         tgt = self._find_step_index(next_name)
-        if tgt is not None:
-            target_step = self.workflow.steps[tgt]
-            predecessors = self._get_step_predecessors(target_step.name)
-            if not all(p in self.step_outputs for p in predecessors):
-                return []
         return [tgt] if tgt is not None else []
 
     async def send_message_to_agent(self, agent_name: str, task: str, httpx_client=None):
-        agent_card = None
-        for card in self.agent_cards:
-            if card.name == agent_name:
-                agent_card = card
+        agent_card = self._agent_map.get(agent_name)
         if not agent_card:
             raise RuntimeError(f"Agent not found: {agent_name}")
 
@@ -228,13 +215,12 @@ class DynamicWorkflowEngine:
 
                 # Process response
                 if isinstance(task_result, Task):
-                    response_text = ""
                     if hasattr(task_result, 'artifacts') and task_result.artifacts:
                         for artifact in task_result.artifacts:
                             if hasattr(artifact, 'parts') and artifact.parts:
                                 for part in artifact.parts:
                                     if hasattr(part, 'text') and part.text:
-                                        response_text += part.text
+                                        response_text = (response_text or "") + part.text
 
                     if hasattr(task_result, 'metadata') and task_result.metadata:
                         metadata = task_result.metadata
@@ -242,9 +228,16 @@ class DynamicWorkflowEngine:
                             metadata_dict = metadata
                         else:
                             metadata_dict = MessageToDict(metadata, preserving_proto_field_name=True)
-                        negotiation_ctx = extract_negotiation_context_from_task_metadata(metadata_dict)
-                        if negotiation_ctx:
-                            log_negotiation_context(negotiation_ctx, f"[{agent_name}]")
+                        try:
+                            from samples.negotiation_utils import (
+                                extract_negotiation_context_from_task_metadata,
+                                log_negotiation_context,
+                            )
+                            negotiation_ctx = extract_negotiation_context_from_task_metadata(metadata_dict)
+                            if negotiation_ctx:
+                                log_negotiation_context(negotiation_ctx, f"[{agent_name}]")
+                        except ImportError:
+                            pass
 
                     response_data = MessageToJson(task_result, preserving_proto_field_name=True)
                     self._push_event("agent_response", {
@@ -253,12 +246,10 @@ class DynamicWorkflowEngine:
                     })
 
                 elif isinstance(message_result, Message):
-                    # Handle Message type response
-                    response_text = ""
                     if hasattr(message_result, 'parts') and message_result.parts:
                         for part in message_result.parts:
                             if hasattr(part, 'text') and part.text:
-                                response_text += part.text
+                                response_text = (response_text or "") + part.text
 
                     # Push response information
                     response_data = MessageToJson(message_result, preserving_proto_field_name=True)
@@ -291,49 +282,14 @@ class DynamicWorkflowEngine:
 
     async def _execute_subtasks(self, step: Step) -> tuple[Dict[str, Any], bool]:
         results = {}
-        failed = False
         context_message = self._build_context_for_step(step)
 
-        if step.type == StepType.ANY_SUCCESS:
-            for task in step.subtasks:
-                if failed:
-                    break
-                try:
-                    logger.info(f"   > Calling Agent: {task.agent}, Skill: {task.skill}, Desc: {task.description}")
-                    task_message = self._build_task_message(task, context_message)
-                    raw_output = await self.send_message_to_agent(task.agent, task_message)
-                    task.status = TaskStatus.SUCCESS
-                    results[task.description] = raw_output
-                    self._push_psop_update()
-                    self.execution_history.append({
-                        "step": step.name,
-                        "task": task.description,
-                        "status": "success",
-                        "output": raw_output[:200]
-                    })
-                    return results, True
-                except Exception as e:
-                    task.status = TaskStatus.FAILED
-                    error_msg = f"Agent call failed : {str(e)}"
-                    results[task.description] = {"error": error_msg}
-                    logger.warning(f"  >Task failed (any_success continues): {task.description} | Error: {error_msg}")
-                    self._push_psop_update()
-                    self.execution_history.append({
-                        "step": step.name,
-                        "task": task.description,
-                        "status": "failed",
-                        "output": error_msg
-                    })
-            self._record_stop_event("ANY_SUCCESS: all subtasks failed", results)
-            return results, False
-
-        for task in step.subtasks:
+        async def execute_single_task(task: Task) -> tuple[str, str, bool]:
             try:
                 logger.info(f"   > Calling Agent: {task.agent}, Skill: {task.skill}, Desc: {task.description}")
                 task_message = self._build_task_message(task, context_message)
                 raw_output = await self.send_message_to_agent(task.agent, task_message)
                 task.status = TaskStatus.SUCCESS
-                results[task.description] = raw_output
                 self._push_psop_update()
                 self.execution_history.append({
                     "step": step.name,
@@ -341,11 +297,10 @@ class DynamicWorkflowEngine:
                     "status": "success",
                     "output": raw_output[:200]
                 })
+                return task.description, raw_output, True
             except Exception as e:
                 task.status = TaskStatus.FAILED
-                failed = True
                 error_msg = f"Agent call failed : {str(e)}"
-                results[task.description] = {"error": error_msg}
                 logger.error(f"  >Task failed: {task.description} | Error: {error_msg}")
                 self._push_psop_update()
                 self.execution_history.append({
@@ -354,7 +309,24 @@ class DynamicWorkflowEngine:
                     "status": "failed",
                     "output": error_msg
                 })
-                break
+                return task.description, {"error": error_msg}, False
+
+        if step.type == StepType.ANY_SUCCESS:
+            coros = [execute_single_task(task) for task in step.subtasks]
+            for coro in asyncio.as_completed(coros):
+                task_name, output, success = await coro
+                results[task_name] = output
+                if success:
+                    return results, True
+            self._record_stop_event("ANY_SUCCESS: all subtasks failed", results)
+            return results, False
+
+        gathered = await asyncio.gather(*[execute_single_task(task) for task in step.subtasks])
+        failed = False
+        for task_name, output, success in gathered:
+            results[task_name] = output
+            if not success:
+                failed = True
         return results, not failed
 
     def _push_psop_update(self):
@@ -438,7 +410,7 @@ class DynamicWorkflowEngine:
             return f"{context_message}\n\n## Current Task\n{task.description}{lang_hint}"
         return f"{task.description}{lang_hint}"
 
-    def _llm_route_decision(self, current_step: Step, task_result: Dict[str, Any]) -> str:
+    async def _llm_route_decision(self, current_step: Step, task_result: Dict[str, Any]) -> str:
         results_context = []
         for skill, res in task_result.items():
             if isinstance(res, dict) and "error" in res:
@@ -484,14 +456,18 @@ Step type: {current_step.type.value}
         if not self.llm_client:
             raise ValueError("LLM Client not initialized. Please set engine.llm_client.")
         try:
-            _, decision = self.llm_client.ask_llm(prompt_template)
+            _, decision = await asyncio.to_thread(self.llm_client.ask_llm, prompt_template)
             decision = decision.strip()
             logger.info(f'LLM selected next step: {decision}')
             if decision in ["end", "retry"]:
                 return decision
             step_names = [s.name for s in self.workflow.steps]
+            step_names_lower = {n.lower(): n for n in step_names}
             if decision in step_names:
                 return decision
+            if decision.lower() in step_names_lower:
+                logger.info(f"LLM step name '{decision}' case-normalized to '{step_names_lower[decision.lower()]}'")
+                return step_names_lower[decision.lower()]
             else:
                 logger.warning(f"LLM returned illegal Step name: '{decision}', defaulting to termination.")
                 return "end"
@@ -500,7 +476,4 @@ Step type: {current_step.type.value}
             return "end"
 
     def _find_step_index(self, step_name: str) -> Optional[int]:
-        for i, step in enumerate(self.workflow.steps):
-            if step.name == step_name:
-                return i
-        return None
+        return self._step_index.get(step_name)

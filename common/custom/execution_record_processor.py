@@ -114,11 +114,20 @@ def db_delete_execution_record(execution_id: str) -> bool:
     if conn is None:
         return False
     try:
-        _, error = execute_query(conn, delete_sql, (execution_id,))
-        if error:
-            logger.error(f"[DB] Failed to delete execution record (id={execution_id}): {error}")
-            return False
-        logger.info(f"[DB] Execution record deleted (id={execution_id})")
-        return True
+        cur = conn.cursor()
+        try:
+            cur.execute(delete_sql, (execution_id,))
+            deleted = cur.rowcount > 0
+            conn.commit()
+            if deleted:
+                logger.info(f"[DB] Execution record deleted (id={execution_id})")
+            else:
+                logger.warning(f"[DB] Execution record not found for deletion (id={execution_id})")
+            return deleted
+        finally:
+            cur.close()
+    except Exception as e:
+        logger.error(f"[DB] Failed to delete execution record (id={execution_id}): {e}")
+        return False
     finally:
         conn.close()

@@ -23,7 +23,7 @@ external API (external_api.py) to avoid code duplication.
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from a2a.types import AgentCard
@@ -32,10 +32,9 @@ from loguru import logger
 
 from common.custom.default_handle import HandlerRegistry
 from common.custom.interface_type import InterfaceType
-from orchestrate.core.model.execution_record import ExecutionRecord
+from orchestrate.core.model.execution_record import ExecutionRecord, ExecutionStatus
 from orchestrate.core.model.psop import PSOP
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
-from samples.a2at_config import get_a2at_env_path
 
 
 async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent: str = None, lang: str = None) -> StreamingResponse:
@@ -54,7 +53,7 @@ async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent:
     async def event_generator():
         event_queue = asyncio.Queue()
         collected_events = []
-        started_at = datetime.now()
+        started_at = datetime.now(timezone.utc)
 
         def push_callback(event_type: str, data: dict):
             serializable_data = {}
@@ -91,11 +90,16 @@ async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent:
                 collected_events.append(event_data)
 
         async def run_workflow_async():
-            record_status = "success"
+            record_status = ExecutionStatus.SUCCESS
             record_error = None
             execution_history = []
+            engine = None
             try:
-                a2at_env_path = get_a2at_env_path()
+                try:
+                    from common.a2at_config import get_a2at_env_path
+                    a2at_env_path = get_a2at_env_path()
+                except ImportError:
+                    a2at_env_path = None
                 engine = DynamicWorkflowEngine(psop, agent_cards, runtime_intent=runtime_intent, a2at_env_path=a2at_env_path, lang=lang)
                 engine.set_push_callback(push_callback)
                 await event_queue.put({
@@ -109,8 +113,10 @@ async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent:
                 })
             except Exception as e:
                 logger.error(f"Execution failed: {e}")
-                record_status = "failed"
+                record_status = ExecutionStatus.FAILED
                 record_error = str(e)
+                if engine is not None and engine.execution_history:
+                    execution_history = engine.execution_history
                 await event_queue.put({
                     "type": "error",
                     "data": {"psop_id": psop.id, "error": str(e)}
@@ -126,7 +132,7 @@ async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent:
                         psop_id=psop.id,
                         psop_name=getattr(psop, 'name', ''),
                         started_at=started_at,
-                        completed_at=datetime.now(),
+                        completed_at=datetime.now(timezone.utc),
                         status=record_status,
                         execution_history=execution_history,
                         final_psop=final_psop,

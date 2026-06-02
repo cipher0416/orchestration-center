@@ -1,3 +1,4 @@
+.env
 workflow-designer/yarn.lock
 __pycache__
 *.pyc

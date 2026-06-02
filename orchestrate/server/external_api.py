@@ -175,7 +175,7 @@ async def orchestrate_sop(
         if not sop_text or not sop_text.strip():
             raise HTTPException(status_code=400, detail="SOP content is empty")
 
-        agent_cards = get_agent_cards()
+        agent_cards = await get_agent_cards()
         preflow = PreFlow(name=workflow_name or "SOP Workflow", steps_md=sop_text)
         generator = PsopGenerator()
         psop = generator.generate_psop_workflow(preflow, agent_cards)
@@ -212,7 +212,7 @@ async def orchestrate_intent(
     try:
         intent_semaphore.acquire_nowait()
         acquired = True
-        agent_cards = get_agent_cards()
+        agent_cards = await get_agent_cards()
         generator = IntentPsopGenerator()
         psop = generator.generate_psop_from_intent(body.intent, agent_cards, body.name)
 
@@ -281,7 +281,7 @@ async def execute_workflow(
         if not psop:
             logger.info(f"No existing PSOP found for task, auto-generating...")
             try:
-                agent_cards = get_agent_cards()
+                agent_cards = await get_agent_cards()
                 generator = IntentPsopGenerator()
                 psop = generator.generate_psop_from_intent(body.task, agent_cards, body.name)
                 save_handler = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
@@ -290,7 +290,7 @@ async def execute_workflow(
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Auto-generation failed: {e}")
 
-        agent_cards = get_agent_cards()
+        agent_cards = await get_agent_cards()
         return await run_psop_sse(psop, agent_cards, runtime_intent=body.task, lang=lang)
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
@@ -324,7 +324,7 @@ async def execute_psop_by_id(
         psop = retrieval.get_psop_by_id(psop_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"PSOP {psop_id} not found")
-        return await run_psop_sse(psop, get_agent_cards(), runtime_intent=user_intent, lang=lang)
+        return await run_psop_sse(psop, await get_agent_cards(), runtime_intent=user_intent, lang=lang)
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
     finally:

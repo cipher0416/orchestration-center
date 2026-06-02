@@ -41,11 +41,19 @@ def read_db_config(file_name):
         return json.load(f)
 
 
-conn_info = read_db_config("db_config.json")
-validate_database_name(conn_info.get('database', "orchestration_center"))
+conn_info = None
+
+
+def _ensure_conn_info():
+    global conn_info
+    if conn_info is None:
+        conn_info = read_db_config("db_config.json")
+        validate_database_name(conn_info.get('database', "orchestration_center"))
+    return conn_info
 
 
 def create_database_if_not_exists():
+    conn_info = _ensure_conn_info()
     default_conn_info = {**conn_info,  "database": "postgres"}
     try:
         conn = psycopg2.connect(**default_conn_info)
@@ -79,6 +87,7 @@ def create_connection():
     try:
         if not create_database_if_not_exists():
             return None
+        conn_info = _ensure_conn_info()
         conn = psycopg2.connect(**conn_info)
         logger.info(f"Connected to database '{conn_info.get('database', 'unknown')}' on {conn_info.get('host', 'localhost')}:{conn_info.get('port', 5432)}")
         return conn

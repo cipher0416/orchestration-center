@@ -39,7 +39,7 @@ from samples.agents.ran_agent import RanAgentExecutor
 from samples.agents.dispatch_agent import DispatchAgentExecutor
 from samples.agents.spn_agent_city1 import SpnCity1AgentExecutor
 from samples.agents.spn_agent_city2 import SpnCity2AgentExecutor
-from samples.a2at_config import ensure_env_file_exists
+from common.a2at_config import ensure_env_file_exists
 
 
 def _agent_card_to_dict(agent_card: AgentCard) -> dict:

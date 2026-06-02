@@ -48,12 +48,21 @@ def custom_delete_psop(workflow_id):
     if conn is None:
         return False
     try:
-        result, error = execute_query(conn, delete_sql, (workflow_id,))
-        if error:
-            logger.error(f"[DB] Failed to delete PSOP (id={workflow_id}): {error}")
-            return False
-        logger.info(f"[DB] PSOP deleted (id={workflow_id})")
-        return True
+        cur = conn.cursor()
+        try:
+            cur.execute(delete_sql, (workflow_id,))
+            deleted = cur.rowcount > 0
+            conn.commit()
+            if deleted:
+                logger.info(f"[DB] PSOP deleted (id={workflow_id})")
+            else:
+                logger.warning(f"[DB] PSOP not found for deletion (id={workflow_id})")
+            return deleted
+        finally:
+            cur.close()
+    except Exception as e:
+        logger.error(f"[DB] Failed to delete PSOP (id={workflow_id}): {e}")
+        return False
     finally:
         conn.close()
 

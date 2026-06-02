@@ -53,12 +53,15 @@ class ConnectionLimitMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
             return response
+        except HTTPException:
+            raise
         except Exception as e:
+            logger.error(f"Unhandled exception in request: {e}", exc_info=True)
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={
                     "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    "message": "Internal Server Error"
+                    "message": f"Internal Server Error: {str(e)}"
                 }
             )
         finally:
@@ -115,6 +118,7 @@ def parser_rate_lime(interface_name: str, config):
         "ext_execute_by_id":(FLOW_CTL_START_PROCESS_STREAM, 50),
         "list_agents":(FLOW_CTL_AGENT_CARDS, 50),
         "get_execution":(FLOW_CTL_ONE_PSOP, 50),
+        "start_process_stream":(FLOW_CTL_START_PROCESS_STREAM, 50),
     }
 
     entry = config_map.get(interface_name)

@@ -14,6 +14,7 @@
 #    under the License.
 
 import os
+from functools import lru_cache
 
 from loguru import logger
 
@@ -24,6 +25,8 @@ def get_root_path():
     root_path = os.path.dirname(os.path.dirname(script_dir))
     return root_path
 
+
+@lru_cache(maxsize=1)
 def get_conf():
     config = {}
     root_path = get_root_path()

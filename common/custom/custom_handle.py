@@ -27,46 +27,46 @@ from loguru import logger
 class CustomSavePsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomSavePsopHandler invoked")
-        return custom_save_psop(*args)
+        return custom_save_psop(*args, **kwargs)
 
 
 class CustomDeletePsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomDeletePsopHandler invoked")
-        return custom_delete_psop(*args)
+        return custom_delete_psop(*args, **kwargs)
 
 
 class CustomGetAllPsopsHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomGetAllPsopsHandler invoked")
-        return get_all_psops()
+        return get_all_psops(*args, **kwargs)
 
 
 class CustomGetPsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomGetPsopHandler invoked")
-        return get_psop_by_id(*args)
+        return get_psop_by_id(*args, **kwargs)
 
 
 class CustomSaveExecutionRecordHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomSaveExecutionRecordHandler invoked")
-        return db_save_execution_record(*args)
+        return db_save_execution_record(*args, **kwargs)
 
 
 class CustomListExecutionRecordsHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomListExecutionRecordsHandler invoked")
-        return db_list_execution_records()
+        return db_list_execution_records(*args, **kwargs)
 
 
 class CustomGetExecutionRecordHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomGetExecutionRecordHandler invoked")
-        return db_get_execution_record(*args)
+        return db_get_execution_record(*args, **kwargs)
 
 
 class CustomDeleteExecutionRecordHandler(BaseHandler):
     def handle(self, *args, **kwargs):
         logger.debug("[DB] CustomDeleteExecutionRecordHandler invoked")
-        return db_delete_execution_record(*args)
+        return db_delete_execution_record(*args, **kwargs)

@@ -16,32 +16,19 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+from pydantic import BaseModel, Field
 
-class WorkflowSearchResult:
-    def __init__(self, workflow_id: str, workflow_type: str, name: str,
-                 description: Optional[str], tags: Optional[List[str]],
-                 created_at: datetime, score: float = 1.0,
-                 user_intent: Optional[str] = None,
-                 related_preflow: Optional[str] = None):
-        self.workflow_id = workflow_id
-        self.workflow_type = workflow_type
-        self.name = name
-        self.description = description
-        self.tags = tags or []
-        self.created_at = created_at
-        self.score = score
-        self.user_intent = user_intent
-        self.related_preflow = related_preflow
+
+class WorkflowSearchResult(BaseModel):
+    workflow_id: str = Field(..., description="Workflow unique ID")
+    workflow_type: str = Field(..., description="Workflow type: psop or preflow")
+    name: str = Field(..., description="Workflow name")
+    description: Optional[str] = Field(None, description="Workflow description")
+    tags: List[str] = Field(default_factory=list, description="Tags")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    score: float = Field(default=1.0, description="Search relevance score")
+    user_intent: Optional[str] = Field(None, description="User intent text")
+    related_preflow: Optional[str] = Field(None, description="Related PreFlow ID")
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "workflow_id": self.workflow_id,
-            "workflow_type": self.workflow_type,
-            "name": self.name,
-            "description": self.description,
-            "tags": self.tags,
-            "created_at": self.created_at.isoformat(),
-            "score": self.score,
-            "user_intent": self.user_intent,
-            "related_preflow": self.related_preflow,
-        }
+        return self.model_dump()

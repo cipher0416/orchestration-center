@@ -13,11 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from datetime import datetime
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+
+class ExecutionStatus(str, Enum):
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 class ExecutionRecord(BaseModel):
@@ -25,13 +33,13 @@ class ExecutionRecord(BaseModel):
                               description="Unique execution record identifier")
     psop_id: str = Field(..., description="ID of the executed PSOP workflow")
     psop_name: str = Field("", description="Name of the executed PSOP workflow")
-    started_at: datetime = Field(default_factory=datetime.now, description="Execution start timestamp")
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Execution start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Execution completion timestamp")
-    status: str = Field("running", description="Execution status: running, success, failed, stopped")
+    status: ExecutionStatus = Field(ExecutionStatus.RUNNING, description="Execution status")
     execution_history: List[Dict[str, Any]] = Field(default_factory=list,
-                                                     description="Step-level execution history")
+                                                      description="Step-level execution history")
     final_psop: Optional[Dict[str, Any]] = Field(None,
-                                                  description="Final PSOP state with task statuses")
+                                                   description="Final PSOP state with task statuses")
     events: List[Dict[str, Any]] = Field(default_factory=list,
-                                          description="Agent interaction events for replay")
+                                           description="Agent interaction events for replay")
     error: Optional[str] = Field(None, description="Error message if execution failed")

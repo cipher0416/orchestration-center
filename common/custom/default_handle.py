@@ -108,29 +108,30 @@ class HandlerRegistry:
 
     @classmethod
     def get_handler(cls, interface_type: InterfaceType) -> BaseHandler:
-        """
-        Get a handler instance based on the interface type.
-        :param interface_type: Interface type identifier
-        :return: BaseHandler instance (user-customized or default)
-        """
         persistence_mode = get_conf().get("persistence_mode", "file")
-        if persistence_mode.lower() != "file" and interface_type.value in cls._registry:
-            logger.debug(f"[Registry] Dispatching '{interface_type.value}' → DB handler (mode={persistence_mode})")
-            return cls._registry[interface_type.value]()
-        else:
-            logger.debug(f"[Registry] Dispatching '{interface_type.value}' → file handler (mode={persistence_mode})")
-            default_map = {
-                "save_psop": SavePsopHandler,
-                "get_all_psop": GetAllPsopsHandler,
-                "get_psop_by_id": GetPsopHandler,
-                "delete_psop": DeletePsopHandler,
-                "save_execution_record": SaveExecutionRecordHandler,
-                "list_execution_records": ListExecutionRecordsHandler,
-                "get_execution_record": GetExecutionRecordHandler,
-                "delete_execution_record": DeleteExecutionRecordHandler,
-            }
-            handler_class = default_map.get(interface_type.value)
-            if handler_class is None:
-                raise ValueError(f"Unknown interface type: {interface_type}")
-            return handler_class()
+        if persistence_mode.lower() != "file":
+            if interface_type.value in cls._registry:
+                logger.debug(f"[Registry] Dispatching '{interface_type.value}' → DB handler (mode={persistence_mode})")
+                return cls._registry[interface_type.value]()
+            else:
+                raise ValueError(
+                    f"No custom handler registered for '{interface_type.value}' "
+                    f"but persistence_mode={persistence_mode}. "
+                    "Register a handler via HandlerRegistry.register() first."
+                )
+        logger.debug(f"[Registry] Dispatching '{interface_type.value}' → file handler (mode={persistence_mode})")
+        default_map = {
+            "save_psop": SavePsopHandler,
+            "get_all_psop": GetAllPsopsHandler,
+            "get_psop_by_id": GetPsopHandler,
+            "delete_psop": DeletePsopHandler,
+            "save_execution_record": SaveExecutionRecordHandler,
+            "list_execution_records": ListExecutionRecordsHandler,
+            "get_execution_record": GetExecutionRecordHandler,
+            "delete_execution_record": DeleteExecutionRecordHandler,
+        }
+        handler_class = default_map.get(interface_type.value)
+        if handler_class is None:
+            raise ValueError(f"Unknown interface type: {interface_type}")
+        return handler_class()
 

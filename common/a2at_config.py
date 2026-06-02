@@ -13,14 +13,34 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
+import re
 from pathlib import Path
 from typing import Optional
-import re
+
 from loguru import logger
 
+LANG_MAP = {"en": "en-US", "zh": "zh-CN"}
 
-def get_a2at_env_path() -> Path:
-    return Path(__file__).parent / ".env"
+
+def _default_env_path() -> Path:
+    base = Path(os.path.abspath(__file__)).parent.parent
+    return base / ".env"
+
+
+def get_a2at_env_path(env_path: Path = None) -> Path:
+    if env_path is not None:
+        return env_path
+    return _default_env_path()
+
+
+def update_a2at_language(language: str, env_path: Path = None) -> None:
+    path = get_a2at_env_path(env_path)
+    lang_code = LANG_MAP.get(language, language)
+    content = path.read_text(encoding='utf-8')
+    updated = re.sub(r'^(A2AT_LANGUAGE=).*$', rf'\1{lang_code}', content, flags=re.MULTILINE)
+    path.write_text(updated, encoding='utf-8')
+    logger.info(f"Updated A2AT_LANGUAGE to {lang_code} in {path}")
 
 
 def generate_env_from_llm_config(
@@ -30,13 +50,11 @@ def generate_env_from_llm_config(
     from common.llm.config.llm_config import get_model_config
 
     if env_output_path is None:
-        env_output_path = get_a2at_env_path()
+        env_output_path = _default_env_path()
 
     model_cfg = get_model_config(capability)
     if model_cfg is None:
-        raise ValueError(
-            f"LLM capability '{capability}' not found in llm_config.json"
-        )
+        raise ValueError(f"LLM capability '{capability}' not found in llm_config.json")
 
     model = model_cfg.model
     api_key = model_cfg.api_key
@@ -98,7 +116,7 @@ A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 
 
 def ensure_env_file_exists() -> Path:
-    env_path = get_a2at_env_path()
+    env_path = _default_env_path()
     if not env_path.exists():
         logger.warning("A2AT .env file not found, generating from LLM config")
         return generate_env_from_llm_config()
@@ -112,15 +130,3 @@ def ensure_env_file_exists() -> Path:
             return generate_env_from_llm_config()
 
     return env_path
-
-
-LANG_MAP = {"en": "en-US", "zh": "zh-CN"}
-
-
-def update_a2at_language(language: str) -> None:
-    env_path = get_a2at_env_path()
-    lang_code = LANG_MAP.get(language, language)
-    content = env_path.read_text(encoding='utf-8')
-    updated = re.sub(r'^(A2AT_LANGUAGE=).*$', rf'\1{lang_code}', content, flags=re.MULTILINE)
-    env_path.write_text(updated, encoding='utf-8')
-    logger.info(f"Updated A2AT_LANGUAGE to {lang_code} in {env_path}")

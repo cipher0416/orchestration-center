@@ -259,11 +259,10 @@ class TestLLMRouteDecision:
 
             mock_llm_client.ask_llm.return_value = ("id", "step2")
 
-            result = engine._llm_route_decision(
+            result = await engine._llm_route_decision(
                 sample_step,
                 {"test_skill": "execution success"}
             )
-
             assert result == "step2"
             mock_llm_client.ask_llm.assert_called_once()
             # Verify prompt contains key information
@@ -282,7 +281,7 @@ class TestLLMRouteDecision:
 
             mock_llm_client.ask_llm.return_value = ("id", "end")
 
-            result = engine._llm_route_decision(
+            result = await engine._llm_route_decision(
                 sample_step,
                 {"test_skill": {"error": "Agent timeout"}}
             )
@@ -303,7 +302,7 @@ class TestLLMRouteDecision:
 
             mock_llm_client.ask_llm.return_value = ("id", "retry")
 
-            result = engine._llm_route_decision(sample_step, {"skill": "ambiguous result"})
+            result = await engine._llm_route_decision(sample_step, {"skill": "ambiguous result"})
 
             assert result == "retry"
 
@@ -318,7 +317,7 @@ class TestLLMRouteDecision:
 
             mock_llm_client.ask_llm.return_value = ("id", "nonexistent_step")
 
-            result = engine._llm_route_decision(sample_step, {"skill": "success"})
+            result = await engine._llm_route_decision(sample_step, {"skill": "success"})
 
             assert result == "end"
 
@@ -339,7 +338,7 @@ class TestLLMRouteDecision:
             # LLM returns uppercase - internal comparison is case-insensitive, returns lowercase
             mock_llm_client.ask_llm.return_value = ("id", "STEP2")
 
-            result = engine._llm_route_decision(sample_step, {"skill": "success"})
+            result = await engine._llm_route_decision(sample_step, {"skill": "success"})
 
             assert result == "step2"  # normalized to lowercase match
 
@@ -353,7 +352,7 @@ class TestLLMRouteDecision:
                    return_value=mock_llm):
             engine = DynamicWorkflowEngine(psop=MagicMock(steps=[sample_step]), agent_cards=[])
 
-            result = engine._llm_route_decision(sample_step, {"skill": "success"})
+            result = await engine._llm_route_decision(sample_step, {"skill": "success"})
 
             assert result == "end"
 
@@ -366,7 +365,7 @@ class TestLLMRouteDecision:
             engine.llm_client = None
 
             with pytest.raises(ValueError, match="LLM Client not initialized"):
-                engine._llm_route_decision(sample_step, {"skill": "success"})
+                await engine._llm_route_decision(sample_step, {"skill": "success"})
 
     @pytest.mark.asyncio
     async def test_llm_decision_prompt_contains_conditions(self, sample_step, mock_llm_client):
@@ -377,7 +376,7 @@ class TestLLMRouteDecision:
             psop.steps = [sample_step]
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[])
 
-            engine._llm_route_decision(sample_step, {"skill": "result"})
+            await engine._llm_route_decision(sample_step, {"skill": "result"})
 
             prompt = mock_llm_client.ask_llm.call_args[0][0]
             # Verify conditions are included in prompt as JSON
@@ -608,15 +607,16 @@ class TestRunWorkflow:
         psop = PSOP(name="single", steps=[sample_step])
 
         with patch('orchestrate.runtime.exec_engine.get_llm_instance',
-                   return_value=mock_llm_client):
+                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_agent_card])
 
-            engine._execute_subtasks = AsyncMock(return_value=({"t": "ok"}, True))
+            engine.send_message_to_agent = AsyncMock(return_value="ok")
 
             result = await engine.run()
 
-            assert result == [{'step': 'step1', 'task': 'Test energy saving analysis', 'status': 'SUCCESS', 'output': 'ok'}]
-            engine._execute_subtasks.assert_called_once()
+            assert len(result) == 1
+            assert result[0]["status"] == "success"
+            assert result[0]["output"] == "ok"
 
     @pytest.mark.asyncio
     async def test_run_exception_handling(self, sample_psop, mock_agent_card, mock_llm_client, caplog):
@@ -812,7 +812,7 @@ class TestEdgeCases:
             # Returns step name with special characters
             mock_llm_client.ask_llm.return_value = ("id", "step-2_with.special")
 
-            result = engine._llm_route_decision(sample_step, {"skill": "ok"})
+            result = await engine._llm_route_decision(sample_step, {"skill": "ok"})
 
             assert result == "step-2_with.special"
 
