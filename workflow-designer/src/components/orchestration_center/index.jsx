@@ -84,6 +84,7 @@ const OrchestrationCenter = ({ isDark }) => {
     const [templates, setTemplates] = useState([]);
     const [importingTpl, setImportingTpl] = useState(null);
     const fileInput = useRef(null);
+    const skipSelectedIdFetch = useRef(false);
 
     const [loading, setLoading] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -197,6 +198,7 @@ const OrchestrationCenter = ({ isDark }) => {
                     name: psop.name,
                     rawText: psop
                 });
+                skipSelectedIdFetch.current = true;
                 setSelectedId(psop.id);
                 setActiveView('editor');
                 await fetchWorkflows();
@@ -209,6 +211,10 @@ const OrchestrationCenter = ({ isDark }) => {
     };
 
     useEffect(() => {
+        if (skipSelectedIdFetch.current) {
+            skipSelectedIdFetch.current = false;
+            return;
+        }
         if (!selectedId) {
             setCurrentWf(null);
             return;

@@ -623,17 +623,8 @@ async def import_template(
             raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
         psop_data["id"] = str(uuid.uuid4())
         psop = PSOP.model_validate(psop_data)
-        saved_id = _get_save_handle().handle(psop)
-        logger.info(f"Template imported: {psop.name} ({template_id}) -> {saved_id}")
-        audit_logger.audit({
-            'object_name': OperationObject.PSOP,
-            'object_id': saved_id,
-            'operation_name': OperationName.SAVE_PSOP,
-            'level': LogLevel.MINOR,
-            'result': OperationResult.SUCCESS,
-            'details': {"template_id": template_id, "workflow_id": saved_id},
-        })
-        return created(data=psop.model_dump(), message="Template imported successfully")
+        logger.info(f"Template loaded for editing: {psop.name} ({template_id}) -> {psop.id}")
+        return created(data=psop.model_dump(), message="Template loaded for editing")
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
     except HTTPException:
@@ -690,27 +681,45 @@ async def execute_workflow(
 
 @router.delete("/execution-records/{execution_id}")
 async def delete_execution_record(execution_id: str):
-    handler = HandlerRegistry.get_handler(InterfaceType.DELETE_EXECUTION_RECORD)
-    deleted = handler.handle(execution_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
-    return ok(data={"deleted": execution_id})
+    try:
+        handler = HandlerRegistry.get_handler(InterfaceType.DELETE_EXECUTION_RECORD)
+        deleted = handler.handle(execution_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
+        return ok(data={"deleted": execution_id})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete execution record: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/execution-records")
 async def list_execution_records():
-    handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
-    records = handler.handle()
-    return ok(data=records)
+    try:
+        handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
+        records = handler.handle()
+        return ok(data=records)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list execution records: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/execution-records/{execution_id}")
 async def get_execution_record(execution_id: str):
-    handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
-    record = handler.handle(execution_id)
-    if not record:
-        raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
-    return ok(data=record.model_dump() if hasattr(record, 'model_dump') else record)
+    try:
+        handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
+        record = handler.handle(execution_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
+        return ok(data=record.model_dump() if hasattr(record, 'model_dump') else record)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get execution record: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ──── Register routers ────
@@ -744,15 +753,33 @@ async def legacy_get_workflow(workflow_id: str, _: Any = Depends(RateLimiter(con
 
 @app.post("/psops")
 async def legacy_save_workflow(request: SavePSOPRequest, _: Any = Depends(RateLimiter(config, "create_workflow"))):
-    psop = PSOP.model_validate(request.psop)
-    saved_id = _get_save_handle().handle(psop)
-    return JSONResponse(status_code=201, content={"code": 201, "message": "created", "data": {"workflow_id": saved_id}})
+    acquired = False
+    try:
+        save_psop_semaphore.acquire_nowait()
+        acquired = True
+        psop = PSOP.model_validate(request.psop)
+        saved_id = _get_save_handle().handle(psop)
+        return JSONResponse(status_code=201, content={"code": 201, "message": "created", "data": {"workflow_id": saved_id}})
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    finally:
+        if acquired:
+            save_psop_semaphore.release()
 
 
 @app.delete("/psops/{workflow_id}")
 async def legacy_delete_workflow(workflow_id: str, _: Any = Depends(RateLimiter(config, "delete_workflow"))):
-    psop = _get_retrieval().get_psop_by_id(workflow_id)
-    if not psop:
-        raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
-    _get_delete_handle().handle(workflow_id)
-    return {"code": 200, "message": f"Workflow {workflow_id} deleted", "data": None}
+    acquired = False
+    try:
+        delete_psop_semaphore.acquire_nowait()
+        acquired = True
+        psop = _get_retrieval().get_psop_by_id(workflow_id)
+        if not psop:
+            raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
+        _get_delete_handle().handle(workflow_id)
+        return {"code": 200, "message": f"Workflow {workflow_id} deleted", "data": None}
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    finally:
+        if acquired:
+            delete_psop_semaphore.release()
