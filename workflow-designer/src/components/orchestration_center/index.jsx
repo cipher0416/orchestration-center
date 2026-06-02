@@ -198,7 +198,7 @@ const OrchestrationCenter = ({ isDark }) => {
                     rawText: psop
                 });
                 setSelectedId(psop.id);
-                setActiveView('detail');
+                setActiveView('editor');
                 await fetchWorkflows();
             }
         } catch (e) {
