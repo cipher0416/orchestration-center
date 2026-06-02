@@ -229,7 +229,7 @@ class DynamicWorkflowEngine:
                         else:
                             metadata_dict = MessageToDict(metadata, preserving_proto_field_name=True)
                         try:
-                            from samples.negotiation_utils import (
+                            from common.negotiation_utils import (
                                 extract_negotiation_context_from_task_metadata,
                                 log_negotiation_context,
                             )

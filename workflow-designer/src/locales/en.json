@@ -59,7 +59,9 @@
     "no_match_yet": "Search for workflows...",
     "no_history": "No execution history",
     "loading": "Loading...",
-    "load_history_failed": "Failed to load history record"
+    "load_history_failed": "Failed to load history record",
+    "delete_record_title": "Delete Execution Record",
+    "delete_record_confirm": "Are you sure you want to delete this execution record? This action cannot be undone."
   },
   "orchestration": {
     "title": "Orchestration",

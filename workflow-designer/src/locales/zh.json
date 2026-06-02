@@ -59,7 +59,9 @@
     "no_match_yet": "搜寻匹配...",
     "no_history": "暂无执行记录",
     "loading": "加载中...",
-    "load_history_failed": "加载历史记录失败"
+    "load_history_failed": "加载历史记录失败",
+    "delete_record_title": "删除执行记录",
+    "delete_record_confirm": "确定要删除该执行记录吗？此操作无法撤销。"
   },
   "orchestration": {
     "title": "编排中心",

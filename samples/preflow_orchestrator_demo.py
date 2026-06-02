@@ -23,7 +23,7 @@ from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from samples.util import MOCK_ES_WORKFLOW
-from samples.a2at_config import get_a2at_env_path
+from common.a2at_config import get_a2at_env_path
 
 def get_pre_workflow():
     pre_md = MOCK_ES_WORKFLOW
