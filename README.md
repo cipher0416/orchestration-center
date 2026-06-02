@@ -51,20 +51,33 @@ orchestration-center/
 ├── orchestrate/              # 核心编排模块
 │   ├── core/                 # 核心模型（PSOP、PreFlow）
 │   ├── runtime/              # 执行引擎（DynamicWorkflowEngine）
-│   ├── server/               # REST API服务
+│   ├── server/               # REST API服务（内部+对外）
 │   ├── registry_client/      # 注册中心客户端
+│   ├── agentcard_loader.py   # AgentCard加载器
 │   └── solution_package/     # SolutionPackage解析
 ├── samples/                  # 示例Agent
 │   ├── agents/               # Agent实现（集成A2A-T协商）
-│   ├── a2at_config/          # A2A-T SDK配置
-│   ├── negotiation_utils.py  # 协商工具函数
+│   ├── start_agents_server.py # 启动示例Agent
 │   └── agentcard/            # AgentCard定义
-├── workflow-designer/        # 前端可视化设计器
-├── common/                   # 公共模块（LLM、配置、日志等）
-│   └── config/               # 配置文件（llm_config.json等）
+├── workflow-designer/        # 前端可视化设计器（React+Vite）
+├── common/                   # 公共模块
+│   ├── a2at_config.py        # A2A-T SDK配置生成
+│   ├── config/               # 配置文件（llm_config.json等）
+│   ├── custom/               # 可插拔Handler注册
+│   ├── llm/                  # LLM抽象层
+│   ├── log/                  # 日志模块
+│   ├── util/                 # 工具函数
+│   └── negotiation_utils.py  # 协商工具函数
+├── database/                 # PostgreSQL支持（可选）
+├── bin/                      # 启动/停止脚本
+├── scripts/                  # 测试脚本
+├── test/                     # 单元测试
+├── tests/                    # 集成测试
 ├── etc/                      # SSL证书、服务配置
 ├── data/                     # 本地数据存储
-└── docs/                     # 文档
+├── docs/                     # 文档（API参考、用户指南等）
+├── .github/                  # CI/CD流水线
+└── AGENTS.md                 # Agent卡片目录（开发指南）
 ```
 
 ### 核心依赖
@@ -181,7 +194,7 @@ python -m samples.start_agents_server
 
 ### 配置说明
 
-协商配置位于 `samples/a2at_config/.env`（由 `config_adapter.py` 从 `common/config/llm_config.json` 自动生成）：
+协商配置由 `common/a2at_config.py` 从 `common/config/llm_config.json` 自动生成：
 
 ```env
 A2AT_LLM_PROVIDER=deepseek
@@ -196,8 +209,9 @@ A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 | 文件路径 | 说明 |
 |----------|------|
 | `samples/agents/negotiation_base_agent.py` | 协商Agent基类 |
-| `samples/negotiation_utils.py` | 协商工具函数 |
+| `common/negotiation_utils.py` | 协商工具函数 |
 | `orchestrate/runtime/exec_engine.py` | 执行引擎（协商上下文解析） |
+| `orchestrate/agentcard_loader.py` | AgentCard加载器 |
 
 ---
 
