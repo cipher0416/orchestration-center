@@ -253,12 +253,24 @@ const FlowInner = ({
             const targetNode = nodeMap.get(edge.target);
             const sourceStats = sourceOutgoingStats.get(edge.source);
 
-            if (!sourceNode || !targetNode) return {
+            if (!sourceNode || !targetNode) {
+                if (edge.target === 'END_OF_WORKFLOW' && sourceNode && ['executed', 'success'].includes(sourceNode.status)) {
+                    return {
+                        ...edge,
+                        type: 'custom',
+                        animated: true,
+                        style: { ...edge.style, stroke: themeClasses.activeEdgeColor, strokeWidth: 3, opacity: 1 },
+                        markerEnd: { type: MarkerType.ArrowClosed, color: themeClasses.activeEdgeColor },
+                        zIndex: 10,
+                    };
+                }
+                return {
                 ...edge,
                 type: 'custom',
                 style: { ...edge.style, stroke: themeClasses.inactiveEdgeColor, strokeWidth: 2, opacity: 0.5 },
                 markerEnd: { type: MarkerType.ArrowClosed, color: themeClasses.inactiveEdgeColor }
-            };
+                };
+            }
 
             const isSourcePassed = ['executed', 'current', 'success', 'running'].includes(sourceNode.status) || sourceNode.type === 'startNode' || sourceNode.id === 'START_NODE';
             const isTargetActive = ['executed', 'current', 'success', 'running', 'failed'].includes(targetNode.status);
@@ -266,6 +278,10 @@ const FlowInner = ({
 
             if (isActive && (targetNode.type === 'endNode' || targetNode.id === 'END_OF_WORKFLOW' || ['current', 'running'].includes(targetNode.status))) {
                 if (sourceStats && sourceStats.hasExecutedChild) isActive = false;
+            }
+
+            if (!isActive && edge.target === 'END_OF_WORKFLOW' && ['executed', 'success'].includes(sourceNode.status)) {
+                isActive = true;
             }
 
             return {
