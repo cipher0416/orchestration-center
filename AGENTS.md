@@ -70,7 +70,7 @@ Key config keys: `ip`, `port`, `enable_https`, `persistence_mode`, `agent_regist
 The `WorkflowStorage` singleton is accessed via `get_workflow_storage()` (uses `@lru_cache(maxsize=1)`).
 
 ### A2A-T SDK config
-`samples/a2at_config/config_adapter.py` auto-generates `.env` for the a2a-t-sdk from `common/config/llm_config.json`.
+`.env` for the a2a-t-sdk is auto-generated from `common/config/llm_config.json` via `common/a2at_config.py`.
 
 ## Repo layout (what matters)
 
@@ -97,11 +97,11 @@ data/workflow_storage/ # File-based persistence (PSOP, PreFlow, execution record
 
 - **Two test dirs**: `test/` (unit) vs `tests/` (integration, needs live server). No shared fixtures or conftest.
 - **No Python lint, typecheck, or formatter config** exists.
-- **Frontend is JS/JSX, not TypeScript** — despite `@types/react` in devDependencies.
+- **Frontend is JS/JSX, not TypeScript**.
 - **All Python code is run as modules** (`python -m`, not `python file.py`). Imports use absolute paths rooted at repo root.
 - **Sample agents must be running** for workflow execution to succeed (they provide the actual A2A agent endpoints).
 - **Workflow designer expects backend at `http://127.0.0.1:60000`** (hardcoded in `workflow-designer/src/service/api.js`).
-- **No CI/CD** pipelines configured (no `.github/workflows/`).
+- **CI/CD** configured in `.github/workflows/ci.yml` — runs pytest (unit) and ESLint (frontend).
 - **License headers required** on all source files (Apache 2.0, Huawei copyright).
 
 ## Key commands reference

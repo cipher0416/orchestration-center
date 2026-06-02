@@ -186,6 +186,23 @@ Output the result in our custom PSOP workflow format.
    ```"next":[{{"step":"end", "condition":""}}]```
 4. Output only the PSOP JSON; do not include any other text.
 
+## Condition Rules (Critical for correct workflow execution)
+5. **Use `""` (empty string) for unconditional transitions**: If a step must always
+   proceed to its next step (e.g. step2 → step3 without any branching), set condition
+   to `""`. This allows the executor to skip LLM routing and proceed directly.
+6. **Only write explicit conditions when genuine branching exists**: Conditions are
+   ONLY needed when a step has multiple outgoing paths (e.g., step1 can go to step2 OR
+   step3). In that case, write a short, concrete condition that describes which outcome
+   triggers which path.
+7. **Make conditions matchable against agent output keywords**: Use specific terms
+   that are LIKELY to appear literally or semantically in the agent's response text.
+   - BAD: `"Recovery attempted"` (too vague, agent won't use these exact words)
+   - GOOD: `"RAN-side anomaly found"` (agent output will contain anomaly/diagnosis keywords)
+   - GOOD: `"No network issue detected"` (agent output will contain "normal" / "no fault")
+8. **When in doubt, prefer unconditional**: A sequential workflow without genuine
+   branches should use `""` conditions throughout. Only introduce conditions when
+   the business logic TRULY requires different paths based on agent findings.
+
 ## Cross-Layer Orchestration Rules (Important)
 - If a step needs to synthesize, summarize, or analyze results from preceding steps,
   classify it as an aggregation layer step.
@@ -230,6 +247,14 @@ directly from the user's intent.
 3. **Dependency Analysis**: Analyze inter-step dependencies to determine
    parallel vs. sequential execution.
 4. **Conditional Branching**: Define reasonable transition conditions for each step.
+   - **CRITICAL**: Use "condition": "" (empty) for sequential transitions where the next
+     step must always execute. Only write explicit conditions when a step has multiple
+     outgoing paths that depend on the agent's findings.
+   - **Make conditions matchable**: Write conditions using keywords likely to appear in
+     the agent's output. A condition like "Recovery attempted" is too vague; use
+     concrete phrases like "anomaly detected" or "fault found".
+   - **Prefer unconditional over conditional**: Most workflows are sequential. Do NOT
+     create artificial branching conditions when the business logic is linear.
 5. **Naming Convention**: Use "step1", "step2", ... format. Default type is "AllSuccess".
 
 ## Cross-Layer Orchestration Rules (Important)

@@ -59,7 +59,9 @@
     "no_match_yet": "搜寻匹配...",
     "no_history": "暂无执行记录",
     "loading": "加载中...",
-    "load_history_failed": "加载历史记录失败"
+    "load_history_failed": "加载历史记录失败",
+    "delete_record_title": "删除执行记录",
+    "delete_record_confirm": "确定要删除该执行记录吗？此操作无法撤销。"
   },
   "orchestration": {
     "title": "编排中心",
@@ -175,9 +177,12 @@
     "export": {
       "success": "工作流保存成功",
       "failed": "保存失败，请检查后端服务",
-      "modalTitle": "描述场景",
-      "modalDesc": "请简要描述该工作流处理的具体业务场景或现象，以便后续调用。",
-      "placeholder": "例如：网络链路异常自动修复场景..."
+      "modalTitle": "保存工作流",
+      "modalDesc": "请输入工作流名称和场景描述，以便后续检索与调用。",
+      "nameLabel": "工作流名称",
+      "namePlaceholder": "例如：网络链路异常自动修复",
+      "descLabel": "场景描述",
+      "descPlaceholder": "例如：当网络链路出现异常时，自动诊断并触发修复流程..."
     },
     "validate": {
       "empty": "画布不能为空",

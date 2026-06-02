@@ -15,6 +15,7 @@
 
 import asyncio
 import json
+from pathlib import Path
 
 import uvicorn
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -52,23 +53,23 @@ def _is_agent_card_changed(local_dict: dict, remote_dict: dict) -> bool:
     return local_normalized != remote_normalized
 
 
-def register_or_update_agent(factory, agent_card: AgentCard) -> dict:
+async def register_or_update_agent(factory, agent_card: AgentCard) -> dict:
     local_dict = _agent_card_to_dict(agent_card)
     name = agent_card.name
     org = agent_card.provider.organization if agent_card.provider else ""
     try:
-        existing = factory.get(name, org)
+        existing = await factory.get(name, org)
     except Exception as e:
         logger.warning(f"Query registry for {name} failed: {e}, falling back to register")
         try:
-            return factory.register(agent_card)
+            return await factory.register(agent_card)
         except Exception as reg_err:
             logger.error(f"Register agent card {name} failed: {reg_err}")
             return None
 
     if existing is None:
         try:
-            result = factory.register(agent_card)
+            result = await factory.register(agent_card)
             logger.info(f"Registered new agent card: {name} (org={org})")
             return result
         except Exception as e:
@@ -80,7 +81,7 @@ def register_or_update_agent(factory, agent_card: AgentCard) -> dict:
         remote_dict = remote_agent_cards[0]
         if _is_agent_card_changed(local_dict, remote_dict):
             try:
-                result = factory.update_full(name, org, agent_card)
+                result = await factory.update_full(name, org, agent_card)
                 logger.info(f"Updated agent card: {name} (org={org}), content changed")
                 return result
             except Exception as e:
@@ -91,7 +92,7 @@ def register_or_update_agent(factory, agent_card: AgentCard) -> dict:
             return existing
     else:
         try:
-            result = factory.register(agent_card)
+            result = await factory.register(agent_card)
             logger.info(f"Registered agent card: {name} (org={org})")
             return result
         except Exception as e:
@@ -100,6 +101,11 @@ def register_or_update_agent(factory, agent_card: AgentCard) -> dict:
 
 
 def pre_insert_psop():
+    from common.util.config_util import get_conf
+    if get_conf().get("persistence_mode", "file") == "file":
+        logger.info("Persistence mode is file, skipping pre_insert_psop")
+        return
+
     ensure_env_file_exists()
     logger.info("A2AT SDK environment file initialized")
     
@@ -165,7 +171,7 @@ async def main() -> None:
         logger.error(f"pre_insert_psop failed (agents will still start): {e}")
 
     try:
-        agent_lib = AgentCardLoader()
+        agent_lib = AgentCardLoader(Path(__file__).parent / "agentcard")
         agent_cards = agent_lib.get_all_agent_cards()
     except Exception as e:
         logger.error(f"Failed to load agent cards: {e}")
@@ -181,7 +187,7 @@ async def main() -> None:
     for agent_card in agent_cards:
         if factory:
             try:
-                result = register_or_update_agent(factory, agent_card)
+                result = await register_or_update_agent(factory, agent_card)
                 logger.info(f"register/update agentcard for {agent_card.name}, result is {result}")
             except Exception as e:
                 logger.error(f"register/update agent card failed: {e}")

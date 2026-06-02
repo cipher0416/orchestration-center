@@ -1,8 +1,11 @@
 workflow-designer/yarn.lock
-__pycache__
+__pycache__/
 *.pyc
-.idea
-venv
-./venv
+.idea/
+venv/
+.venv/
 log/
-./workflow-designer/stats.html
+.pytest_cache/
+workflow-designer/dist/
+workflow-designer/stats.html
+data/

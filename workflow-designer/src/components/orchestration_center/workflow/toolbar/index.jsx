@@ -8,12 +8,19 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
     const [showConfirm, setShowConfirm] = useState(false);
     const { t } = useTranslation();
     const [showExportModal, setShowExportModal] = useState(false);
-    const [phenomenon, setPhenomenon] = useState(workflowDescription || "");
+    const [exportName, setExportName] = useState(workflowName || "");
+    const [exportDesc, setExportDesc] = useState(workflowDescription || "");
     const [toast, setToast] = useState({ show: false, msg: "", type: "error" });
 
     useEffect(() => {
+        if (workflowName) {
+            setExportName(workflowName);
+        }
+    }, [workflowName]);
+
+    useEffect(() => {
         if (workflowDescription) {
-            setPhenomenon(workflowDescription);
+            setExportDesc(workflowDescription);
         }
     }, [workflowDescription]);
 
@@ -63,12 +70,13 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
             });
             return;
         }
-        const psopData = transformReactFlowToPSOP(nodes, edges, { description: phenomenon, id: workflowId, name: workflowName });
+        const psopData = transformReactFlowToPSOP(nodes, edges, { description: exportDesc, id: workflowId, name: exportName || workflowName });
         try {
             createWorkflow(psopData).then(r => {
                 setToast({ show: true, msg: t('workflow.export.success'), type: 'success' });
                 setShowExportModal(false);
-                setPhenomenon("");
+                setExportName("");
+                setExportDesc("");
                 if (onSaveSuccess) onSaveSuccess();
             }).catch(err => {
                 setToast({ show: true, msg: t('workflow.export.failed'), type: 'error' });
@@ -133,17 +141,35 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
                     {t('workflow.export.modalDesc')}
                 </p>
 
-                <textarea
-                    autoFocus
-                    value={phenomenon}
-                    onChange={(e) => setPhenomenon(e.target.value)}
-                    placeholder={t('workflow.export.placeholder')}
-                    className={`w-full px-4 py-4 rounded-2xl border outline-none transition-all duration-200 resize-none h-36 mb-6 font-medium ${theme.input}`}
-                />
+                <div className="mb-4">
+                    <label className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
+                        {t('workflow.export.nameLabel')}
+                    </label>
+                    <input
+                        type="text"
+                        autoFocus
+                        value={exportName}
+                        onChange={(e) => setExportName(e.target.value)}
+                        placeholder={t('workflow.export.namePlaceholder')}
+                        className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all duration-200 font-medium ${theme.input}`}
+                    />
+                </div>
+
+                <div className="mb-6">
+                    <label className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
+                        {t('workflow.export.descLabel')}
+                    </label>
+                    <textarea
+                        value={exportDesc}
+                        onChange={(e) => setExportDesc(e.target.value)}
+                        placeholder={t('workflow.export.descPlaceholder')}
+                        className={`w-full px-4 py-4 rounded-2xl border outline-none transition-all duration-200 resize-none h-28 font-medium ${theme.input}`}
+                    />
+                </div>
 
                 <div className="flex gap-4">
                     <button
-                        onClick={() => { setShowExportModal(false); setPhenomenon(""); }}
+                        onClick={() => { setShowExportModal(false); setExportName(""); setExportDesc(""); }}
                         className={`flex-1 px-4 py-3 text-sm font-bold rounded-2xl transition-all active:scale-95 ${isDark
                                 ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
                                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
@@ -153,7 +179,7 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
                     </button>
                     <button
                         onClick={executeExport}
-                        disabled={!phenomenon.trim()}
+                        disabled={!exportName.trim()}
                         className={`flex-1 px-4 py-3 text-sm font-black rounded-2xl transition-all active:scale-95 shadow-lg ${isDark
                                 ? 'bg-zinc-100 text-zinc-950 hover:bg-white shadow-zinc-950/20'
                                 : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
@@ -208,9 +234,11 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
             <button
                 onClick={() => {
-                    if (workflowId) {
+                    if (workflowId && exportName.trim()) {
                         executeExport();
                     } else {
+                        setExportName(workflowName || exportName || "");
+                        setExportDesc(workflowDescription || exportDesc || "");
                         setShowExportModal(true);
                     }
                 }}

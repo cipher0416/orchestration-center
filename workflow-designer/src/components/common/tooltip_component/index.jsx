@@ -1,19 +1,11 @@
-// @ts-ignore
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface Props {
-    children: React.ReactElement;
-    content: React.ReactNode;
-    side?: 'top' | 'right' | 'bottom' | 'left';
-    sideOffset?: number;
-}
-
-const Tooltip = ({ children, content, side = 'right', sideOffset = 10 }: Props) => {
+const Tooltip = ({ children, content, side = 'right', sideOffset = 10 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, x: 0, y: 0 });
-    const triggerRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef(null);
 
     const updatePosition = () => {
         if (triggerRef.current) {

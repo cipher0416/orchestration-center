@@ -30,11 +30,11 @@ def extract_negotiation_context_from_task_metadata(
 ) -> Optional[NegotiationContext]:
     if not task_metadata:
         return None
-    
+
     context_data = task_metadata.get("negotiationContext")
     if not context_data:
         return None
-    
+
     try:
         return NegotiationContext.from_context(context_data)
     except Exception as e:
@@ -47,11 +47,11 @@ def extract_negotiation_context_from_artifact_metadata(
 ) -> Optional[NegotiationContext]:
     if not artifact_metadata:
         return None
-    
+
     context_data = artifact_metadata.get("negotiationContext")
     if not context_data:
         return None
-    
+
     try:
         return NegotiationContext.from_context(context_data)
     except Exception as e:
@@ -66,7 +66,7 @@ def build_negotiation_metadata(
     if not context_data:
         logger.warning("No negotiation context in result")
         return {}
-    
+
     return {"negotiationContext": context_data}
 
 

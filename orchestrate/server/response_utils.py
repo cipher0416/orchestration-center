@@ -13,13 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import asyncio
 import json
 from typing import Any, List
 
 from a2a.types import AgentCard
 from fastapi import HTTPException
 from google.protobuf.json_format import Parse
+from loguru import logger
 
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 
@@ -32,13 +32,18 @@ def created(data: Any = None, message: str = "created") -> dict:
     return {"code": 201, "message": message, "status": "success", "data": data}
 
 
-def _fetch_agent_cards_sync() -> List[AgentCard]:
-    factory = AgentRegistryClientFactory()
-    raw = factory.create_from_env().list_exact()
-    if not raw:
-        raise HTTPException(status_code=404, detail="No available agents found")
-    return [Parse(json.dumps(agent), AgentCard()) for agent in raw]
-
-
 async def get_agent_cards() -> List[AgentCard]:
-    return await asyncio.to_thread(_fetch_agent_cards_sync)
+    factory = AgentRegistryClientFactory()
+    client = factory.create_from_env()
+    try:
+        raw = await client.list_exact()
+        if not raw:
+            raise HTTPException(status_code=404, detail="No available agents found")
+        return [Parse(json.dumps(agent), AgentCard()) for agent in raw]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to fetch agent cards from registry: {e}")
+        return []
+    finally:
+        await client.close()

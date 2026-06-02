@@ -14,55 +14,7 @@ import {
     Settings
 } from 'lucide-react';
 
-interface AgentCapability {
-    extensions: any;
-    pushNotifications: boolean;
-    stateTransitionHistory: boolean;
-    streaming: boolean;
-}
-
-interface AgentSkill {
-    id: string;
-    name: string;
-    description: string;
-    inputModes: string[] | null;
-    outputModes: string[] | null;
-}
-
-interface SupportedInterface {
-    protocolBinding: string;
-    protocolVersion: string;
-    url: string;
-}
-
-interface AgentProvider {
-    organization: string;
-    url: string;
-}
-
-interface AgentData {
-    name: string;
-    version: string;
-    description: string;
-    protocolVersion: string;
-    preferredTransport: string;
-    provider: AgentProvider;
-    url: string;
-    capabilities: AgentCapability;
-    defaultInputModes: string[];
-    defaultOutputModes: string[];
-    skills: AgentSkill[];
-    supportedInterface?: SupportedInterface[];
-    documentationUrl?: string;
-    [key: string]: any;
-}
-
-interface AgentProfileProps {
-    agent: AgentData;
-    isDark: boolean;
-}
-
-const getTheme = (isDark: boolean) => ({
+const getTheme = (isDark) => ({
     bg: isDark ? 'bg-zinc-950' : 'bg-transparent',
     cardBg: isDark ? 'bg-zinc-900' : 'bg-white',
     border: isDark ? 'border-zinc-800' : 'border-gray-200',
@@ -76,7 +28,7 @@ const getTheme = (isDark: boolean) => ({
     cardBorder: isDark ? 'border-zinc-700/50' : 'border-slate-200/60'
 });
 
-const InfoCard = ({ title, icon: Icon, children, className = "", theme }: any) => (
+const InfoCard = ({ title, icon: Icon, children, className = "", theme }) => (
     <div className={`p-5 rounded-xl border shadow-sm flex flex-col ${theme.cardBg} ${theme.border} ${className}`}>
         <div className="flex items-center gap-2 mb-4 pb-2 border-b border-dashed border-opacity-50"
              style={{ borderColor: theme.border ? undefined : '#e5e7eb' }}>
@@ -89,7 +41,7 @@ const InfoCard = ({ title, icon: Icon, children, className = "", theme }: any) =
     </div>
 );
 
-const StatusRow = ({ label, value, theme, mono = false }: any) => (
+const StatusRow = ({ label, value, theme, mono = false }) => (
     <div className="flex justify-between items-center py-2 border-b last:border-0 border-dashed border-opacity-50"
          style={{ borderColor: theme.border ? undefined : '#e5e7eb' }}>
         <span className={`text-sm ${theme.textSecondary}`}>{label}</span>
@@ -97,7 +49,7 @@ const StatusRow = ({ label, value, theme, mono = false }: any) => (
     </div>
 );
 
-const CapabilityToggle = ({ label, active, icon: Icon, theme }: any) => {
+const CapabilityToggle = ({ label, active, icon: Icon, theme }) => {
     const activeBg = active
         ? (theme.cardBg.includes('zinc') ? 'bg-zinc-800/50' : 'bg-blue-50/50')
         : 'opacity-60';
@@ -120,12 +72,11 @@ const CapabilityToggle = ({ label, active, icon: Icon, theme }: any) => {
     );
 };
 
-const AgentDashboard: React.FC<AgentProfileProps> = ({ agent, isDark }) => {
-    console.log('AgentDashboard', agent)
+const AgentDashboard = ({ agent, isDark }) => {
     const { t } = useTranslation();
     const theme = getTheme(isDark);
 
-    const renderDescriptionList = (desc: string) => {
+    const renderDescriptionList = (desc) => {
         return (
             <div className={`text-sm leading-relaxed whitespace-pre-wrap ${theme.textSecondary}`}>
                 {desc}
@@ -219,7 +170,7 @@ const AgentDashboard: React.FC<AgentProfileProps> = ({ agent, isDark }) => {
                                                 ))}
                                             </div>
                                         </div>
-                                    )
+                                    );
                                 })}
                         </div>
                     </InfoCard>

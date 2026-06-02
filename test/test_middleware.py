@@ -19,7 +19,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from orchestrate.server.middleware import (
-    parser_rate_lime, RateLimiter, async_hit,
+    parse_rate_limit, RateLimiter, async_hit,
     ConnectionLimitMiddleware, TimeoutMiddleware
 )
 from fastapi import Request, HTTPException
@@ -31,7 +31,7 @@ class TestParserRateLime:
     @patch('orchestrate.server.middleware.get_conf')
     def test_returns_rate_item_for_valid_interface(self, mock_get_conf):
         mock_get_conf.return_value = {}
-        result = parser_rate_lime("parse_pdf", {})
+        result = parse_rate_limit("parse_pdf", {})
         assert result is not None
         from limits import RateLimitItem
         assert isinstance(result, RateLimitItem)
@@ -39,28 +39,28 @@ class TestParserRateLime:
     @patch('orchestrate.server.middleware.get_conf')
     def test_returns_none_for_unknown_interface(self, mock_get_conf):
         mock_get_conf.return_value = {}
-        result = parser_rate_lime("unknown_interface_xyz", {})
+        result = parse_rate_limit("unknown_interface_xyz", {})
         assert result is None
 
     @patch('orchestrate.server.middleware.get_conf')
     def test_returns_none_when_parse_fails(self, mock_get_conf):
         mock_get_conf.return_value = {}
         with patch('orchestrate.server.middleware.parse_many', side_effect=ValueError("bad")):
-            result = parser_rate_lime("parse_pdf", {})
+            result = parse_rate_limit("parse_pdf", {})
             assert result is None
 
     @patch('orchestrate.server.middleware.get_conf')
     def test_uses_default_when_config_invalid(self, mock_get_conf):
         config = {"flow_ctl_parallel_parse_pdf": "not_a_number"}
         mock_get_conf.return_value = config
-        result = parser_rate_lime("parse_pdf", {"flow_ctl_parallel_parse_pdf": "abc"})
+        result = parse_rate_limit("parse_pdf", {"flow_ctl_parallel_parse_pdf": "abc"})
         assert result is not None
 
     @patch('orchestrate.server.middleware.get_conf')
     def test_new_endpoint_names_mapped(self, mock_get_conf):
         mock_get_conf.return_value = {}
         for name in ("list_workflows", "create_workflow", "sop_orchestrate"):
-            result = parser_rate_lime(name, {})
+            result = parse_rate_limit(name, {})
             assert result is not None, f"{name} should map to a rate"
 
 
@@ -79,7 +79,7 @@ class TestRateLimiter:
     @patch('orchestrate.server.middleware.get_conf')
     def test_raises_for_invalid_interface(self, mock_get_conf):
         mock_get_conf.return_value = {}
-        with patch('orchestrate.server.middleware.parser_rate_lime', return_value=None):
+        with patch('orchestrate.server.middleware.parse_rate_limit', return_value=None):
             with pytest.raises(ValueError, match="Invalid rate limit configuration"):
                 RateLimiter({}, "nonexistent")
 
@@ -145,7 +145,8 @@ class TestTimeoutMiddleware:
     async def test_passes_within_timeout(self):
         app = MagicMock()
         middleware = TimeoutMiddleware(app, timeout_seconds=5)
-        mock_request = MagicMock(spec=Request)
+        mock_request = MagicMock()
+        mock_request.url.path = "/rest/v1/orchestrate/workflows"
 
         async def call_next(req):
             return PlainTextResponse("ok")
@@ -156,7 +157,8 @@ class TestTimeoutMiddleware:
     async def test_returns_504_on_timeout(self):
         app = MagicMock()
         middleware = TimeoutMiddleware(app, timeout_seconds=0.01)
-        mock_request = MagicMock(spec=Request)
+        mock_request = MagicMock()
+        mock_request.url.path = "/rest/v1/orchestrate/workflows"
 
         async def slow_call(req):
             await asyncio.sleep(1.0)

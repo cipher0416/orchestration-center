@@ -25,11 +25,9 @@ class AgentRegistryClientFactory:
         self.default_base_url = get_conf().get("agent_registry_url", "http://127.0.0.1:5000")
 
     def create_client(self, base_url: str = None, timeout: int = 30) -> AgentRegistryClient:
-        """Create a client instance, with parameters that can override the factory's default configuration"""
         url = base_url or self.default_base_url
         timeout_seconds = timeout or self.config.get("timeout", 30)
         return AgentRegistryClient(url, timeout_seconds)
 
     def create_from_env(self) -> AgentRegistryClient:
-        """Create a client from environment variables"""
         return self.create_client()

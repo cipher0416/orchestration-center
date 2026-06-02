@@ -10,7 +10,7 @@ export default defineConfig({
         port: 3003,
     },
     plugins: [react(), visualizer({
-        open: true,
+        open: false,
         filename: 'stats.html',
         gzipSize: true,
         brotliSize: true,

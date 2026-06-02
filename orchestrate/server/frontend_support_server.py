@@ -17,6 +17,7 @@ import os
 import tempfile
 import json
 import re
+import pathlib
 import time
 import uuid
 from typing import Optional, List, Any, Dict
@@ -51,12 +52,10 @@ from orchestrate.core.model.psop import PSOP
 from orchestrate.server.external_api import router as external_router
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
-from orchestrate.core.retrieval import WorkflowRetrieval
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
 from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
+from orchestrate.server.shared_handlers import SharedHandlers
 from orchestrate.solution_package.parse_flow import SolutionPackageParser
-from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
-from orchestrate.workflow_storage_instance import get_workflow_storage
 
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -119,37 +118,6 @@ async def security_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-# ──── Shared state (lazily initialized) ────
-_save_handle = None
-_delete_handle = None
-_retrieval = None
-
-
-def _get_save_handle():
-    global _save_handle
-    if _save_handle is None:
-        _save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
-    return _save_handle
-
-
-def _get_delete_handle():
-    global _delete_handle
-    if _delete_handle is None:
-        _delete_handle = HandlerRegistry.get_handler(InterfaceType.DELETE_PSOP)
-    return _delete_handle
-
-
-def _get_retrieval():
-    global _retrieval
-    if _retrieval is None:
-        _retrieval = WorkflowRetrieval(get_workflow_storage())
-    return _retrieval
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Standard response envelope
-# ═══════════════════════════════════════════════════════════════════════════════
-
 # ──── Request models ────
 
 class PlanRequest(BaseModel):
@@ -191,7 +159,7 @@ async def list_workflows(
         all_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Listing workflows: limit={limit}")
-        recent_workflows = _get_retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
+        recent_workflows = SharedHandlers.retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
         logger.info(f"Retrieved {len(recent_workflows)} workflows")
         return ok(data=[wf.to_dict() for wf in recent_workflows])
     except anyio.WouldBlock:
@@ -217,7 +185,7 @@ async def get_workflow(
         one_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Getting workflow: {workflow_id}")
-        psop = _get_retrieval().get_psop_by_id(workflow_id)
+        psop = SharedHandlers.retrieval().get_psop_by_id(workflow_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
         return ok(data=psop.model_dump())
@@ -247,7 +215,7 @@ async def create_workflow(
         acquired = True
         psop = PSOP.model_validate(request.psop)
         logger.info(f"Creating workflow: name={psop.name}, id={psop.id}")
-        saved_id = _get_save_handle().handle(psop)
+        saved_id = SharedHandlers.save_psop().handle(psop)
         logger.info(f"Workflow saved: id={saved_id}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
@@ -287,10 +255,10 @@ async def delete_workflow(
         delete_psop_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Deleting workflow: {workflow_id}")
-        psop = _get_retrieval().get_psop_by_id(workflow_id)
+        psop = SharedHandlers.retrieval().get_psop_by_id(workflow_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
-        deleted = _get_delete_handle().handle(workflow_id)
+        deleted = SharedHandlers.delete_psop().handle(workflow_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete workflow")
         logger.info(f"Workflow deleted: {workflow_id}")
@@ -403,7 +371,7 @@ async def generate_from_preflow(
             PreFlow.model_validate(request.preflow),
             [Parse(json.dumps(card), AgentCard()) for card in request.agent_cards]
         )
-        _get_save_handle().handle(workflow)
+        SharedHandlers.save_psop().handle(workflow)
         logger.info(f"PSOP generated: id={workflow.id}, steps={len(workflow.steps)}")
         audit_logger.audit({
             'object_name': OperationObject.PSOP,
@@ -438,8 +406,7 @@ async def generate_from_intent(
         intent_preview = request.user_intent[:80] + "..." if len(request.user_intent) > 80 else request.user_intent
         logger.info(f"Generating PSOP from intent: {intent_preview}")
 
-        agent_registry_factory = AgentRegistryClientFactory()
-        agent_cards_raw = agent_registry_factory.create_from_env().list_exact()
+        agent_cards_raw = [MessageToDict(card, preserving_proto_field_name=False) for card in await get_agent_cards()]
         if not agent_cards_raw:
             raise HTTPException(status_code=404, detail="No available AgentCards found")
 
@@ -452,7 +419,7 @@ async def generate_from_intent(
         logger.info(f"PSOP generated from intent: id={psop.id}, steps={len(psop.steps)}")
 
         try:
-            _get_save_handle().handle(psop)
+            SharedHandlers.save_psop().handle(psop)
             logger.info(f"PSOP auto-saved: {psop.id}")
             audit_logger.audit({
                 'object_name': OperationObject.PSOP,
@@ -490,7 +457,7 @@ async def retrieve_by_intent(
         retrieve_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Retrieving PSOP by intent: {request.user_intent[:80]}")
-        psop = _get_retrieval().retrieve_psop_by_intent(request.user_intent)
+        psop = SharedHandlers.retrieval().retrieve_psop_by_intent(request.user_intent)
         if not psop:
             return ok(data=None, message="No matching workflow found")
         logger.info(f"Retrieved: {psop.name} (id={psop.id})")
@@ -521,7 +488,7 @@ async def retrieve_topn_by_intent(
         acquired = True
         top_n = request.top_n if request.top_n else 3
         logger.info(f"Retrieving TopN PSOPs by intent (n={top_n}): {request.user_intent[:80]}")
-        results: List[WorkflowSearchResult] = _get_retrieval().retrieve_psop_by_intent_topn(request.user_intent, top_n)
+        results: List[WorkflowSearchResult] = SharedHandlers.retrieval().retrieve_psop_by_intent_topn(request.user_intent, top_n)
         logger.info(f"TopN returned {len(results)} result(s)")
         return ok(data=[r.to_dict() for r in results], message=f"Found {len(results)} matching workflow(s)")
     except anyio.WouldBlock:
@@ -572,8 +539,6 @@ async def list_agent_cards(
 # Workflow templates
 # ═══════════════════════════════════════════════════════════════════════════════
 
-import pathlib
-
 _templates_dir = pathlib.Path(__file__).resolve().parent.parent.parent / "data" / "workflow_templates"
 
 
@@ -623,17 +588,8 @@ async def import_template(
             raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
         psop_data["id"] = str(uuid.uuid4())
         psop = PSOP.model_validate(psop_data)
-        saved_id = _get_save_handle().handle(psop)
-        logger.info(f"Template imported: {psop.name} ({template_id}) -> {saved_id}")
-        audit_logger.audit({
-            'object_name': OperationObject.PSOP,
-            'object_id': saved_id,
-            'operation_name': OperationName.SAVE_PSOP,
-            'level': LogLevel.MINOR,
-            'result': OperationResult.SUCCESS,
-            'details': {"template_id": template_id, "workflow_id": saved_id},
-        })
-        return created(data=psop.model_dump(), message="Template imported successfully")
+        logger.info(f"Template loaded for editing: {psop.name} ({template_id}) -> {psop.id}")
+        return created(data=psop.model_dump(), message="Template loaded for editing")
     except anyio.WouldBlock:
         raise HTTPException(status_code=503, detail="Server is busy")
     except HTTPException:
@@ -668,7 +624,7 @@ async def execute_workflow(
         execute_semaphore.acquire_nowait()
         acquired = True
         logger.info(f"Starting workflow execution: psop_id={psop_id}, user_intent={user_intent[:80] if user_intent else 'N/A'}")
-        psop = _get_retrieval().get_psop_by_id(psop_id)
+        psop = SharedHandlers.retrieval().get_psop_by_id(psop_id)
         if not psop:
             raise HTTPException(status_code=404, detail=f"Workflow {psop_id} not found")
 
@@ -690,27 +646,45 @@ async def execute_workflow(
 
 @router.delete("/execution-records/{execution_id}")
 async def delete_execution_record(execution_id: str):
-    handler = HandlerRegistry.get_handler(InterfaceType.DELETE_EXECUTION_RECORD)
-    deleted = handler.handle(execution_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
-    return ok(data={"deleted": execution_id})
+    try:
+        handler = HandlerRegistry.get_handler(InterfaceType.DELETE_EXECUTION_RECORD)
+        deleted = handler.handle(execution_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
+        return ok(data={"deleted": execution_id})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete execution record: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/execution-records")
 async def list_execution_records():
-    handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
-    records = handler.handle()
-    return ok(data=records)
+    try:
+        handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
+        records = handler.handle()
+        return ok(data=records)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list execution records: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/execution-records/{execution_id}")
 async def get_execution_record(execution_id: str):
-    handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
-    record = handler.handle(execution_id)
-    if not record:
-        raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
-    return ok(data=record.model_dump() if hasattr(record, 'model_dump') else record)
+    try:
+        handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
+        record = handler.handle(execution_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
+        return ok(data=record.model_dump() if hasattr(record, 'model_dump') else record)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get execution record: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ──── Register routers ────
@@ -730,13 +704,13 @@ async def legacy_agent_cards():
 
 @app.get("/psops")
 async def legacy_list_workflows(limit: int = 10, _: Any = Depends(RateLimiter(config, "list_workflows"))):
-    recent = _get_retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
+    recent = SharedHandlers.retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
     return {"code": 200, "message": "success", "data": [wf.to_dict() for wf in recent]}
 
 
 @app.get("/psops/{workflow_id}")
 async def legacy_get_workflow(workflow_id: str, _: Any = Depends(RateLimiter(config, "get_workflow"))):
-    psop = _get_retrieval().get_psop_by_id(workflow_id)
+    psop = SharedHandlers.retrieval().get_psop_by_id(workflow_id)
     if not psop:
         raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
     return {"code": 200, "message": "success", "data": psop.model_dump()}
@@ -744,15 +718,33 @@ async def legacy_get_workflow(workflow_id: str, _: Any = Depends(RateLimiter(con
 
 @app.post("/psops")
 async def legacy_save_workflow(request: SavePSOPRequest, _: Any = Depends(RateLimiter(config, "create_workflow"))):
-    psop = PSOP.model_validate(request.psop)
-    saved_id = _get_save_handle().handle(psop)
-    return JSONResponse(status_code=201, content={"code": 201, "message": "created", "data": {"workflow_id": saved_id}})
+    acquired = False
+    try:
+        save_psop_semaphore.acquire_nowait()
+        acquired = True
+        psop = PSOP.model_validate(request.psop)
+        saved_id = SharedHandlers.save_psop().handle(psop)
+        return JSONResponse(status_code=201, content={"code": 201, "message": "created", "data": {"workflow_id": saved_id}})
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    finally:
+        if acquired:
+            save_psop_semaphore.release()
 
 
 @app.delete("/psops/{workflow_id}")
 async def legacy_delete_workflow(workflow_id: str, _: Any = Depends(RateLimiter(config, "delete_workflow"))):
-    psop = _get_retrieval().get_psop_by_id(workflow_id)
-    if not psop:
-        raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
-    _get_delete_handle().handle(workflow_id)
-    return {"code": 200, "message": f"Workflow {workflow_id} deleted", "data": None}
+    acquired = False
+    try:
+        delete_psop_semaphore.acquire_nowait()
+        acquired = True
+        psop = SharedHandlers.retrieval().get_psop_by_id(workflow_id)
+        if not psop:
+            raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
+        SharedHandlers.delete_psop().handle(workflow_id)
+        return {"code": 200, "message": f"Workflow {workflow_id} deleted", "data": None}
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    finally:
+        if acquired:
+            delete_psop_semaphore.release()

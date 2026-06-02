@@ -93,13 +93,15 @@ class PsopGenerator:
         """
         matches = re.findall(r'```json(.*?)```', llm_response, re.DOTALL)
         if not matches:
-            error_msg = "No JSON code block found in LLM answer"
+            preview = llm_response[:200] if len(llm_response) > 200 else llm_response
+            error_msg = f"No JSON code block found in LLM answer. Response preview: {preview}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 
         json_str = matches[-1].strip()
         if not json_str:
-            error_msg = "Empty JSON content found in code block"
+            preview = llm_response[:200] if len(llm_response) > 200 else llm_response
+            error_msg = f"Empty JSON content found in code block. Response preview: {preview}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 

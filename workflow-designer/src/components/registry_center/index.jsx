@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { getAgentCards } from "@/service/api.js";
 import CodeInspector from "./code_inspector/index.jsx";
-import AgentCard from "./agentcard_visualization/index.tsx";
+import AgentCard from "./agentcard_visualization/index.jsx";
 
 const THEMES = ['emerald', 'blue', 'indigo', 'rose', 'cyan', 'amber', 'violet'];
 const ICONS = [

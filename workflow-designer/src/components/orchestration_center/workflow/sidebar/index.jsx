@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAgentCards } from "../../../../service/api.js";
 import { useTranslation } from "react-i18next";
-import Tooltip from "../../../common/tooltip_component/index.tsx";
+import Tooltip from "../../../common/tooltip_component/index.jsx";
 
 import { Bot } from 'lucide-react';
 

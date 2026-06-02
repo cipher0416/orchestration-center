@@ -15,6 +15,7 @@
 
 import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List
 
@@ -37,6 +38,7 @@ from orchestrate.core.model.psop import PSOP, Step, StepType, Task, TaskStatus
 
 class DynamicWorkflowEngine:
     _MAX_CONTEXT_TOKENS_ESTIMATE = 6000
+    _llm_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm_")
 
     def __init__(self, psop: PSOP, agent_cards, runtime_intent: str = None, a2at_env_path: Path = None, lang: str = None):
         self.workflow = psop
@@ -229,7 +231,7 @@ class DynamicWorkflowEngine:
                         else:
                             metadata_dict = MessageToDict(metadata, preserving_proto_field_name=True)
                         try:
-                            from samples.negotiation_utils import (
+                            from common.negotiation_utils import (
                                 extract_negotiation_context_from_task_metadata,
                                 log_negotiation_context,
                             )
@@ -456,9 +458,11 @@ Step type: {current_step.type.value}
         if not self.llm_client:
             raise ValueError("LLM Client not initialized. Please set engine.llm_client.")
         try:
-            _, decision = await asyncio.to_thread(self.llm_client.ask_llm, prompt_template)
+            _, decision = await asyncio.get_event_loop().run_in_executor(
+                DynamicWorkflowEngine._llm_executor, self.llm_client.ask_llm, prompt_template
+            )
             decision = decision.strip()
-            logger.info(f'LLM selected next step: {decision}')
+            logger.info(f"LLM route decision for step '{current_step.name}': raw='{decision}', conditions={next_conditions}")
             if decision in ["end", "retry"]:
                 return decision
             step_names = [s.name for s in self.workflow.steps]

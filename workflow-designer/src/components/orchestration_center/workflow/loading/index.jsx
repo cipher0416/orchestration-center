@@ -1,20 +1,12 @@
-// @ts-ignore
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-interface WorkflowLoaderProps {
-    isDark?: boolean;
-    message?: string;
-    subMessage?: string;
-    className?: string;
-}
-
-const WorkflowLoader: React.FC<WorkflowLoaderProps> = ({
-                                                           isDark = true,
-                                                           loadingMessage,
-                                                           subMessage,
-                                                           className = ""
-                                                       }) => {
+const WorkflowLoader = ({
+    isDark = true,
+    loadingMessage,
+    subMessage,
+    className = ""
+}) => {
     const { t } = useTranslation();
     const displayMessage = loadingMessage || t('workflow_loader.loading');
     const displaySubMessage = subMessage || t('workflow_loader.initializing');

@@ -21,9 +21,9 @@ import { SmartStepEdge } from '@tisoap/react-flow-smart-edge';
 import FloatingEdge from "./CustomEdges/FloatingEdge/index.jsx";
 import Toolbar from "./toolbar/index.jsx";
 import ToolbarLite from "./toolbar_lite/index.jsx";
-import WorkflowLoader from "./loading/index.tsx";
+import WorkflowLoader from "./loading/index.jsx";
 import PropertyPanel from "./property_panel/index.jsx";
-import Sidebar from "./siderbar/index.jsx";
+import Sidebar from "./sidebar/index.jsx";
 import { normalizeStatus, BACKEND_STATUS } from './utils/index.jsx';
 
 
@@ -385,9 +385,9 @@ const FlowInner = ({
     const [editNodes, setEditNodes, onNodesChange] = useNodesState(initialEditNodes);
     const [editEdges, setEditEdges, onEdgesChange] = useEdgesState([]);
     const [selectedElement, setSelectedElement] = useState(null);
-    const [phenomenon, setPhenomenon] = useState("");
     const [isDirty, setIsDirty] = useState(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
+    const [phenomenon, setPhenomenon] = useState('');
 
     useEffect(() => {
         if (mode === 'edit' && importedNodes?.length > 0) {
@@ -479,7 +479,7 @@ const FlowInner = ({
     }, [selectedElement, editNodes, setEditNodes, setEditEdges]);
 
     const onNodeDragStop = useCallback((event, node) => {
-        if (mode !== 'edit' || node.type !== 'agentNode' || !rfInstance) return;
+        if (mode !== 'edit' || !node || node.type !== 'agentNode' || !rfInstance) return;
 
         const allNodes = rfInstance.getNodes();
         const targetNode = allNodes.find(n => {
@@ -708,7 +708,7 @@ const FlowInner = ({
                 <>
                     <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                         <div className="pointer-events-auto">
-                            <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} workflowDescription={workflowDescription} onCancel={handleCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); setIsDirty(true); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={handleSaveSuccess} />
+                            <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} workflowDescription={workflowDescription} onCancel={handleCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); setIsDirty(true); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} onSaveSuccess={handleSaveSuccess} />
                         </div>
                     </div>
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-8 h-auto z-40 pointer-events-none flex items-center min-h-0">

@@ -197,9 +197,7 @@ const OrchestrationCenter = ({ isDark }) => {
                     name: psop.name,
                     rawText: psop
                 });
-                setSelectedId(psop.id);
-                setActiveView('detail');
-                await fetchWorkflows();
+                setActiveView('editor');
             }
         } catch (e) {
             console.error("Failed to import template:", e);

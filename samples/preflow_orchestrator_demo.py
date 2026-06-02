@@ -15,6 +15,7 @@
 
 import asyncio
 import time
+from pathlib import Path
 
 from loguru import logger
 
@@ -23,7 +24,7 @@ from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.runtime.exec_engine import DynamicWorkflowEngine
 from samples.util import MOCK_ES_WORKFLOW
-from samples.a2at_config import get_a2at_env_path
+from common.a2at_config import get_a2at_env_path
 
 def get_pre_workflow():
     pre_md = MOCK_ES_WORKFLOW
@@ -71,7 +72,7 @@ def _get_and_validate_preflow():
 
 
 def _load_agents_and_get_cards():
-    agent_lib = AgentCardLoader()
+    agent_lib = AgentCardLoader(Path(__file__).parent / "agentcard")
     return agent_lib.get_all_agent_cards()
 
 def _generate_workflow(preflow, agent_cards):

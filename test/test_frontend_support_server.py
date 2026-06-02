@@ -48,22 +48,23 @@ def client():
 
 @pytest.fixture
 def mock_storage():
-    """Mock WorkflowStorage"""
-    with patch('orchestrate.server.frontend_support_server.storage') as mock:
-        yield mock
+    """Mock SharedHandlers save/delete"""
+    with patch('orchestrate.server.shared_handlers.SharedHandlers.save_psop'), \
+         patch('orchestrate.server.shared_handlers.SharedHandlers.delete_psop'):
+        yield
 
 
 @pytest.fixture
 def mock_retrieval():
-    """Mock WorkflowRetrieval"""
-    with patch('orchestrate.server.frontend_support_server.retrieval') as mock:
+    """Mock WorkflowRetrieval via SharedHandlers"""
+    with patch('orchestrate.server.shared_handlers.SharedHandlers.retrieval') as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_agent_lib():
-    """Mock AgentCardLib"""
-    with patch('orchestrate.server.frontend_support_server.agent_lib') as mock:
+    """Mock AgentRegistryClient (used internally by get_agent_cards)"""
+    with patch('orchestrate.server.response_utils.get_agent_cards', return_value=[]) as mock:
         yield mock
 
 

@@ -398,6 +398,8 @@ const ExecutionCenter = ({ isDark }) => {
     const [isLoadingRecords, setIsLoadingRecords] = useState(false);
     const [showSelectionDialog, setShowSelectionDialog] = useState(false);
     const [workflowCandidates, setWorkflowCandidates] = useState([]);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [recordToDelete, setRecordToDelete] = useState(null);
 
     const handleNodeSelect = useCallback((node) => {
         if (!node) {
@@ -426,6 +428,7 @@ const ExecutionCenter = ({ isDark }) => {
         setNodes([]);
         setEdges([]);
         setSelectedId(null);
+        setPsopStatus(null);
         setMatchedWorkflows([]);
         setWorkflowSource(null);
         setError(null);
@@ -455,6 +458,7 @@ const ExecutionCenter = ({ isDark }) => {
         setShowSelectionDialog(false);
         setSelectedId(workflowId);
         setWorkflowSource('retrieved');
+        setPsopStatus(null);
         setMatchedWorkflows(workflowCandidates);
         setWorkflowCandidates([]);
     };
@@ -493,15 +497,18 @@ const ExecutionCenter = ({ isDark }) => {
         }
     }, [t]);
 
-    const handleDeleteRecord = useCallback(async (executionId, e) => {
-        e.stopPropagation();
+    const handleDeleteRecord = useCallback(async () => {
+        if (!recordToDelete) return;
         try {
-            await deleteExecutionRecord(executionId);
-            setExecutionRecords(prev => prev.filter(r => r.execution_id !== executionId));
+            await deleteExecutionRecord(recordToDelete.execution_id);
+            setExecutionRecords(prev => prev.filter(r => r.execution_id !== recordToDelete.execution_id));
         } catch (err) {
             console.error("Failed to delete execution record:", err);
+        } finally {
+            setShowDeleteDialog(false);
+            setRecordToDelete(null);
         }
-    }, []);
+    }, [recordToDelete]);
 
     useEffect(() => {
         if (autoScroll && logScrollRef.current) {
@@ -715,7 +722,7 @@ const ExecutionCenter = ({ isDark }) => {
                                 matchedWorkflows.map(wf => (
                                     <div 
                                         key={wf.workflow_id}
-                                        onClick={() => { setSelectedId(wf.workflow_id); setWorkflowSource('retrieved'); }}
+                                        onClick={() => { setSelectedId(wf.workflow_id); setWorkflowSource('retrieved'); setPsopStatus(null); }}
                                         className={`group relative p-5 rounded-[2rem] border-2 transition-all cursor-pointer box-border
                                             ${selectedId === wf.workflow_id 
                                                 ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_8px_30px_rgb(59,130,246,0.1)]' 
@@ -795,7 +802,11 @@ const ExecutionCenter = ({ isDark }) => {
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-sm font-bold dark:text-white truncate">{record.psop_name || record.psop_id}</span>
                                                     <button
-                                                        onClick={(e) => handleDeleteRecord(record.execution_id, e)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setRecordToDelete(record);
+                                                            setShowDeleteDialog(true);
+                                                        }}
                                                         className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/20 text-zinc-400 hover:text-rose-500 transition-all"
                                                     >
                                                         <Trash2 size={12} />
@@ -926,6 +937,44 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
             </div>
+
+            {showDeleteDialog && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/20 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl w-full max-w-md scale-in-center animate-in zoom-in-95 duration-300">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-2xl mb-6">
+                                <Trash2 size={32} />
+                            </div>
+                            <h3 className="text-xl font-black dark:text-white mb-2 uppercase tracking-tight">
+                                {t('execution.delete_record_title')}
+                            </h3>
+                            <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-8">
+                                {t('execution.delete_record_confirm')}
+                                <br />
+                                <span className="font-bold text-zinc-900 dark:text-zinc-100 italic">"{recordToDelete?.psop_name || recordToDelete?.execution_id}"</span>
+                            </p>
+
+                            <div className="flex gap-4 w-full">
+                                <button
+                                    onClick={() => {
+                                        setShowDeleteDialog(false);
+                                        setRecordToDelete(null);
+                                    }}
+                                    className="flex-1 px-6 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                                >
+                                    {t('common.cancel')}
+                                </button>
+                                <button
+                                    onClick={handleDeleteRecord}
+                                    className="flex-1 px-6 py-3 rounded-xl bg-red-500 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-600 shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+                                >
+                                    {t('common.delete')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showSelectionDialog && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center">

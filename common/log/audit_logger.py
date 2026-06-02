@@ -54,7 +54,7 @@ class AuditLogger:
 
     def __init__(self):
         self.config = self._load_config()
-        self.max_size = int(self.config.get("audit_log_max_file_size_mb", 5)) * 1024 * 1024
+        self.max_size = int(self.config.get("audit_log_max_file_size_m", 5)) * 1024 * 1024
         self.backup_count = int(self.config.get("audit_log_backup_count", 5)) - 1
         parent_path = os.path.join(get_root_path(), "log", "audit")
         audit_log_dir = Path(parent_path)

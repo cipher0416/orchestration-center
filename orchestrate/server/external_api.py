@@ -38,7 +38,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from common.config import FLOW_CTL_START_PROCESS_STREAM, FLOW_CTL_PLAN, FLOW_CTL_GENERATE_PSOP
+from common.config import FLOW_CTL_START_PROCESS_STREAM, FLOW_CTL_PLAN, FLOW_CTL_GENERATE_PSOP, MAX_FILE_SIZE_BYTES
 from common.custom.default_handle import HandlerRegistry
 from common.custom.interface_type import InterfaceType
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
@@ -55,8 +55,6 @@ from common.util.config_util import get_conf
 
 router = APIRouter(prefix="/api/v1")
 config = get_conf()
-
-MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
 
 execute_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_START_PROCESS_STREAM, 50)))
 sop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PLAN, 10)))

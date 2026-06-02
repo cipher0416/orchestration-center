@@ -107,6 +107,9 @@ async def run_psop_sse(psop: PSOP, agent_cards: List[AgentCard], runtime_intent:
                     "data": {"psop_id": psop.id, "message": "Execution started"}
                 })
                 execution_history = await engine.run()
+                if any(e.get("event") == "STOPPED" for e in execution_history):
+                    record_status = ExecutionStatus.STOPPED
+                    record_error = "Workflow stopped due to step execution failure"
                 await event_queue.put({
                     "type": "complete",
                     "data": {"psop_id": psop.id, "execution_history": execution_history}

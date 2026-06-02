@@ -27,7 +27,7 @@ from a2a_t.negotiation.common.models import StartNegotiationInput, NegotiationCo
 
 from common.a2at_config import get_a2at_env_path
 from common.llm import get_llm_instance
-from samples.negotiation_utils import (
+from common.negotiation_utils import (
     NEGOTIATION_CONTEXT_KEY,
     NEGOTIATION_TEXT_KEY,
     build_negotiation_metadata,

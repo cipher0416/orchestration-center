@@ -15,7 +15,7 @@
 
 from typing import Union, Dict, Any, Optional, List
 
-import requests
+import httpx
 from a2a.types import AgentCard
 from google.protobuf.json_format import MessageToDict
 from loguru import logger
@@ -23,75 +23,57 @@ from loguru import logger
 
 class AgentRegistryClient:
     """
-    Client SDK for interacting with Agent Registry REST API.
+    Async client SDK for interacting with Agent Registry REST API.
     """
 
     def __init__(self, base_url: str, timeout: int = 30):
-        """
-        :param base_url: the base URL of the agent registry server, e.g. "http://localhost:8080"
-        :param timeout: Request Timeout in seconds.
-        """
         self.base_url = base_url
         self.timeout = timeout
-        self.session = requests.Session()
+        self._client: Optional[httpx.AsyncClient] = None
 
-    def _request(self, method: str, path: str, **kwargs) -> requests.Response:
-        """
-        Make an HTTP request and handel common errors
-        """
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+        return self._client
+
+    async def close(self):
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         url = f"{self.base_url}{path}"
         kwargs.setdefault('timeout', self.timeout)
         try:
-            resp = self.session.request(method=method, url=url, **kwargs)
-            logger.info(f"request for :{url}, the result is {resp.json()}")
+            client = await self._get_client()
+            resp = await client.request(method=method, url=url, **kwargs)
             resp.raise_for_status()
+            logger.info(f"request for :{url}, status={resp.status_code}")
             return resp
-        except requests.exceptions.RequestException as e:
+        except httpx.HTTPError as e:
             logger.error(f"Request failed: {e}")
             raise e
 
-    def register(self, agent: Union[AgentCard, dict]) -> bool:
-        """
-        Register a new agent
-        :param agent: AgentCard instance
-        :return: True if successful, False if duplicate
-        """
+    async def register(self, agent: Union[AgentCard, dict]) -> bool:
         if isinstance(agent, AgentCard):
             data = MessageToDict(agent)
         else:
             data = agent
-        resp = self._request('POST', '/rest/v1/registry-center/agent-cards', json={"agentCards":[data]})
+        resp = await self._request('POST', '/rest/v1/registry-center/agent-cards', json={"agentCards":[data]})
         return resp.json()
 
-    def update_full(self, name: str, organization: str, agent: AgentCard) -> bool:
-        """
-        Fully replace an agent.
-        :param name: Agent name(must match agent.name)
-        :param organization: Agent organization(must match agent.provider.organization)
-        :param agent: New AgentCard data
-        :return: True if updated, False if not found
-        """
+    async def update_full(self, name: str, organization: str, agent: AgentCard) -> bool:
         data = MessageToDict(agent)
-        resp = self._request('PUT', f'/rest/v1/registry-center/agent-cards/{organization}/{name}',
+        resp = await self._request('PUT', f'/rest/v1/registry-center/agent-cards/{organization}/{name}',
                              json={"agentCards":[data]})
         return resp.json()
 
-    def deregister(self, name: str, organization: str) -> bool:
-        """
-        Deregister an agent.
-        :param name: Agent name
-        :param organization: Agent organization
-        :return: True if deleted, False if not found
-        """
-        resp = self._request('DELETE', f'/rest/v1/registry-center/agent-cards/{organization}/{name}')
+    async def deregister(self, name: str, organization: str) -> bool:
+        resp = await self._request('DELETE', f'/rest/v1/registry-center/agent-cards/{organization}/{name}')
         return resp.json()
 
-    def get(self, name: str, organization: str) -> dict | None:
-        """
-        Get an agent by exact name and organization.
-        :return: AgentCard if found, else None
-        """
-        resp = self._request('GET', f'/rest/v1/registry-center/agent-cards/{organization}/{name}')
+    async def get(self, name: str, organization: str) -> dict | None:
+        resp = await self._request('GET', f'/rest/v1/registry-center/agent-cards/{organization}/{name}')
         if resp.status_code == 200:
             return resp.json()
         elif resp.status_code == 404:
@@ -100,12 +82,8 @@ class AgentRegistryClient:
             resp.raise_for_status()
             return None
 
-    def list_exact(self, name: Optional[str] = None, organization: Optional[str] = None,
+    async def list_exact(self, name: Optional[str] = None, organization: Optional[str] = None,
                    provider: Optional[str] = None) -> List[dict]:
-        """
-        Exact search. All parameters optional.
-        :return: List of matching AgentCard instances
-        """
         params = {}
         if name:
             params['name'] = name
@@ -113,18 +91,17 @@ class AgentRegistryClient:
             params['organization'] = organization
         if provider:
             params['provider'] = provider
-        resp = self._request('GET', f'/rest/v1/registry-center/agent-cards/', params=params)
-        return resp.json().get("agentCards", [])
+        resp = await self._request('GET', f'/rest/v1/registry-center/agent-cards/', params=params)
+        try:
+            data = resp.json()
+        except Exception:
+            logger.warning(f"Registry returned non-JSON response, status={resp.status_code}")
+            return []
+        return data.get("agentCards", [])
 
-    def search_by_task(self, task: str) -> List[dict]:
-        """
-        Fuzzy search using task description.
-        :param task: Natural language task
-        :return: List of relevant AgentCard instances
-        """
-        resp = self._request('POST', f'/rest/v1/registry-center/agent-cards/semantic-query', json={'task': task})
+    async def search_by_task(self, task: str) -> List[dict]:
+        resp = await self._request('POST', f'/rest/v1/registry-center/agent-cards/semantic-query', json={'task': task})
         return resp.json()
 
-    def list_all(self) -> List[dict]:
-        """Return all registered agents."""
-        return self.list_exact()
+    async def list_all(self) -> List[dict]:
+        return await self.list_exact()

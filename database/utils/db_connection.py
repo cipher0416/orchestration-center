@@ -14,13 +14,15 @@
 #    under the License.
 
 import json
-import os.path
 import re
+from pathlib import Path
 
 import psycopg2
 from loguru import logger
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
+from common.util.config_util import get_root_path
 
 
 DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
@@ -33,10 +35,8 @@ def validate_database_name(name: str) -> str:
 
 
 def read_db_config(file_name):
-    current_dir = os.path.abspath(__file__)
-    grand_parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-    dir_path = os.path.join(grand_parent_dir, 'etc', 'conf')
-    file_path = os.path.join(dir_path, file_name)
+    dir_path = Path(get_root_path()) / "etc" / "conf"
+    file_path = dir_path / file_name
     with open(file_path, "r", encoding='utf-8') as f:
         return json.load(f)
 
