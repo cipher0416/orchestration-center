@@ -99,6 +99,7 @@ def mock_a2a_response_task():
     artifact.parts = [part]
     task = MagicMock()
     task.artifacts = [artifact]
+    task.metadata = None
     task.model_dump_json = MagicMock(return_value='{"content":"mock response"}')
     return task
 
@@ -546,11 +547,12 @@ class TestSendMessageToAgent:
 
                 mock_task = MagicMock()
                 mock_task.artifacts = None
-                mock_task.__str__ = MagicMock(return_value="fallback string")
+                mock_task.metadata = None
 
                 mock_response = MagicMock()
                 mock_response.task = mock_task
                 mock_response.message = None
+                mock_response.__str__ = MagicMock(return_value="fallback string")
 
                 async def mock_stream(request):
                     yield mock_response
