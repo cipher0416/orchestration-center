@@ -313,13 +313,13 @@ etc/conf/llm_config.json   (LLM 提供商配置)
 
 ---
 
-## 8. 设计亮点
+## 8. 关键设计决策
 
-1. **分层上下文传播**（`layer` + `context_from`）——精巧的多 Agent 协作设计，支持跨层聚合
-2. **插件式存储**（`HandlerRegistry`）——file/DB 切换只需更换 handler，设计方向正确
-3. **PSOP DAG 模型**——支持条件分支和并发执行，语义清晰
-4. **SSE 流式推送**——配合 `execution_history` 和 `events` 可完整回放执行过程
-5. **向量化 Prompt 工程**——通过 few-shot 示例和 JSON schema 约束 LLM 输出质量
-6. **原子写入**（`tempfile + os.replace`）——防止文件损坏
-7. **全链路 async**——Subtask 并行执行（asyncio.gather），消除事件循环阻塞风险
-8. **多层防护**——Semaphore 并发控制 + RateLimiter 速率限制覆盖所有 API 端点
+1. **分层上下文传播**（`layer` + `context_from`）——Layer 0 步骤独立执行，Layer >= 1 步骤通过 `context_from` 声明依赖的前驱步骤，引擎自动收集上游输出注入为上下文。`context_from: ["*"]` 表示接收所有前驱（含间接）输出。
+2. **插件式存储**（`HandlerRegistry`）——通过 `InterfaceType` 枚举 + `persistence_mode` 配置分发操作到 file 或 PostgreSQL handler，新增存储后端只需实现 handler 接口并注册。
+3. **PSOP DAG 模型**——`Step` 包含 `subtasks`（并行任务列表）、`type`（`ALL_SUCCESS` / `ANY_SUCCESS` 执行模式）、`next`（条件跳转列表）。`JumpCondition` 支持声明式转发和 LLM 动态路由两种方式。
+4. **SSE 流式推送**——执行引擎通过 `push_callback` 将事件写入 `asyncio.Queue`，SSE 端点消费队列并 yield 为 `text/event-stream`。执行记录保存完整 `events` 数组，支持事后回放。
+5. **Prompt 工程**——PSOP 生成、意图检索、LLM 路由决策均使用结构化 JSON schema 约束输出格式，配合 few-shot 示例减少自由格式偏差。
+6. **原子写入**——文件持久化使用 `tempfile.mkstemp` + `os.replace` 确保写入过程不产生半写文件。
+7. **全链路 async**——Subtask 通过 `asyncio.gather` / `asyncio.as_completed` 并行执行，LLM 调用通过 `run_in_executor` 包装避免阻塞事件循环。
+8. **多层防护**——每个 API 端点配置 `anyio.Semaphore` 并发上限 + `RateLimiter` 按 IP 速率限制。
