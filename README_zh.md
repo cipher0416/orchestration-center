@@ -41,7 +41,61 @@ All Rights Reserved.
 
 **典型场景：** 电信网络保障工作流、RAN 节能编排、SPN 故障处理流水线、企业多智能体自动化。
 
-<img src="docs/images/workflow.png" width="700" alt="编排中心架构">
+```mermaid
+graph TB
+    subgraph CONSUMERS["&#xa0;"]
+        direction LR
+        UI["Workflow Designer<br/>React 18 · React Flow<br/>:3003"]
+        EXT["External API Clients<br/>REST / SSE"]
+    end
+
+    subgraph BACKEND["FastAPI Backend :60000"]
+        direction TB
+        API["API Layer<br/><i>/rest/v1/orchestrate/* (internal)  ·  /api/v1/* (external)</i>"]
+        
+        subgraph DOMAIN["Core Domain"]
+            direction LR
+            GEN["PSOP Generator<br/>PDF/SOP → PSOP"]
+            INT["Intent Orchestration<br/>NL → PSOP"]
+            SEARCH["Semantic Retrieval<br/>LLM search"]
+        end
+        
+        ENG["DynamicWorkflowEngine<br/>DAG traversal · parallel A2A calls · A2A-T negotiation · SSE push"]
+        
+        subgraph STORE["Pluggable Storage"]
+            direction LR
+            FS["File JSON"]
+            PG["PostgreSQL"]
+        end
+    end
+
+    subgraph EXTSERV["&#xa0;"]
+        direction LR
+        LLM["LLM<br/>OpenAI-compatible"]
+        REG["Agent Registry<br/>AgentCard discovery"]
+        subgraph AGENTS["A2A Agents"]
+            direction LR
+            A1["dispatch"]
+            A2["ran"]
+            A3["energy_saving"]
+            A4["spn_city"]
+            A5["assurance"]
+            A6["live_streaming"]
+            A7["uncertainty"]
+            A8["negotiation_base"]
+        end
+    end
+
+    UI -->|REST| API
+    EXT -->|REST / SSE| API
+    API --> GEN & INT & SEARCH & ENG
+    GEN & INT & SEARCH -.->|LLM calls| LLM
+    GEN & INT & ENG <-->|AgentCards| REG
+    GEN & INT & SEARCH & ENG --> STORE
+    ENG <==>|A2A gRPC/HTTP| AGENTS
+    ENG -.->|SSE| UI
+    ENG -.->|SSE| EXT
+```
 
 ## 核心能力
 
