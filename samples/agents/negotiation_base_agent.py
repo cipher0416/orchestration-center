@@ -30,8 +30,14 @@ from common.llm import get_llm_instance
 from common.negotiation_utils import (
     NEGOTIATION_CONTEXT_KEY,
     NEGOTIATION_TEXT_KEY,
+    NEGOTIATION_REQUEST_MARKER,
     build_negotiation_metadata,
     log_negotiation_context,
+    is_uncertain_response,
+    is_follow_up_task,
+    extract_original_task_from_follow_up,
+    extract_continued_context_from_follow_up,
+    cleanup_negotiation_resolution_marker,
 )
 
 
@@ -49,27 +55,85 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
         event_queue: EventQueue,
     ) -> None:
         user_input = context.get_user_input()
-        
+
+        if is_follow_up_task(user_input):
+            task = await self._handle_follow_up_task(context, user_input)
+        else:
+            task = await self._handle_new_task(context, user_input)
+
+        await event_queue.enqueue_event(task)
+
+    async def _handle_new_task(self, context: RequestContext, user_input: str) -> Task:
         negotiation_result = self._start_negotiation(user_input)
-        
+
         negotiation_context_data = negotiation_result.get(NEGOTIATION_CONTEXT_KEY, {})
+        negotiation_text = negotiation_result.get(NEGOTIATION_TEXT_KEY, "")
         if negotiation_context_data:
             try:
                 negotiation_ctx = NegotiationContext.from_context(negotiation_context_data)
                 log_negotiation_context(negotiation_ctx, f"[{self.__class__.__name__}]")
             except Exception as e:
                 logger.warning(f"Failed to parse negotiation context: {e}")
-        
+
         response = await asyncio.to_thread(self._execute_task, user_input)
-        
-        task = self._build_task_response(
+
+        uncertain = await asyncio.to_thread(is_uncertain_response, response, self.llm)
+        if uncertain:
+            logger.info(f"[{self.__class__.__name__}] Response indicates uncertainty, requesting negotiation")
+            metadata: Dict[str, Any] = {}
+            if negotiation_context_data:
+                metadata["negotiationContext"] = negotiation_context_data
+            if negotiation_text:
+                metadata["negotiationText"] = negotiation_text
+            metadata["negotiationConcern"] = response[:500]
+            return Task(
+                id=context.task_id,
+                context_id=context.context_id,
+                status=TaskStatus(state=TaskState.TASK_STATE_INPUT_REQUIRED),
+                artifacts=[
+                    Artifact(
+                        artifact_id=str(uuid.uuid4()),
+                        parts=[Part(text=f"{NEGOTIATION_REQUEST_MARKER} {self.__class__.__name__} needs more information to complete this task.\n{response[:300]}")]
+                    )
+                ],
+                metadata=metadata
+            )
+
+        return self._build_task_response(
             context=context,
             response=response,
-            negotiation_context=negotiation_context_data
+            negotiation_context=negotiation_context_data,
         )
-        
-        logger.info(f"[{self.__class__.__name__}] Task completed successfully")
-        await event_queue.enqueue_event(task)
+
+    async def _handle_follow_up_task(self, context: RequestContext, user_input: str) -> Task:
+        logger.info(f"[{self.__class__.__name__}] Detected follow-up task with negotiation resolution")
+        cleaned_input = cleanup_negotiation_resolution_marker(user_input)
+        original_task = extract_original_task_from_follow_up(user_input)
+
+        continued_context = extract_continued_context_from_follow_up(user_input)
+        if continued_context:
+            try:
+                continued_ctx = NegotiationContext.from_context(continued_context)
+                log_negotiation_context(continued_ctx, f"[{self.__class__.__name__}] continued negotiation")
+                if continued_ctx.status.value == "agreed":
+                    logger.info(f"[{self.__class__.__name__}] Negotiation agreed at round {continued_ctx.round}, executing")
+                negotiation_context_data = continued_context
+            except Exception as e:
+                logger.warning(f"Failed to parse continued negotiation context: {e}")
+                _ = self._start_negotiation(cleaned_input or user_input)
+                negotiation_context_data = {}
+        else:
+            _ = self._start_negotiation(cleaned_input or user_input)
+            negotiation_context_data = {}
+
+        execute_input = cleaned_input if cleaned_input else user_input
+        response = await asyncio.to_thread(self._execute_task, execute_input)
+
+        return self._build_task_response(
+            context=context,
+            response=response,
+            negotiation_context=negotiation_context_data,
+        )
 
     def _start_negotiation(self, user_input: str) -> Dict[str, Any]:
         try:
@@ -105,7 +169,7 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
         metadata: Dict[str, Any] = {}
         if negotiation_context:
             metadata["negotiationContext"] = negotiation_context
-        
+
         return Task(
             id=context.task_id,
             context_id=context.context_id,

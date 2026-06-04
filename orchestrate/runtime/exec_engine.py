@@ -40,6 +40,7 @@ from orchestrate.core.model.psop import PSOP, Step, StepType, Task, TaskStatus
 class DynamicWorkflowEngine:
     _MAX_CONTEXT_TOKENS_ESTIMATE = 6000
     _llm_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm_")
+    _NEGOTIATION_MAX_ROUNDS = 3
 
     def __init__(self, psop: PSOP, agent_cards, runtime_intent: str = None, a2at_env_path: Path = None, lang: str = None):
         self.workflow = psop
@@ -123,8 +124,6 @@ class DynamicWorkflowEngine:
                     pending.append(idx)
                     await asyncio.sleep(0.05)
                     continue
-                    await asyncio.sleep(0.05)
-                    continue
                 executed.add(idx)
                 self.current_step_idx = idx
                 current_step = self.workflow.steps[idx]
@@ -169,6 +168,40 @@ class DynamicWorkflowEngine:
         return [tgt] if tgt is not None else []
 
     async def send_message_to_agent(self, agent_name: str, task: str, httpx_client=None):
+        return await self._send_with_negotiation(agent_name, task, httpx_client)
+
+    async def _send_with_negotiation(self, agent_name: str, task: str, httpx_client=None, _round: int = 0):
+        response_text, task_result, metadata_dict = await self._send_message_internal(
+            agent_name, task, httpx_client
+        )
+
+        if task_result is not None and hasattr(task_result, 'status') and task_result.status:
+            task_state = task_result.status.state
+            from a2a.types import TaskState as TS
+            if task_state == TS.TASK_STATE_INPUT_REQUIRED:
+                if _round >= self._NEGOTIATION_MAX_ROUNDS:
+                    logger.warning(
+                        f"Negotiation with agent '{agent_name}' reached max rounds ({self._NEGOTIATION_MAX_ROUNDS}), "
+                        f"using last response as-is."
+                    )
+                    return response_text or ""
+                logger.info(
+                    f"Agent '{agent_name}' requested negotiation (round {_round + 1}/{self._NEGOTIATION_MAX_ROUNDS})"
+                )
+                resolved_task = await self._handle_agent_negotiation(
+                    agent_name, task, metadata_dict
+                )
+                if resolved_task:
+                    return await self._send_with_negotiation(
+                        agent_name, resolved_task, httpx_client, _round + 1
+                    )
+                logger.warning(f"Failed to resolve negotiation for agent '{agent_name}', using partial response")
+
+        if response_text is not None:
+            return response_text
+        return ""
+
+    async def _send_message_internal(self, agent_name: str, task: str, httpx_client=None):
         agent_card = self._agent_map.get(agent_name)
         if not agent_card:
             raise RuntimeError(f"Agent not found: {agent_name}")
@@ -209,18 +242,21 @@ class DynamicWorkflowEngine:
             })
             response_text = None
             last_response = None
+            last_task_result = None
+            last_metadata_dict = {}
 
             from a2a.types import Task, Message
 
             async for response in client.send_message(SendMessageRequest(message=request)):
-                # response is now a StreamResponse object, containing both Task and Message objects
                 task_result = response.task
                 message_result = response.message
 
                 last_response = response
+                last_task_result = task_result
 
-                # Process response
-                if isinstance(task_result, Task):
+                if (isinstance(task_result, Task)
+                        or (hasattr(task_result, 'artifacts') and task_result.artifacts is not None
+                            and hasattr(task_result, 'status'))):
                     if hasattr(task_result, 'artifacts') and task_result.artifacts:
                         for artifact in task_result.artifacts:
                             if hasattr(artifact, 'parts') and artifact.parts:
@@ -234,6 +270,7 @@ class DynamicWorkflowEngine:
                             metadata_dict = metadata
                         else:
                             metadata_dict = MessageToDict(metadata, preserving_proto_field_name=True)
+                        last_metadata_dict = metadata_dict
                         try:
                             from common.negotiation_utils import (
                                 extract_negotiation_context_from_task_metadata,
@@ -257,7 +294,6 @@ class DynamicWorkflowEngine:
                             if hasattr(part, 'text') and part.text:
                                 response_text = (response_text or "") + part.text
 
-                    # Push response information
                     response_data = MessageToJson(message_result, preserving_proto_field_name=True)
                     self._push_event("agent_response", {
                         "agent": agent_name,
@@ -265,10 +301,9 @@ class DynamicWorkflowEngine:
                     })
 
             if response_text is not None:
-                return response_text
+                return response_text, last_task_result, last_metadata_dict
             elif last_response is not None:
-                # If text cannot be extracted, at least return the last response object
-                return str(last_response)
+                return str(last_response), last_task_result, last_metadata_dict
             else:
                 raise RuntimeError("Agent completed but no response received")
         except httpx.TimeoutException as e:
@@ -285,6 +320,188 @@ class DynamicWorkflowEngine:
             "reason": reason,
             "details": details
         })
+
+    async def _handle_agent_negotiation(
+        self,
+        agent_name: str,
+        original_task: str,
+        metadata_dict: Dict[str, Any],
+    ) -> Optional[str]:
+        if not self.a2at_client:
+            logger.warning(f"Cannot handle negotiation: A2ATClient not available")
+            return None
+
+        from common.negotiation_utils import (
+            extract_negotiation_content,
+            build_negotiation_resolution_task,
+            NEGOTIATION_CONTEXT_KEY,
+        )
+
+        negotiation_text, context_data = extract_negotiation_content(metadata_dict)
+        if not negotiation_text or not context_data:
+            negotiation_concern = metadata_dict.get("negotiationConcern", "")
+            if negotiation_concern:
+                negotiation_text = negotiation_concern
+            else:
+                logger.warning(f"No negotiation content found in agent response metadata")
+                return None
+
+        logger.info(f"Processing negotiation from agent '{agent_name}': {negotiation_text[:150]}...")
+
+        if not context_data:
+            logger.info(f"No negotiation context in response, generating simple clarification")
+            clarification = await self._generate_negotiation_clarification(
+                agent_name=agent_name,
+                original_task=original_task,
+                negotiation_text=negotiation_text,
+                receive_message="",
+            )
+            if clarification:
+                return build_negotiation_resolution_task(original_task, clarification)
+            return None
+
+        try:
+            receive_result = self.a2at_client.receive_negotiation(
+                message=negotiation_text,
+                context=context_data,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to receive negotiation: {e}")
+            return None
+
+        need_response = receive_result.get("needResponse", False)
+        logger.info(
+            f"Negotiation receive result: needResponse={need_response}, "
+            f"message={receive_result.get('message', '')[:100]}"
+        )
+
+        if not need_response:
+            return None
+
+        clarification = await self._generate_negotiation_clarification(
+            agent_name=agent_name,
+            original_task=original_task,
+            negotiation_text=negotiation_text,
+            receive_message=receive_result.get("message", ""),
+        )
+
+        if not clarification:
+            logger.warning(f"Failed to generate negotiation clarification")
+            return None
+
+        from a2a_t.negotiation.common.enums import NegotiationStatus
+        from a2a_t.negotiation.common.models import ContinueNegotiationInput, NegotiationContext
+
+        context_obj = NegotiationContext.from_context(context_data)
+        try:
+            continue_result = self.a2at_client.continue_negotiation(
+                ContinueNegotiationInput(
+                    context=context_obj,
+                    status=NegotiationStatus.AGREED,
+                    content_text=clarification,
+                )
+            )
+            logger.info(f"Negotiation continued successfully, round={context_obj.round + 1}")
+        except Exception as e:
+            logger.warning(f"Failed to continue negotiation: {e}")
+            resolved_task = build_negotiation_resolution_task(original_task, clarification)
+            return resolved_task
+
+        continued_context_data = continue_result.get(NEGOTIATION_CONTEXT_KEY)
+
+        resolved_task = build_negotiation_resolution_task(
+            original_task, clarification,
+            continued_context=continued_context_data,
+        )
+        self._push_event("negotiation_resolved", {
+            "agent": agent_name,
+            "original_task": original_task[:200],
+            "clarification": clarification[:200],
+            "negotiation_round": context_obj.round,
+        })
+        return resolved_task
+
+    async def _generate_negotiation_clarification(
+        self,
+        agent_name: str,
+        original_task: str,
+        negotiation_text: str,
+        receive_message: str,
+    ) -> Optional[str]:
+        if not self.llm_client:
+            return f"Engine received your negotiation request and has reviewed the execution context. Please proceed with the original task using the clarification above. If you have specific questions, state them clearly."
+
+        workflow_context = self._build_clarification_context()
+        lang_hint = "Respond in Chinese." if self.lang == "zh" else "Respond in English."
+
+        prompt = f"""# Role
+You are the orchestration engine's negotiation handler. An agent expressed uncertainty
+or confusion about a task you assigned. Based on the completed workflow execution
+context below, provide an accurate clarification or supplementary explanation.
+
+# Important Constraints
+- You may ONLY base your answer on the actual outputs in the "Executed Workflow Context" below.
+  **Do NOT fabricate or speculate about facts that have not occurred.**
+- If the context is insufficient to answer the agent's concern, tell the agent directly:
+  "Insufficient information available. Please do your best with what you have."
+- Be concise and focused on the specific concern the agent raised.
+
+# Workflow Goal
+{self.runtime_intent or "(not specified)"}
+
+# Executed Workflow Context (completed steps and their outputs)
+{workflow_context}
+
+# Current Agent
+{agent_name}
+
+# Original Task
+{original_task}
+
+# Agent's Negotiation Request (the concern or question)
+{negotiation_text}
+
+# Supplementary Notes
+{receive_message}
+
+# Task
+Based on the execution context above, provide a clear clarification to the agent.
+Do NOT add any prefix markers like "Clarification:". {lang_hint}"""
+
+        try:
+            _, clarification = await asyncio.get_event_loop().run_in_executor(
+                DynamicWorkflowEngine._llm_executor,
+                self.llm_client.ask_llm,
+                prompt,
+            )
+            clarification = clarification.strip() if clarification else ""
+            if clarification:
+                logger.info(f"Generated negotiation clarification for '{agent_name}': {clarification[:150]}...")
+                return clarification
+        except Exception as e:
+            logger.error(f"LLM clarification failed: {e}")
+
+        return "Engine received your negotiation request. Please re-attempt the original task. If you have specific questions, state them clearly."
+
+    def _build_clarification_context(self) -> str:
+        if not self.step_outputs:
+            return "(no completed steps yet)"
+
+        parts = []
+        for i, step in enumerate(self.workflow.steps):
+            if step.name not in self.step_outputs:
+                continue
+            outputs = self.step_outputs[step.name]
+            parts.append(f"### {step.name}")
+            for task_desc, output in outputs.items():
+                text = output if isinstance(output, str) else str(output)
+                truncated = text[:400] if len(text) > 400 else text
+                parts.append(f"- Task: {task_desc}")
+                parts.append(f"  Output: {truncated}")
+            if len("\n".join(parts)) > 3000:
+                parts.append("... (context truncated)")
+                break
+        return "\n".join(parts) if parts else "(no completed steps yet)"
 
     async def _execute_subtasks(self, step: Step) -> tuple[Dict[str, Any], bool]:
         results = {}
