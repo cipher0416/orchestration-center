@@ -5,59 +5,90 @@
 ## 1. 系统架构总览
 
 ```mermaid
-graph TB
-    subgraph CONSUMERS["&#xa0;"]
-        direction LR
-        UI["Workflow Designer<br/>React 18 · React Flow<br/>:3003"]
-        EXT["External API Clients<br/>REST / SSE"]
+sequenceDiagram
+    actor User as 用户
+    participant FE as 编排中心前端<br/>(React :3003)
+    participant BE as 后端 :60000<br/>(FastAPI)
+    participant LLM as 大模型
+    participant Reg as 注册中心
+    participant Agt as Agent 服务
+
+    rect rgb(240, 248, 255)
+        Note over User, Reg: 1. Agent 发现
+        FE->>+BE: GET /rest/v1/orchestrate/agent-cards
+        BE->>Reg: 获取 AgentCard 列表
+        Reg-->>BE: AgentCard[]
+        BE-->>-FE: agent-cards JSON
+        FE-->>User: 展示可用 Agent 列表
     end
 
-    subgraph BACKEND["FastAPI Backend :60000"]
-        direction TB
-        API["API Layer<br/><i>/rest/v1/orchestrate/* (internal)  ·  /api/v1/* (external)</i>"]
-        
-        subgraph DOMAIN["Core Domain"]
-            direction LR
-            GEN["PSOP Generator<br/>PDF/SOP → PSOP"]
-            INT["Intent Orchestration<br/>NL → PSOP"]
-            SEARCH["Semantic Retrieval<br/>LLM search"]
-        end
-        
-        ENG["DynamicWorkflowEngine<br/>DAG traversal · parallel A2A calls · A2A-T negotiation · SSE push"]
-        
-        subgraph STORE["Pluggable Storage"]
-            direction LR
-            FS["File JSON"]
-            PG["PostgreSQL"]
-        end
-    end
-
-    subgraph EXTSERV["&#xa0;"]
-        direction LR
-        LLM["LLM<br/>OpenAI-compatible"]
-        REG["Agent Registry<br/>AgentCard discovery"]
-        subgraph AGENTS["A2A Agents"]
-            direction LR
-            A1["dispatch"]
-            A2["ran"]
-            A3["energy_saving"]
-            A4["spn_city"]
-            A5["assurance"]
-            A6["live_streaming"]
-            A7["uncertainty"]
-            A8["negotiation_base"]
+    rect rgb(255, 250, 240)
+        Note over User, Reg: 2. 工作流创建（三种方式）
+        alt 2a. PDF 导入
+            User->>FE: 上传 PDF
+            FE->>+BE: POST /rest/v1/orchestrate/parse-pdf
+            BE->>LLM: 解析章节与任务
+            LLM-->>BE: 结构化 PreFlow
+            BE-->>-FE: PreFlow JSON
+            FE->>BE: POST /rest/v1/orchestrate/generate-from-preflow
+            BE->>LLM: 从 PreFlow 生成 PSOP
+            LLM-->>BE: PSOP 工作流
+            BE-->>FE: PSOP JSON
+        else 2b. 拖拽编排
+            User->>FE: 拖拽 Agent、连接节点、配置条件
+            FE->>FE: 构建工作流图（React Flow）
+        else 2c. 自然语言意图
+            User->>FE: 输入意图文本
+            FE->>+BE: POST /rest/v1/orchestrate/generate-from-intent
+            BE->>Reg: 获取 AgentCard 列表
+            Reg-->>BE: AgentCard[]
+            BE->>LLM: 从意图生成 PSOP
+            LLM-->>BE: PSOP 工作流
+            BE-->>-FE: PSOP JSON
         end
     end
 
-    UI -->|REST| API
-    EXT -->|REST / SSE| API
-    API --> GEN & INT & SEARCH & ENG
-    GEN & INT & SEARCH -.->|LLM calls| LLM
-    GEN & INT & ENG <-->|AgentCards| REG
-    GEN & INT & SEARCH & ENG --> STORE
-    ENG <==>|A2A gRPC/HTTP| AGENTS
-    ENG -.->|SSE| UI
-    ENG -.->|SSE| EXT
+    rect rgb(240, 255, 240)
+        Note over User, Reg: 3. 保存工作流
+        User->>FE: 点击保存
+        FE->>+BE: POST /rest/v1/orchestrate/workflows<br/>{psop: {...}}
+        BE->>BE: 校验 PSOP (Pydantic)
+        BE->>BE: 持久化 (File JSON / PostgreSQL)
+        BE-->>-FE: {workflow_id: "..."}
+        FE-->>User: 保存成功
+    end
+
+    rect rgb(255, 245, 255)
+        Note over User, Agt: 4. 执行工作流
+        User->>FE: 点击执行
+        FE->>+BE: GET /rest/v1/orchestrate/execute<br/>?psop_id=xxx&user_intent=...&lang=zh
+        BE-->>FE: SSE: {"type":"init"}
+        BE-->>FE: SSE: {"type":"start"}
+        BE->>Reg: 获取 AgentCard 列表
+        Reg-->>BE: AgentCard[]
+        loop 逐步骤执行（DAG 遍历）
+            BE->>BE: 构建上游上下文 (context_from)
+            BE-->>FE: SSE: {"type":"agent_request",...}
+            BE->>+Agt: A2A 调用 (gRPC/HTTP)<br/>task + context
+            Agt-->>-BE: Agent 响应
+            BE-->>FE: SSE: {"type":"agent_response",...}
+            opt A2A-T 协商
+                BE->>Agt: 协商请求
+                Agt-->>BE: 协商响应
+                BE-->>FE: SSE: {"type":"negotiation_request",...}
+                BE-->>FE: SSE: {"type":"negotiation_resolved",...}
+            end
+            opt 条件路由
+                BE->>LLM: 路由决策<br/>(JumpCondition 匹配)
+                LLM-->>BE: 下一步选择
+            end
+        end
+        BE-->>FE: SSE: {"type":"psop_update",...}
+        BE->>BE: 保存执行记录
+        BE-->>FE: SSE: {"type":"complete",...}
+        BE-->>-FE: SSE: {"type":"close"}
+        FE-->>User: 执行完成
+    end
 ```
 
 **数据流方向**: 用户意图/PreFlow → PSOP生成 → 存储 → 执行引擎 → A2A Agent并行调用 → SSE事件推送 → 执行记录存储

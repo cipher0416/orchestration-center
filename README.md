@@ -42,59 +42,90 @@ The Orchestration Center is a visual platform for designing and executing multi-
 **Use cases:** Telecom network assurance workflows, RAN energy-saving orchestration, SPN fault handling pipelines, enterprise multi-agent automation.
 
 ```mermaid
-graph TB
-    subgraph CONSUMERS["&#xa0;"]
-        direction LR
-        UI["Workflow Designer<br/>React 18 · React Flow<br/>:3003"]
-        EXT["External API Clients<br/>REST / SSE"]
+sequenceDiagram
+    actor User as User
+    participant FE as Workflow Designer<br/>(React :3003)
+    participant BE as Backend :60000<br/>(FastAPI)
+    participant LLM as LLM
+    participant Reg as Agent Registry
+    participant Agt as A2A Agents
+
+    rect rgb(240, 248, 255)
+        Note over User, Reg: 1. Agent Discovery
+        FE->>+BE: GET /rest/v1/orchestrate/agent-cards
+        BE->>Reg: Fetch AgentCards
+        Reg-->>BE: AgentCard[]
+        BE-->>-FE: agent-cards JSON
+        FE-->>User: Display agent catalog
     end
 
-    subgraph BACKEND["FastAPI Backend :60000"]
-        direction TB
-        API["API Layer<br/><i>/rest/v1/orchestrate/* (internal)  ·  /api/v1/* (external)</i>"]
-        
-        subgraph DOMAIN["Core Domain"]
-            direction LR
-            GEN["PSOP Generator<br/>PDF/SOP → PSOP"]
-            INT["Intent Orchestration<br/>NL → PSOP"]
-            SEARCH["Semantic Retrieval<br/>LLM search"]
-        end
-        
-        ENG["DynamicWorkflowEngine<br/>DAG traversal · parallel A2A calls · A2A-T negotiation · SSE push"]
-        
-        subgraph STORE["Pluggable Storage"]
-            direction LR
-            FS["File JSON"]
-            PG["PostgreSQL"]
-        end
-    end
-
-    subgraph EXTSERV["&#xa0;"]
-        direction LR
-        LLM["LLM<br/>OpenAI-compatible"]
-        REG["Agent Registry<br/>AgentCard discovery"]
-        subgraph AGENTS["A2A Agents"]
-            direction LR
-            A1["dispatch"]
-            A2["ran"]
-            A3["energy_saving"]
-            A4["spn_city"]
-            A5["assurance"]
-            A6["live_streaming"]
-            A7["uncertainty"]
-            A8["negotiation_base"]
+    rect rgb(255, 250, 240)
+        Note over User, Reg: 2. Workflow Creation (3 modes)
+        alt 2a. PDF Import
+            User->>FE: Upload PDF
+            FE->>+BE: POST /rest/v1/orchestrate/parse-pdf
+            BE->>LLM: Parse chapters & tasks
+            LLM-->>BE: Structured preflow
+            BE-->>-FE: PreFlow JSON
+            FE->>BE: POST /rest/v1/orchestrate/generate-from-preflow
+            BE->>LLM: Generate PSOP from PreFlow
+            LLM-->>BE: PSOP workflow
+            BE-->>FE: PSOP JSON
+        else 2b. Manual Drag & Drop
+            User->>FE: Drag agents, connect nodes, configure
+            FE->>FE: Build workflow graph (React Flow)
+        else 2c. Natural Language Intent
+            User->>FE: Enter intent text
+            FE->>+BE: POST /rest/v1/orchestrate/generate-from-intent
+            BE->>Reg: Fetch AgentCards
+            Reg-->>BE: AgentCard[]
+            BE->>LLM: Generate PSOP from intent
+            LLM-->>BE: PSOP workflow
+            BE-->>-FE: PSOP JSON
         end
     end
 
-    UI -->|REST| API
-    EXT -->|REST / SSE| API
-    API --> GEN & INT & SEARCH & ENG
-    GEN & INT & SEARCH -.->|LLM calls| LLM
-    GEN & INT & ENG <-->|AgentCards| REG
-    GEN & INT & SEARCH & ENG --> STORE
-    ENG <==>|A2A gRPC/HTTP| AGENTS
-    ENG -.->|SSE| UI
-    ENG -.->|SSE| EXT
+    rect rgb(240, 255, 240)
+        Note over User, Reg: 3. Save Workflow
+        User->>FE: Click Save
+        FE->>+BE: POST /rest/v1/orchestrate/workflows<br/>{psop: {...}}
+        BE->>BE: Validate PSOP (Pydantic)
+        BE->>BE: Persist (File JSON / PostgreSQL)
+        BE-->>-FE: {workflow_id: "..."}
+        FE-->>User: Saved successfully
+    end
+
+    rect rgb(255, 245, 255)
+        Note over User, Agt: 4. Execute Workflow
+        User->>FE: Click Execute
+        FE->>+BE: GET /rest/v1/orchestrate/execute<br/>?psop_id=xxx&user_intent=...&lang=zh
+        BE-->>FE: SSE: {"type":"init"}
+        BE-->>FE: SSE: {"type":"start"}
+        BE->>Reg: Fetch AgentCards for routing
+        Reg-->>BE: AgentCard[]
+        loop Per step (DAG traversal)
+            BE->>BE: Build context from upstream outputs
+            BE-->>FE: SSE: {"type":"agent_request",...}
+            BE->>+Agt: A2A call (gRPC/HTTP)<br/>task + context
+            Agt-->>-BE: Agent response
+            BE-->>FE: SSE: {"type":"agent_response",...}
+            opt A2A-T Negotiation
+                BE->>Agt: Negotiation request
+                Agt-->>BE: Negotiation response
+                BE-->>FE: SSE: {"type":"negotiation_request",...}
+                BE-->>FE: SSE: {"type":"negotiation_resolved",...}
+            end
+            opt Conditional Routing
+                BE->>LLM: Route decision<br/>(JumpCondition matching)
+                LLM-->>BE: Next step selection
+            end
+        end
+        BE-->>FE: SSE: {"type":"psop_update",...}
+        BE->>BE: Save ExecutionRecord
+        BE-->>FE: SSE: {"type":"complete",...}
+        BE-->>-FE: SSE: {"type":"close"}
+        FE-->>User: Execution finished
+    end
 ```
 
 ## Features
