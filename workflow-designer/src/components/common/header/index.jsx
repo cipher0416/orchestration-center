@@ -15,8 +15,9 @@
 //    License for the specific language governing permissions and limitations
 //    under the License.
 import {useState} from "react";
-import {Bot, Sun, Moon, LayoutDashboard, Share2, PlayCircle, Sparkles, Settings} from "lucide-react";
+import {Sun, Moon, LayoutDashboard, Share2, PlayCircle, Sparkles, Settings} from "lucide-react";
 import SettingsModal from "../setting/index.jsx";
+import openanLogo from "../../../assets/openan-logo.png";
 
 const Header = ({currentTab, onTabChange, isDark, setIsDark, lang, onLangChange, t}) => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -24,13 +25,18 @@ const Header = ({currentTab, onTabChange, isDark, setIsDark, lang, onLangChange,
         <>
         <nav
             className="h-16 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 px-8 flex justify-between items-center shrink-0 z-20 transition-all">
-            <div className="flex items-center gap-4">
-                <div className="bg-zinc-900 dark:bg-blue-600 p-2 rounded-xl text-white shadow-lg transition-all">
-                    <Bot size={22}/>
+            <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-white p-1 flex items-center justify-center shrink-0">
+                    <img src={openanLogo} alt="OpenAN" className="w-full h-full object-contain"/>
                 </div>
-                <h1 className="text-lg font-black tracking-tighter antialiased text-zinc-900 dark:text-zinc-100">
-                    {t('nav.title')}
-                </h1>
+                <div className="flex flex-col">
+                    <span className="text-xl font-medium tracking-tight text-zinc-900 dark:text-zinc-100 leading-tight">
+                        Open<span className="text-blue-500">AN</span>
+                    </span>
+                    <span className="text-xs tracking-widest uppercase text-zinc-400 dark:text-zinc-500 leading-tight">
+                        Open Autonomous Networks
+                    </span>
+                </div>
             </div>
             <div
                 className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-inner">
