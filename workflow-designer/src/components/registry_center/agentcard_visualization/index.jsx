@@ -212,6 +212,20 @@ const AgentDashboard = ({ agent, isDark }) => {
                                                     </span>
                                                 ))}
                                             </div>
+                                            {(skill.examples || []).length > 0 && (
+                                                <details className="mt-3">
+                                                    <summary className={`text-xs cursor-pointer ${theme.textSecondary} hover:${theme.textPrimary}`}>
+                                                        {`示例 (${skill.examples.length})`}
+                                                    </summary>
+                                                    <div className={`mt-2 space-y-2 max-h-60 overflow-y-auto text-xs leading-relaxed font-mono whitespace-pre-wrap p-2 rounded ${isDark ? 'bg-zinc-900 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
+                                                        {skill.examples.map((example, i) => (
+                                                            <div key={i} className="pb-2 border-b last:border-b-0 last:pb-0 border-slate-200 dark:border-zinc-700">
+                                                                {example}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </details>
+                                            )}
                                         </div>
                                     );
                                 })}
