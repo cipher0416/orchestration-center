@@ -42,6 +42,7 @@ except ImportError:
 
 from common.llm import get_llm_instance
 from common.auth import get_auth_manager
+from common.auth.agent_credential_service import CustomAuthInterceptor
 from common.auth.extension_interceptor import ExtensionInterceptor
 from orchestrate.core.model.psop import PSOP, Step, StepType, Task, TaskStatus
 
@@ -94,8 +95,16 @@ class DynamicWorkflowEngine:
             if card.security_schemes and card.security_requirements:
                 cred_svc = auth_manager.get_service(card.name)
                 if cred_svc is not None:
-                    interceptors.append(AuthInterceptor(cred_svc))
-                    logger.info(f"Agent '{card.name}' configured with AuthInterceptor")
+                    agent_cfg = auth_manager.get_config(card.name) or {}
+                    if any(
+                        isinstance(v, dict) and v.get("auth_header")
+                        for v in agent_cfg.values()
+                    ):
+                        interceptors.append(CustomAuthInterceptor(cred_svc, agent_cfg))
+                        logger.info(f"Agent '{card.name}' configured with CustomAuthInterceptor")
+                    else:
+                        interceptors.append(AuthInterceptor(cred_svc))
+                        logger.info(f"Agent '{card.name}' configured with AuthInterceptor")
                 else:
                     logger.info(f"Agent '{card.name}' has security schemes but no credentials configured, auth disabled")
             if getattr(card, 'capabilities', None) and card.capabilities.extensions:

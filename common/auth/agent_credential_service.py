@@ -24,6 +24,7 @@ from typing import Dict, Optional
 import httpx
 from a2a.client.auth import CredentialService
 from a2a.client.auth import InMemoryContextCredentialStore as _SDKCredentialStore
+from a2a.client.interceptors import ClientCallInterceptor, BeforeArgs, AfterArgs
 from loguru import logger
 
 _CREDENTIAL_CONFIG_FILENAME = "agent_credentials.json"
@@ -99,6 +100,10 @@ class AgentCredentialService(CredentialService):
             )
             return None
 
+        method = scheme_cfg.get("method", "POST").upper()
+        content_type = scheme_cfg.get("content_type", "application/json")
+        token_field = scheme_cfg.get("token_field", "accessSession")
+
         request_fields = scheme_cfg.get("request_fields")
         if request_fields and isinstance(request_fields, dict):
             body = dict(request_fields)
@@ -119,9 +124,6 @@ class AgentCredentialService(CredentialService):
                 password_field: password,
             }
 
-        method = scheme_cfg.get("method", "POST").upper()
-        token_field = scheme_cfg.get("token_field", "accessSession")
-
         client = self._httpx_client
         if client is None:
             timeout_config = httpx.Timeout(connect=30, read=30, write=30, pool=5.0)
@@ -133,18 +135,20 @@ class AgentCredentialService(CredentialService):
         try:
             logger.info(
                 f"[AgentAuth] Logging in for agent '{self._agent_name}' "
-                f"[{method}] {login_url}"
+                f"[{method}] {login_url} content_type={content_type} "
+                f"params={_sanitize_body(body)}"
             )
-            resp = await client.request(
-                method,
-                login_url,
-                json=body,
-            )
+            req_kwargs: dict = {"method": method, "url": login_url}
+            if content_type == "application/x-www-form-urlencoded":
+                req_kwargs["data"] = body
+            else:
+                req_kwargs["json"] = body
+            resp = await client.request(**req_kwargs)
             resp.raise_for_status()
             data = resp.json()
 
             if isinstance(data, dict):
-                token = data.get(token_field)
+                token = self._extract_nested_value(data, token_field)
                 if not token:
                     token = data.get("accessSession") or data.get("access_session") or data.get("token")
             else:
@@ -169,6 +173,20 @@ class AgentCredentialService(CredentialService):
         finally:
             if own_client:
                 await client.aclose()
+
+    @staticmethod
+    def _extract_nested_value(data: dict, path: str) -> Optional[str]:
+        if not path:
+            return None
+        parts = path.split(".")
+        current = data
+        for part in parts:
+            if not isinstance(current, dict):
+                return None
+            current = current.get(part)
+            if current is None:
+                return None
+        return current
 
 
 class AgentAuthManager:
@@ -217,11 +235,83 @@ class AgentAuthManager:
         for svc in self._services.values():
             svc.set_httpx_client(client)
 
+    def get_config(self, agent_name: str) -> Optional[Dict[str, dict]]:
+        return self._config.get(agent_name)
+
     @classmethod
     def get_instance(cls) -> "AgentAuthManager":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+
+class CustomAuthInterceptor(ClientCallInterceptor):
+    """Auth interceptor that supports custom auth header names (e.g. fmind-auth).
+
+    Unlike the SDK's AuthInterceptor which hardcodes 'Authorization: Bearer'
+    for Bearer/OAuth schemes, this interceptor reads 'auth_header' and
+    'auth_header_prefix' from the per-scheme credential config to determine
+    the HTTP header name and format.
+    """
+
+    def __init__(
+        self,
+        credential_service: CredentialService,
+        scheme_configs: Dict[str, dict],
+    ):
+        self._credential_service = credential_service
+        self._scheme_configs = scheme_configs
+
+    async def before(self, args: BeforeArgs) -> None:
+        agent_card = args.agent_card
+
+        if not agent_card.security_requirements or not agent_card.security_schemes:
+            return
+
+        for requirement in agent_card.security_requirements:
+            for scheme_name in requirement.schemes:
+                scheme_cfg = self._scheme_configs.get(scheme_name, {})
+
+                credential = await self._credential_service.get_credentials(
+                    scheme_name, args.context
+                )
+                if not credential:
+                    continue
+
+                if args.context is None:
+                    from a2a.client.client import ClientCallContext
+                    args.context = ClientCallContext()
+                if args.context.service_parameters is None:
+                    args.context.service_parameters = {}
+
+                auth_header = scheme_cfg.get("auth_header")
+                if auth_header:
+                    prefix = scheme_cfg.get("auth_header_prefix", "")
+                    args.context.service_parameters[auth_header] = f"{prefix}{credential}"
+                    logger.debug(
+                        "[CustomAuth] Set header '%s' for scheme '%s'",
+                        auth_header, scheme_name,
+                    )
+                else:
+                    args.context.service_parameters["Authorization"] = f"Bearer {credential}"
+                    logger.debug(
+                        "[CustomAuth] Set Bearer header for scheme '%s'",
+                        scheme_name,
+                    )
+                return
+
+    async def after(self, args: AfterArgs) -> None:
+        pass
+
+
+def _sanitize_body(body: dict) -> dict:
+    sanitized = {}
+    for k, v in body.items():
+        if k.lower() in ("password", "value", "accesssession"):
+            sanitized[k] = "***"
+        else:
+            sanitized[k] = v
+    return sanitized
 
 
 def get_auth_manager() -> AgentAuthManager:

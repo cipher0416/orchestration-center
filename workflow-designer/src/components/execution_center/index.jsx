@@ -484,7 +484,8 @@ const ExecutionCenter = ({ isDark }) => {
     });
     const [showFilters, setShowFilters] = useState(false);
     const [availableTags, setAvailableTags] = useState([]);
-    const [showSummary, setShowSummary] = useState(true);
+    const [showSummary, setShowSummary] = useState(false);
+    const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
 
     // Save search mode to localStorage
     const handleSearchModeChange = useCallback((mode) => {
@@ -1095,31 +1096,49 @@ const ExecutionCenter = ({ isDark }) => {
             </div>
 
             <div className="flex-1 flex gap-6 min-h-0">
-                <div className={`w-[320px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 animate-in slide-in-from-left duration-500`}>
-                    <div className={`border-b shrink-0 ${theme.header}`}>
-                        <div className="flex">
-                            <button
-                                onClick={() => setActiveTab('match')}
-                                className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
-                                    ${activeTab === 'match' 
-                                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
-                                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-                            >
-                                <Search size={14} />
-                                {t('execution.match_tab')}
-                            </button>
-                            <button
-                                onClick={() => { setActiveTab('history'); loadHistoryRecords(); }}
-                                className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
-                                    ${activeTab === 'history' 
-                                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
-                                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-                            >
-                                <History size={14} />
-                                {t('execution.history_tab')}
-                            </button>
+                {isLeftPanelCollapsed ? (
+                    <button
+                        onClick={() => setIsLeftPanelCollapsed(false)}
+                        className={`shrink-0 w-10 rounded-[2rem] border flex items-center justify-center ${theme.panel} hover:shadow-lg transition-all`}
+                        title={t('execution.expand')}
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                ) : (
+                    <div className={`w-[320px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300`}>
+                        <div className={`border-b shrink-0 ${theme.header}`}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-1">
+                                    <button
+                                        onClick={() => setActiveTab('match')}
+                                        className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
+                                            ${activeTab === 'match' 
+                                                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
+                                                : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
+                                    >
+                                        <Search size={14} />
+                                        {t('execution.match_tab')}
+                                    </button>
+                                    <button
+                                        onClick={() => { setActiveTab('history'); loadHistoryRecords(); }}
+                                        className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
+                                            ${activeTab === 'history' 
+                                                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
+                                                : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
+                                    >
+                                        <History size={14} />
+                                        {t('execution.history_tab')}
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => setIsLeftPanelCollapsed(true)}
+                                    className="p-2 mr-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                    title={t('execution.collapse')}
+                                >
+                                    <PanelLeftClose size={14} className="text-zinc-400" />
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
                     {activeTab === 'match' && (
                         <div className={`flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar ${theme.content}`}>
@@ -1243,6 +1262,7 @@ const ExecutionCenter = ({ isDark }) => {
                         </div>
                     )}
                 </div>
+                )}
                 <div className={`flex-1 flex flex-col rounded-[2.5rem] border overflow-hidden relative ${theme.panel}`}>
                     <div className={`h-16 px-8 border-b flex justify-between items-center ${theme.header}`}>
                         <div className="flex items-center gap-3">
@@ -1326,7 +1346,7 @@ const ExecutionCenter = ({ isDark }) => {
                 )}
                 <div className={`rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300
                     ${isPanelExpanded 
-                        ? 'w-[65vw] fixed right-6 top-6 bottom-6 z-50 shadow-2xl' 
+                        ? 'w-[65vw] fixed right-6 top-28 bottom-6 z-50 shadow-2xl' 
                         : 'w-[450px]'}`}>
                     <div className={`h-16 px-8 border-b flex items-center justify-between shrink-0 ${theme.header}`}>
                         <div className="flex items-center gap-3">
