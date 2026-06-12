@@ -44,6 +44,7 @@ from samples.agents.spn_agent_city1 import SpnCity1AgentExecutor
 from samples.agents.spn_agent_city2 import SpnCity2AgentExecutor
 from samples.agents.uncertainty_agent import UncertaintySimulationAgentExecutor
 from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
+from samples.agents.workbench_platform_agent import WorkbenchPlatformAgentExecutor
 from common.a2at_config import ensure_env_file_exists
 
 
@@ -135,6 +136,7 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
         "SPN Fault Handling Agent City2 OMC": SpnCity2AgentExecutor,
         "Uncertainty Simulation Agent": UncertaintySimulationAgentExecutor,
         "SPN Domain Agent": SpnDomainAgentExecutor,
+        "Workbench Platform Agent": WorkbenchPlatformAgentExecutor,
     }
     agent_name = agent_card.name
     agent_class = agent2class.get(agent_name)

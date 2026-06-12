@@ -44,6 +44,19 @@ def _normalize_security_schemes(sec_schemes: Dict[str, Any]) -> Dict[str, Any]:
             http_auth = {"scheme": scheme["scheme"]}
             normalized[name] = {"httpAuthSecurityScheme": http_auth}
             continue
+        if scheme.get("type") == "apiKey":
+            api_key = {}
+            in_val = scheme.get("in")
+            if in_val:
+                api_key["location"] = in_val
+            name_val = scheme.get("name")
+            if name_val:
+                api_key["name"] = name_val
+            desc_val = scheme.get("description")
+            if desc_val:
+                api_key["description"] = desc_val
+            normalized[name] = {"apiKeySecurityScheme": api_key}
+            continue
         normalized[name] = scheme
     return normalized
 

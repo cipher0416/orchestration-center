@@ -1,0 +1,49 @@
+[{
+		"name": "Workbench Platform Agent",
+		"description": "Workbench Platform Agent (external agent card template — for reference only)",
+		"provider": {
+			"organization": "Huawei",
+			"url": "https://www.huawei.com"
+		},
+		"version": "1.0.0",
+		"capabilities": {
+			"streaming": true,
+			"pushNotifications": false,
+			"extendedAgentCard": false,
+			"extensions": []
+		},
+		"defaultInputModes": ["application/json",
+		"text/plain"],
+		"defaultOutputModes": ["application/json",
+		"text/plain"],
+		"skills": [{
+			"id": "workbench-diagnosis",
+			"name": "工作台故障诊断",
+			"description": "提供工作台平台故障诊断与根因分析能力",
+			"tags": ["工作台故障诊断"],
+			"examples": ["## Task Type\\n工作台故障诊断\\n## Task Description\\n对工作台平台的相关故障进行诊断分析，返回根因及修复建议。"],
+			"inputModes": ["application/json",
+			"text/plain"],
+			"outputModes": ["application/json",
+			"text/plain"]
+		}],
+		"securitySchemes": {
+			"bearerAuth": {
+				"scheme": "Bearer",
+				"description": "使用用户名和密码通过OAuth2 Password Grant接口获取access_token后，使用fmind-auth头部进行认证。"
+			}
+		},
+		"securityRequirements": [],
+		"supportedInterfaces": [{
+			"protocolBinding": "JSONRPC",
+			"url": "http://127.0.0.1:26336/a2a/v1",
+			"tenant": "",
+			"protocolVersion": "1.0"
+		},
+		{
+			"protocolBinding": "HTTP+JSON",
+			"url": "http://127.0.0.1:26336/a2a/json",
+			"tenant": "",
+			"protocolVersion": "1.0"
+		}]
+}]
