@@ -40,6 +40,63 @@ except ImportError:
     _A2AT_AVAILABLE = False
     A2ATClient = None
 
+# Temporarily disable a2a-t-sdk (negotiation / TASK-T prompt generation)
+_A2AT_AVAILABLE = False
+
+# SPN JSONRPC returns fields (e.g. "artifacts") outside the proto schema,
+# causing protobuf 6.x to reject the response. Force ignore_unknown_fields.
+# Also handles SPN JSONRPC non-standard response format (raw Task/event objects
+# instead of {"task": ...} / {"statusUpdate": ...} / {"artifactUpdate": ...} wrappers).
+# Also logs non-StreamResponse server errors (e.g. workbench business errors).
+import google.protobuf.json_format as _json_format
+_original_parse = _json_format.Parse
+
+_STREAM_RESPONSE_KEYS = frozenset({"task", "message", "statusUpdate", "artifactUpdate"})
+
+def _normalize_stream_response(data: dict) -> dict:
+    """Detect non-standard JSONRPC responses and wrap them for StreamResponse parsing."""
+    if _STREAM_RESPONSE_KEYS.intersection(data):
+        return data
+    if "id" in data and "status" in data:
+        return {"task": data}
+    if "artifact" in data and "taskId" in data:
+        return {"artifactUpdate": data}
+    if "status" in data and "taskId" in data:
+        return {"statusUpdate": data}
+    return data
+
+def _parse_with_unknown(text, message, ignore_unknown_fields=False, **kwargs):
+    from a2a.types.a2a_pb2 import StreamResponse
+    if isinstance(message, StreamResponse):
+        try:
+            import json as _json
+            data = _json.loads(text)
+            if isinstance(data, dict):
+                if not _STREAM_RESPONSE_KEYS.intersection(data):
+                    logger.warning(f"[A2A] Non-SSE response from server: {text[:2048]}")
+                data = _normalize_stream_response(data)
+                text = _json.dumps(data)
+        except Exception:
+            pass
+    return _original_parse(text, message, ignore_unknown_fields=True, **kwargs)
+
+_original_parse_dict = _json_format.ParseDict
+
+def _parse_dict_with_unknown(js, message, *args, **kwargs):
+    from a2a.types.a2a_pb2 import StreamResponse
+    if isinstance(message, StreamResponse) and isinstance(js, dict):
+        js = _normalize_stream_response(js)
+    kwargs.pop("ignore_unknown_fields", None)
+    args = list(args)
+    if args:
+        args[0] = True
+    else:
+        kwargs["ignore_unknown_fields"] = True
+    return _original_parse_dict(js, message, *args, **kwargs)
+
+_json_format.Parse = _parse_with_unknown
+_json_format.ParseDict = _parse_dict_with_unknown
+
 from common.llm import get_llm_instance
 from common.auth import get_auth_manager
 from common.auth.agent_credential_service import CustomAuthInterceptor
@@ -97,7 +154,9 @@ class DynamicWorkflowEngine:
                 if cred_svc is not None:
                     agent_cfg = auth_manager.get_config(card.name) or {}
                     if any(
-                        isinstance(v, dict) and v.get("auth_header")
+                        isinstance(v, dict) and (
+                            v.get("auth_header") or v.get("accept_header")
+                        )
                         for v in agent_cfg.values()
                     ):
                         interceptors.append(CustomAuthInterceptor(cred_svc, agent_cfg))
@@ -121,7 +180,17 @@ class DynamicWorkflowEngine:
     def _get_httpx_client(self) -> httpx.AsyncClient:
         if self._httpx_client is None:
             timeout_config = httpx.Timeout(connect=60, read=60, write=60, pool=10.0)
-            self._httpx_client = httpx.AsyncClient(timeout=timeout_config, verify=False, follow_redirects=True)
+
+            async def _log_request(request: httpx.Request):
+                logger.info(
+                    f"[HTTP] >>> {request.method} {request.url}  "
+                    f"headers={dict(request.headers)}"
+                )
+
+            self._httpx_client = httpx.AsyncClient(
+                timeout=timeout_config, verify=False, follow_redirects=True,
+                event_hooks={"request": [_log_request]},
+            )
             auth_manager = get_auth_manager()
             auth_manager.set_httpx_client(self._httpx_client)
         return self._httpx_client
@@ -316,7 +385,14 @@ class DynamicWorkflowEngine:
                 if iface.protocol_binding
             ] or ["HTTP+JSON", "JSONRPC"]
             selected_url = agent_card.supported_interfaces[0].url if agent_card.supported_interfaces else "N/A"
-            logger.info(f"Calling agent '{agent_name}' via {protocol_bindings[0] if protocol_bindings else 'unknown'} -> {selected_url}")
+            streaming = agent_card.capabilities.streaming if agent_card.capabilities else False
+            proto = protocol_bindings[0] if protocol_bindings else 'unknown'
+            if proto == "HTTP+JSON":
+                endpoint = "message:stream" if streaming else "message:send"
+                full_url = f"{selected_url}/{endpoint}"
+            else:
+                full_url = selected_url
+            logger.info(f"Calling agent '{agent_name}' via {proto} (streaming={streaming}) -> {full_url}")
             config = ClientConfig(
                 httpx_client=client,
                 supported_protocol_bindings=protocol_bindings,
@@ -327,18 +403,32 @@ class DynamicWorkflowEngine:
                 text=task_text,
                 context_id=self.execution_context_id,
             )
+
+            # ---- stub: inject custom metadata ----
+            from google.protobuf.struct_pb2 import Struct
+            custom_meta = {}
+            # TODO: fill your key-value pairs here
+            custom_meta["https://projects.tmforum.org/a2aproject/telecommunication/extensions/Task-T/v1"]= "## 任务类型(Task 断\\n## 任务描述(Task Description)\\n要求：提供任务的整体概述，基于<任务对象>、<任务上下文>进行投诉场景的网络侧故障根因诊断, 投诉诊断目标，按照<预期输出>中定义的结构返回任务处理结果。\\n## 任务目标(Task Target)\\n基于专线业务的故障现象，诊断并返回网络务对象(Task Object)\\n接入端口资源ID：f47ac10b-58cc-4372-a567-0e02b2c3d479\\n## 任务上下文(Task Context)\\n1.  故障场景：\"专生时间： \"2024-01-16T08: 21: 46Z\"\\n3.  OSS侧事件流水号： \"fault-id-1-017-20230511-09013\"\\n,## 预期输出(Expected Output)断结果类型，诊断结果详细信息，修复建议。\\n2.  诊断结果类型参数的取值范围包括：诊断成功、诊断失败、诊断未开始或者诊断未结束\\根因，每个故障根因包含故障根因的名称、详细描述、修复建议， 故障根因点所在资源对象的标识、类型，名称，详细位置等信息。\\n如果存每个故障根因中的详细描述和修复建议总结提炼到整体的诊断结果详细信息和修复建议。"
+
+            if custom_meta:
+                if not request_msg.HasField("metadata") or not request_msg.metadata.fields:
+                    request_msg.metadata.CopyFrom(Struct())
+                request_msg.metadata.update(custom_meta)
+                logger.info(f"[Metadata] Set custom metadata on message for agent '{agent_name}': {list(custom_meta.keys())}")
+            # ---- end stub ----
+
             if task_t_metadata and task_t_uri:
-                from google.protobuf.struct_pb2 import Struct
                 meta = Struct()
                 meta.update({task_t_uri: task_t_metadata})
                 request_msg.metadata.CopyFrom(meta)
                 logger.info(f"[A2AT] Set TASK-T metadata on message for agent '{agent_name}'")
             send_req = SendMessageRequest(message=request_msg)
-            send_req_json = MessageToJson(send_req, preserving_proto_field_name=True)
-            try:
-                req_payload = json.loads(send_req_json)
-            except (json.JSONDecodeError, TypeError):
-                req_payload = send_req_json
+            req_payload = json.loads(MessageToJson(send_req, preserving_proto_field_name=False))
+            logger.info(
+                f"[A2A] Sending to agent '{agent_name}': "
+                f"url={full_url}, "
+                f"body={json.dumps(req_payload, ensure_ascii=False)}"
+            )
             self._push_event("agent_request", {
                 "agent": agent_name,
                 "request": req_payload
@@ -352,7 +442,7 @@ class DynamicWorkflowEngine:
 
             async for response in client.send_message(send_req):
                 try:
-                    raw_resp = MessageToJson(response, preserving_proto_field_name=True)
+                    raw_resp = MessageToJson(response, preserving_proto_field_name=False)
                     resp_payload = json.loads(raw_resp) if raw_resp != "{}" else raw_resp
                 except Exception:
                     resp_payload = str(response)
